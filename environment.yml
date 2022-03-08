@@ -1,0 +1,17 @@
+name: multibind
+channels:
+ - conda-forge
+ - anaconda
+ - bioconda
+dependencies:
+ - python=3.6.3
+ - jupyterlab
+ - pandas
+ - scikit-learn
+ - statsmodels
+ - scipy
+ - logomaker
+ - pytorch
+ - numpy
+ - seaborn
+ - scanpy

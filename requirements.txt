@@ -1,0 +1,9 @@
+seaborn
+scikit-learn
+pandas
+unidecode
+matplotlib
+scipy
+numpy
+pytorch
+logomaker
