@@ -1,0 +1,636 @@
+{
+"metadata": {
+"timeStamp": "2021-05-22 07:14:02.872",
+"logLikelihoodPerRead": 2.0156413430087405,
+"logLikelihood": 751933.9567868841,
+"gradientCalls": 2572,
+"fitSteps": 2463,
+"regularization": 0.02071501962685406,
+"functionCalls": 0,
+"fitter": "proBound",
+"fitName": "component2-4-all",
+"fitTime": 3415.206,
+"dataLoops": 2572
+},
+"optimizerSetting": {
+"output": {
+"outputPath": "jobs/133d27f6506e",
+"baseName": "fit"
+},
+"nThreads": 20,
+"likelihoodThreshold": 0.0002,
+"lbfgsSettings": {
+"memory": 100,
+"convergence": 1e-7,
+"MCSearch": true,
+"maxIters": 500
+},
+"lambdaL2": 0.000001,
+"fixedLibrarySize": false,
+"expBound": 40,
+"nRetries": 3,
+"hkSettings": {
+"epsilon": 1e-7,
+"kickFinal": false,
+"fdDelta": 0.0001,
+"kickAll": false,
+"maxIters": 200,
+"evCutoff": 1e-9
+}
+},
+"modelSettings": {
+"enrichmentModel": [
+{
+"variationsOptimized": false,
+"bindingSaturation": false,
+"cumulativeEnrichment": true,
+"concentration": 1,
+"modelType": "SELEX",
+"bindingModeInteractions": [],
+"componentName": "SELEX enrichment model 0",
+"freezingLevel": 0,
+"includeComponent": true,
+"bindingModes": [
+0,
+1,
+2
+],
+"variationDescription": [],
+"modifications": []
+},
+{
+"variationsOptimized": false,
+"bindingSaturation": false,
+"cumulativeEnrichment": true,
+"concentration": 1,
+"modelType": "SELEX",
+"bindingModeInteractions": [],
+"componentName": "SELEX enrichment model 1",
+"freezingLevel": 0,
+"includeComponent": true,
+"bindingModes": [
+0,
+1,
+2
+],
+"variationDescription": [],
+"modifications": []
+}
+],
+"letterOrder": "ACGT",
+"countTable": [
+{
+"leftFlank": "ACACTCTTTCCCTACACGACGCTCTTCCGATCTTGACGTC",
+"variationsOptimized": true,
+"transliterate": {
+"in": [],
+"out": []
+},
+"variableRegionLength": 30,
+"countTableFile": "jobs/133d27f6506e/countTable.0.tsv.gz",
+"modeledColumns": [
+0,
+1
+],
+"inputFileType": "tsv.gz",
+"nColumns": 2,
+"rightFlank": "GACGTCAGATCGGAAGAGCTCGTATGCCGTCTTCTGCTTG",
+"componentName": "Count table 0",
+"freezingLevel": 0,
+"includeComponent": true,
+"variationDescription": []
+},
+{
+"leftFlank": "CGGAGTCGGCAAGCAGAAGACGGCATACGATAGC",
+"variationsOptimized": true,
+"transliterate": {
+"in": [],
+"out": []
+},
+"variableRegionLength": 20,
+"countTableFile": "jobs/133d27f6506e/countTable.1.tsv.gz",
+"modeledColumns": [
+0,
+1,
+2,
+3,
+4
+],
+"inputFileType": "tsv.gz",
+"nColumns": 5,
+"rightFlank": "TCGCTAGATCGGAAGAGCGTCG",
+"componentName": "Count table 1",
+"freezingLevel": 0,
+"includeComponent": true,
+"variationDescription": []
+}
+],
+"bindingModeInteractions": [],
+"bindingModes": [
+{
+"variationsOptimized": true,
+"fitLogActivity": true,
+"flankLength": 0,
+"singleStrand": true,
+"variationName": "1;0;0",
+"size": 1,
+"dinucleotideDistance": 0,
+"componentName": "Binding mode 0",
+"freezingLevel": 0,
+"positionBias": true,
+"includeComponent": true,
+"variationDescription": [
+{
+"variationName": "1;0;0",
+"descriptionString": "Initial model."
+}
+],
+"modifications": []
+},
+{
+"variationsOptimized": true,
+"fitLogActivity": true,
+"flankLength": 9,
+"singleStrand": false,
+"variationName": "18;9;4",
+"size": 18,
+"dinucleotideDistance": 0,
+"componentName": "Binding mode 1",
+"freezingLevel": 0,
+"positionBias": false,
+"includeComponent": true,
+"variationDescription": [
+{
+"variationName": "12;7;0",
+"descriptionString": "Increases flank length."
+},
+{
+"variationName": "18;9;4",
+"descriptionString": "Expands: deltaLeft = 1, deltaRight = 1, deltaFlank = 1."
+},
+{
+"variationName": "12;6;2",
+"descriptionString": "Heuristic shift (1)."
+},
+{
+"variationName": "12;6;1",
+"descriptionString": "Heuristic shift (1)."
+},
+{
+"variationName": "12;6;0",
+"descriptionString": "Increases flank length."
+},
+{
+"variationName": "16;8;3",
+"descriptionString": "Expands: deltaLeft = 1, deltaRight = 1, deltaFlank = 1."
+},
+{
+"variationName": "12;5;0",
+"descriptionString": "Initial model."
+},
+{
+"variationName": "14;7;2",
+"descriptionString": "Expands: deltaLeft = 1, deltaRight = 1, deltaFlank = 1."
+}
+],
+"modifications": []
+},
+{
+"variationsOptimized": true,
+"fitLogActivity": true,
+"flankLength": 5,
+"singleStrand": false,
+"variationName": "12;5;-1",
+"size": 12,
+"dinucleotideDistance": 0,
+"componentName": "Binding mode 2",
+"freezingLevel": 0,
+"positionBias": false,
+"includeComponent": true,
+"variationDescription": [
+{
+"variationName": "12;6;0",
+"descriptionString": "Increases flank length."
+},
+{
+"variationName": "12;5;0",
+"descriptionString": "Initial model."
+},
+{
+"variationName": "12;5;-1",
+"descriptionString": "Heuristic shift (-1)."
+}
+],
+"modifications": []
+}
+],
+"letterComplement": "C-G,A-T"
+},
+"coefficients": {
+"enrichmentModel": [
+{},
+{}
+],
+"countTable": [
+{
+"h": [
+0.6226779002448488,
+-0.6226779002447844
+]
+},
+{
+"h": [
+2.8590430525248376,
+1.2330697031857556,
+0.4377467941762813,
+-0.761212333647264,
+-3.7686472162157343
+]
+}
+],
+"bindingModeInteractions": [],
+"bindingModes": [
+{
+"mononucleotide": [
+-3.1819335784339664,
+-1.858634040442329,
+-3.9215518980015673,
+-2.17084570241289
+],
+"activity": [
+[
+-6.564048631908279e-10,
+-0.5874945497469082
+],
+[
+-6.188728216675764e-10,
+-1.5101792794218794,
+-2.4664941759885375,
+-2.9130938479792774,
+-3.655703369309318
+]
+],
+"dinucleotide": [],
+"positionBias": [
+[
+[
+-1.1988589475573532,
+-0.11089350636967453,
+-0.16452573167493303,
+-0.17301544041693562,
+0.8986173746708048,
+-0.30113235666958177,
+0.3582866466802093,
+0.3991398399514509,
+-0.061054919614289396,
+0.48184556470640616,
+-0.3061854259725705,
+0.5432824473889951,
+0.1551591541736561,
+0.6957440400491235,
+-0.6806496914938901,
+0.42876114584426683,
+-0.57631325316886,
+0.512761246885117,
+-0.08696961746905724,
+-0.0502896774250637,
+0.572500256617241,
+-1.4681763730726016,
+-0.050703496454067284,
+0.16778243961971923,
+0.10124792352874058,
+-0.3571022729480326,
+0.1312805881829934,
+-0.5715933510683928,
+-0.5056771787780129,
+0.6292651562444198
+],
+[
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0
+]
+],
+[
+[
+2.568989258151617,
+-1.8466144436004024,
+-1.8629625377818284,
+-1.063434479423223,
+-1.4455539595923945,
+0.744962388971545,
+-1.101997449865796,
+0.296253293134138,
+-0.25724884528185316,
+-1.5588308534728215,
+-1.7126627264658745,
+-1.715456630731023,
+-1.3794788188291016,
+-1.1650108959933467,
+0.7949393421133288,
+-1.0453040271296514,
+2.1081671007659293,
+-1.9255823748697714,
+-2.600306502959743,
+3.6218368768244074
+],
+[
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0
+]
+]
+],
+"modifications": []
+},
+{
+"mononucleotide": [
+-0.4239903603761832,
+-0.6499369245970659,
+-0.7221654355835779,
+-0.9134014705344705,
+-0.8511051179470566,
+-0.9348132978585234,
+0.2464810987987003,
+-1.1700540695122956,
+-0.46130654713571556,
+0.040218959392650806,
+-1.3071104584304953,
+-0.9812933388094519,
+-1.3682410563478775,
+-1.2301499201204857,
+0.8309273055268506,
+-0.9420277140401268,
+-1.0222346987927153,
+0.8288219759740387,
+-0.9507427746372112,
+-1.5653358875249765,
+-1.3766213840790646,
+1.4734035513119121,
+-1.5757333580386104,
+-1.230540194175994,
+-0.10433272410005234,
+0.3476097284959752,
+-1.3947599371417636,
+-1.5580084522349478,
+-1.351650938511101,
+0.841369960610168,
+-2.278546007955324,
+0.07933560088307683,
+-1.5114037019124056,
+1.6418656031077323,
+-1.6075849853757862,
+-1.2323683008015482,
+-1.1735514879688862,
+-1.0190457766907102,
+-1.3742512804447595,
+0.8573571601220376,
+0.11950247139111615,
+-1.4324942765439541,
+-0.5007670620976606,
+-0.8957325177320979,
+-1.6706113465276387,
+-0.5024531125616585,
+0.3170489874497671,
+-0.8534759133415962,
+-0.9096817200402629,
+-0.16641448955778423,
+-1.4612065336852134,
+-0.17218864169984174,
+-1.9964618962776832,
+-0.9898516586507414,
+1.0302263667635176,
+-0.7534041968138747,
+-0.9296954065699251,
+-1.4847138963793398,
+0.3924448237168152,
+-0.6875269057504846,
+-0.8672023746931493,
+-0.4485179709920415,
+-1.180767823513453,
+-0.21300321578527248,
+-0.7222097925274192,
+-0.35786607396128284,
+-0.6126399318052804,
+-1.0167755882269955,
+-0.41674124251711453,
+-0.9513721331310486,
+-0.4696925838576932,
+-0.8716882315855244
+],
+"activity": [
+[
+-1.1988491643854769e-15,
+1.1913829031946483
+],
+[
+-2.737161912478563e-15,
+-0.8056415750087973,
+-0.6137690167400609,
+-1.075392901742306,
+-1.406070794684543
+]
+],
+"dinucleotide": [],
+"modifications": []
+},
+{
+"mononucleotide": [
+-0.35835735836315247,
+-0.39999714672352477,
+-0.216012438109522,
+-0.34343474095094917,
+-0.28061918859778784,
+-0.48235177227672954,
+-0.3002584181325058,
+-0.25457230513975826,
+-0.25630445035774124,
+-0.38002324897644646,
+-0.19190681364981088,
+-0.4895671711669879,
+-0.23178884495484117,
+-0.4536284232198406,
+-0.23503947215877122,
+-0.3973449438127353,
+-0.05704838313552202,
+-0.9738542736498706,
+0.09367669042895226,
+-0.38057571779796273,
+-0.7189882512655812,
+0.001871285016785389,
+-0.9190541895423274,
+0.31836947163793494,
+0.4332874704004245,
+-0.7835701218997102,
+1.590556657009803,
+-2.558075689650476,
+-0.23412551754581287,
+-0.9862565294779099,
+0.02577648817233641,
+-0.12319612529397476,
+-0.4626770409812333,
+-0.5170347165301584,
+-0.28565180326321465,
+-0.05243812336956686,
+-0.19376073073284633,
+-0.30898793274630076,
+-0.16719397843299097,
+-0.6478590422345056,
+-0.39792117236404245,
+-0.35782812817357906,
+-0.11730193581075703,
+-0.4447504478022958,
+-0.291843783199096,
+-0.5256192675286858,
+0.0012494825555839817,
+-0.5013113197070888
+],
+"activity": [
+[
+-1.3614055369185352e-9,
+-2.349310443429073
+],
+[
+-1.3804490592004529e-9,
+0.5026916670477951,
+-0.48138559180237317,
+-0.3307431477958452,
+1.3409458231650806
+]
+],
+"dinucleotide": [],
+"modifications": []
+}
+]
+},
+"modelFittingConstraints": {
+"enrichmentModel": [
+{
+"trySaturation": false
+},
+{
+"trySaturation": false
+}
+],
+"countTable": [
+{}
+],
+"bindingModes": [
+{
+"maxFlankLength": -1,
+"positionBiasBinWidth": 1,
+"optimizeSizeHeuristic": false,
+"maxSize": -1,
+"optimizeFlankLength": false,
+"symmetryString": "null",
+"roundSpecificActivity": true,
+"informationThreshold": 0.1,
+"optimizeMotifShift": false,
+"fittingStages": [],
+"optimizeMotifShiftHeuristic": false,
+"experimentSpecificPositionBias": true,
+"minSize": -1,
+"experimentSpecificActivity": true,
+"optimizeSize": false
+},
+{
+"maxFlankLength": -1,
+"positionBiasBinWidth": 1,
+"optimizeSizeHeuristic": true,
+"maxSize": 18,
+"optimizeFlankLength": false,
+"symmetryString": "null",
+"roundSpecificActivity": true,
+"informationThreshold": 0.1,
+"optimizeMotifShift": false,
+"fittingStages": [
+{
+"optimizeFlankLength": true
+},
+{
+"optimizeMotifShiftHeuristic": true
+},
+{
+"optimizeSizeHeuristic": true
+}
+],
+"optimizeMotifShiftHeuristic": false,
+"experimentSpecificPositionBias": true,
+"minSize": -1,
+"experimentSpecificActivity": true,
+"optimizeSize": false
+},
+{
+"maxFlankLength": -1,
+"positionBiasBinWidth": 1,
+"optimizeSizeHeuristic": true,
+"maxSize": 18,
+"optimizeFlankLength": false,
+"symmetryString": "null",
+"roundSpecificActivity": true,
+"informationThreshold": 0.1,
+"optimizeMotifShift": false,
+"fittingStages": [
+{
+"optimizeFlankLength": true
+},
+{
+"optimizeMotifShiftHeuristic": true
+},
+{
+"optimizeSizeHeuristic": true
+}
+],
+"optimizeMotifShiftHeuristic": false,
+"experimentSpecificPositionBias": true,
+"minSize": -1,
+"experimentSpecificActivity": true,
+"optimizeSize": false
+}
+]
+}
+}
