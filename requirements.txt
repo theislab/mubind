@@ -5,5 +5,5 @@ unidecode
 matplotlib
 scipy
 numpy
-pytorch
+torch
 logomaker
