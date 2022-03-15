@@ -6,13 +6,13 @@ long_description = Path("README.md").read_text("utf-8")
 
 setup(
     name="Multibind",
-    version=__version__,
+    # version=__version__,
     description="Multibind",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="",
-    author=__author__,
-    author_email=__email__,
+    # author=__author__,
+    # author_email=__email__,
     license="GNU",
     packages=find_packages(),
     zip_safe=False,
