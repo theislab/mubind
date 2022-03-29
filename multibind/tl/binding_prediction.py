@@ -8,6 +8,7 @@ import torch.nn as tnn
 import torch.nn.functional as tfunc
 import torch.optim as topti
 import logomaker
+import seaborn as sns
 import multibind as mb
 
 
@@ -42,7 +43,7 @@ class SelexDataset(tdata.Dataset):
 # Class for reading training/testing ChIPSeq dataset files.
 class ChipSeqDataset(tdata.Dataset):
     def __init__(self, data_frame):
-        self.target = data_frame['target']
+        self.target = data_frame['target'].astype(np.float32)
         # self.rounds = self.data[[0, 1]].to_numpy()
         self.le = LabelEncoder()
         self.oe = OneHotEncoder(sparse=False)
@@ -68,8 +69,8 @@ class Network(tnn.Module):
         self.conv = tnn.Conv2d(1, 1, kernel_size=(4, 8), bias=True)
         # self.fc = tnn.Linear(97, 1, bias=False)
         # self.fc.weight = tnn.Parameter(self.fc.weight + 1)
-        # self.log_weight = tnn.Parameter(torch.Tensor(1, 96))
-        # tnn.init.xavier_uniform_(self.log_weight)
+        self.log_weight = tnn.Parameter(torch.Tensor(1, 1))
+        tnn.init.xavier_uniform_(self.log_weight)
         # self.non_spec = tnn.Parameter(torch.Tensor(1, 1))
         # tnn.init.xavier_uniform_(self.non_spec)
 
@@ -84,8 +85,41 @@ class Network(tnn.Module):
         # x = self.fc(x)
         # x = tfunc.linear(x, weight=self.log_weight.exp(), bias=self.non_spec)
         x = torch.sum(x, axis=1)
+        x = x*torch.exp(self.log_weight)
         x = torch.sigmoid(x)
         # x = torch.tanh(x)
+        x = x.view(-1)  # Flatten tensor.
+        return x
+
+
+# Class for creating the neural network.
+class Network_PB(tnn.Module):
+    def __init__(self):
+        super(Network_PB, self).__init__()
+        # Create and initialise weights and biases for the layers.
+        self.conv = tnn.Conv2d(1, 1, kernel_size=(4, 8), bias=True)
+        # self.bn = tnn.BatchNorm1d(193)
+        # self.fc = tnn.Linear(97, 1, bias=False)
+        # self.fc.weight = tnn.Parameter(self.fc.weight + 1)
+        self.log_weight_1 = tnn.Parameter(torch.tensor(np.array([[-2.0]]).astype(np.float32)))
+        self.log_weight_2 = tnn.Parameter(torch.tensor(np.array([[-2.0]]).astype(np.float32)))
+        # self.non_spec = tnn.Parameter(torch.tensor(np.array([[0.0]]).astype(np.float32)))
+        # tnn.init.xavier_uniform_(self.log_weight)
+        # self.non_spec = tnn.Parameter(torch.Tensor(1, 1))
+        # tnn.init.xavier_uniform_(self.non_spec)
+
+    def forward(self, x):
+        # Create the forward pass through the network.
+        x = torch.unsqueeze(x, 1)
+        x = self.conv(x)
+        x = x*torch.exp(self.log_weight_1)
+        x = torch.exp(-x)
+        x = x.view(x.shape[0], -1)  # Flatten tensor.
+        # x = self.fc(x)
+        # x = tfunc.linear(x, weight=self.log_weight.exp(), bias=self.non_spec)
+        x = torch.sum(x, axis=1)
+        x = x*torch.exp(self.log_weight_2)
+        x = x / (1 + x)
         x = x.view(-1)  # Flatten tensor.
         return x
 
@@ -109,6 +143,14 @@ class CustomLoss(tnn.Module):
             rounds = rounds + 0.1
         f = inputs*rounds[:, 0]
         return -torch.sum(rounds[:, 1]*torch.log(f+0.0001) - f)
+
+
+def create_heatmap(net):
+    weights = net.conv.weight
+    weights = weights.squeeze().cpu().detach().numpy()
+    weights = pd.DataFrame(weights)
+    weights.index = 'A', 'C', 'G', 'T'
+    sns.heatmap(weights, cmap='Reds', vmin=0)
 
 
 def create_logo(net):
@@ -159,6 +201,7 @@ def test_network(net, test_dataloader, device):
 
 
 def train_network(net, train_dataloader, device, optimiser, criterion, num_epochs=15):
+    loss_history = []
     for epoch in range(num_epochs):
         running_loss = 0
         for i, batch in enumerate(train_dataloader):
@@ -173,6 +216,8 @@ def train_network(net, train_dataloader, device, optimiser, criterion, num_epoch
 
             running_loss += loss.item()
         print("Epoch: %2d, Loss: %.3f" % (epoch + 1, running_loss / len(train_dataloader)))
+        loss_history.append(running_loss / len(train_dataloader))
+    return loss_history
 
 
 def create_simulated_data():
