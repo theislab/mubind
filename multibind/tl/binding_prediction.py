@@ -5,18 +5,22 @@ from sklearn.preprocessing import OneHotEncoder
 import torch
 import torch.utils.data as tdata
 import torch.nn as tnn
-import torch.nn.functional as tfunc
-import torch.optim as topti
-import logomaker
-import seaborn as sns
 import multibind as mb
 
 
-def _onehot(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
+def _onehot_mononuc(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
     seq_arr = np.array(list(seq + 'ACGT'))
     seq_int = label_encoder.fit_transform(seq_arr)
     pre_onehot = onehot_encoder.fit_transform(seq_int.reshape(-1, 1))
     return pre_onehot.T[:, :-4].astype(np.float32)
+
+
+def _onehot_dinuc(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
+    extended_seq = seq + 'AACAGATCCGCTGGTTA'  # The added string contains each possible dinucleotide feature once
+    dinuc_arr = np.array([extended_seq[i:i+2] for i in range(len(extended_seq) - 1)])
+    seq_int = label_encoder.fit_transform(dinuc_arr)
+    pre_onehot = onehot_encoder.fit_transform(seq_int.reshape(-1, 1))
+    return pre_onehot.T[:, :-17].astype(np.float32)
 
 
 # Class for reading training/testing SELEX dataset files.
@@ -27,13 +31,13 @@ class SelexDataset(tdata.Dataset):
         self.le = LabelEncoder()
         self.oe = OneHotEncoder(sparse=False)
         self.length = len(data_frame)
-        self.inputs = np.array([_onehot(row['seq'], self.le, self.oe) for index, row in data_frame.iterrows()])
+        self.inputs = np.array([_onehot_mononuc(row['seq'], self.le, self.oe) for index, row in data_frame.iterrows()])
 
     def __getitem__(self, index):
         # Return a single input/label pair from the dataset.
         input_sample = self.inputs[index]
         target_sample = self.target[index]
-        sample = {"input": input_sample, "target": target_sample}
+        sample = {"mononuc": input_sample, "target": target_sample}
         return sample
 
     def __len__(self):
@@ -42,86 +46,30 @@ class SelexDataset(tdata.Dataset):
 
 # Class for reading training/testing ChIPSeq dataset files.
 class ChipSeqDataset(tdata.Dataset):
-    def __init__(self, data_frame):
+    def __init__(self, data_frame, use_dinuc=False):
+        self.use_dinuc = use_dinuc
         self.target = data_frame['target'].astype(np.float32)
         # self.rounds = self.data[[0, 1]].to_numpy()
         self.le = LabelEncoder()
         self.oe = OneHotEncoder(sparse=False)
         self.length = len(data_frame)
-        self.inputs = np.array([_onehot(row['seq'], self.le, self.oe) for index, row in data_frame.iterrows()])
+        self.mononuc = np.array([_onehot_mononuc(row['seq'], self.le, self.oe) for index, row in data_frame.iterrows()])
+        if self.use_dinuc:
+            self.dinuc = np.array([_onehot_dinuc(row['seq'], self.le, self.oe) for index, row in data_frame.iterrows()])
 
     def __getitem__(self, index):
         # Return a single input/label pair from the dataset.
-        input_sample = self.inputs[index]
+        mononuc_sample = self.mononuc[index]
         target_sample = self.target[index]
-        sample = {"input": input_sample, "target": target_sample}
+        if self.use_dinuc:
+            dinuc_sample = self.dinuc[index]
+            sample = {"mononuc": mononuc_sample, "dinuc": dinuc_sample, "target": target_sample}
+        else:
+            sample = {"mononuc": mononuc_sample, "target": target_sample}
         return sample
 
     def __len__(self):
         return self.length
-
-
-# Class for creating the neural network.
-class Network(tnn.Module):
-    def __init__(self):
-        super(Network, self).__init__()
-        # Create and initialise weights and biases for the layers.
-        self.conv = tnn.Conv2d(1, 1, kernel_size=(4, 8), bias=True)
-        # self.fc = tnn.Linear(97, 1, bias=False)
-        # self.fc.weight = tnn.Parameter(self.fc.weight + 1)
-        self.log_weight = tnn.Parameter(torch.Tensor(1, 1))
-        tnn.init.xavier_uniform_(self.log_weight)
-        # self.non_spec = tnn.Parameter(torch.Tensor(1, 1))
-        # tnn.init.xavier_uniform_(self.non_spec)
-
-    def forward(self, x):
-        # Create the forward pass through the network.
-        x = torch.unsqueeze(x, 1)
-        x = self.conv(x)
-        # x = tfunc.leaky_relu(x, 0.1)
-        # x = tfunc.dropout(x, 0.2)
-        # x = torch.exp(-x)
-        x = x.view(x.shape[0], -1)  # Flatten tensor.
-        # x = self.fc(x)
-        # x = tfunc.linear(x, weight=self.log_weight.exp(), bias=self.non_spec)
-        x = torch.sum(x, axis=1)
-        x = x*torch.exp(self.log_weight)
-        x = torch.sigmoid(x)
-        # x = torch.tanh(x)
-        x = x.view(-1)  # Flatten tensor.
-        return x
-
-
-# Class for creating the neural network.
-class Network_PB(tnn.Module):
-    def __init__(self):
-        super(Network_PB, self).__init__()
-        # Create and initialise weights and biases for the layers.
-        self.conv = tnn.Conv2d(1, 1, kernel_size=(4, 8), bias=True)
-        # self.bn = tnn.BatchNorm1d(193)
-        # self.fc = tnn.Linear(97, 1, bias=False)
-        # self.fc.weight = tnn.Parameter(self.fc.weight + 1)
-        self.log_weight_1 = tnn.Parameter(torch.tensor(np.array([[-2.0]]).astype(np.float32)))
-        self.log_weight_2 = tnn.Parameter(torch.tensor(np.array([[-2.0]]).astype(np.float32)))
-        # self.non_spec = tnn.Parameter(torch.tensor(np.array([[0.0]]).astype(np.float32)))
-        # tnn.init.xavier_uniform_(self.log_weight)
-        # self.non_spec = tnn.Parameter(torch.Tensor(1, 1))
-        # tnn.init.xavier_uniform_(self.non_spec)
-
-    def forward(self, x):
-        # Create the forward pass through the network.
-        x = torch.unsqueeze(x, 1)
-        x = self.conv(x)
-        x = x*torch.exp(self.log_weight_1)
-        x = torch.exp(-x)
-        x = x.view(x.shape[0], -1)  # Flatten tensor.
-        # x = self.fc(x)
-        # x = tfunc.linear(x, weight=self.log_weight.exp(), bias=self.non_spec)
-        x = torch.sum(x, axis=1)
-        x = x*torch.exp(self.log_weight_2)
-        x = x / (1 + x)
-        x = x.view(-1)  # Flatten tensor.
-        return x
 
 
 # (negative) Log-likelihood of the Poisson distribution
@@ -143,22 +91,6 @@ class CustomLoss(tnn.Module):
             rounds = rounds + 0.1
         f = inputs*rounds[:, 0]
         return -torch.sum(rounds[:, 1]*torch.log(f+0.0001) - f)
-
-
-def create_heatmap(net):
-    weights = net.conv.weight
-    weights = weights.squeeze().cpu().detach().numpy()
-    weights = pd.DataFrame(weights)
-    weights.index = 'A', 'C', 'G', 'T'
-    sns.heatmap(weights, cmap='Reds', vmin=0)
-
-
-def create_logo(net):
-    weights = net.conv.weight
-    weights = weights.squeeze().cpu().detach().numpy()
-    weights = pd.DataFrame(weights)
-    weights.index = 'A', 'C', 'G', 'T'
-    crp_logo = logomaker.Logo(weights.T, shade_below=.5, fade_below=.5)
 
 
 def _calculate_enrichment(data, approx=True):
@@ -193,7 +125,12 @@ def test_network(net, test_dataloader, device):
     with torch.no_grad():  # we don't need gradients in the testing phase
         for i, batch in enumerate(test_dataloader):
             # Get a batch and potentially send it to GPU memory.
-            inputs, target = batch["input"].to(device), batch["target"].to(device)
+            # inputs, target = batch["input"].to(device), batch["target"].to(device)
+            if "dinuc" in batch:
+                mononuc, dinuc, target = batch["mononuc"].to(device), batch["dinuc"].to(device), batch["target"].to(device)
+                inputs = (mononuc, dinuc)
+            else:
+                inputs, target = batch["mononuc"].to(device), batch["target"].to(device)
             output = net(inputs)
             all_outputs.append(output.squeeze().cpu().detach().numpy())
             all_targets.append(target)
@@ -206,14 +143,17 @@ def train_network(net, train_dataloader, device, optimiser, criterion, num_epoch
         running_loss = 0
         for i, batch in enumerate(train_dataloader):
             # Get a batch and potentially send it to GPU memory.
-            inputs, target = batch["input"].to(device), batch["target"].to(device)
+            if "dinuc" in batch:
+                mononuc, dinuc, target = batch["mononuc"].to(device), batch["dinuc"].to(device), batch["target"].to(device)
+                inputs = (mononuc, dinuc)
+            else:
+                inputs, target = batch["mononuc"].to(device), batch["target"].to(device)
             optimiser.zero_grad()  # PyTorch calculates gradients by accumulating contributions to them (useful for
             # RNNs).  Hence we must manully set them to zero before calculating them.
             outputs = net(inputs)  # Forward pass through the network.
             loss = criterion(outputs, target)
             loss.backward()  # Calculate gradients.
             optimiser.step()  # Step to minimise the loss according to the gradient.
-
             running_loss += loss.item()
         print("Epoch: %2d, Loss: %.3f" % (epoch + 1, running_loss / len(train_dataloader)))
         loss_history.append(running_loss / len(train_dataloader))
