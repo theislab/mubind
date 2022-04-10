@@ -1,4 +1,3 @@
 
 
-from multibind.models.models import Mono, Dinuc
-
+from multibind.models.models import Mono, Dinuc, DinucMulti

@@ -14,14 +14,12 @@ def _onehot_mononuc(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEnco
     pre_onehot = onehot_encoder.fit_transform(seq_int.reshape(-1, 1))
     return pre_onehot.T[:, :-4].astype(np.float32)
 
-
 def _onehot_dinuc(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
     extended_seq = seq + 'AACAGATCCGCTGGTTA'  # The added string contains each possible dinucleotide feature once
     dinuc_arr = np.array([extended_seq[i:i+2] for i in range(len(extended_seq) - 1)])
     seq_int = label_encoder.fit_transform(dinuc_arr)
     pre_onehot = onehot_encoder.fit_transform(seq_int.reshape(-1, 1))
     return pre_onehot.T[:, :-17].astype(np.float32)
-
 
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
@@ -46,26 +44,23 @@ class SelexDataset(tdata.Dataset):
 
 # Class for reading training/testing ChIPSeq dataset files.
 class ChipSeqDataset(tdata.Dataset):
-    def __init__(self, data_frame, use_dinuc=False):
-        self.use_dinuc = use_dinuc
+    def __init__(self, data_frame, use_dinuc=False, batch=None):
+        self.batch = batch
         self.target = data_frame['target'].astype(np.float32)
         # self.rounds = self.data[[0, 1]].to_numpy()
         self.le = LabelEncoder()
         self.oe = OneHotEncoder(sparse=False)
         self.length = len(data_frame)
         self.mononuc = np.array([_onehot_mononuc(row['seq'], self.le, self.oe) for index, row in data_frame.iterrows()])
-        if self.use_dinuc:
-            self.dinuc = np.array([_onehot_dinuc(row['seq'], self.le, self.oe) for index, row in data_frame.iterrows()])
+        self.dinuc = np.array([_onehot_dinuc(row['seq'], self.le, self.oe) for index, row in data_frame.iterrows()])
 
     def __getitem__(self, index):
         # Return a single input/label pair from the dataset.
         mononuc_sample = self.mononuc[index]
         target_sample = self.target[index]
-        if self.use_dinuc:
-            dinuc_sample = self.dinuc[index]
-            sample = {"mononuc": mononuc_sample, "dinuc": dinuc_sample, "target": target_sample}
-        else:
-            sample = {"mononuc": mononuc_sample, "target": target_sample}
+        batch = self.batch[index]
+        dinuc_sample = self.dinuc[index]
+        sample = {"mononuc": mononuc_sample, "dinuc": dinuc_sample, "target": target_sample, "batch": batch}
         return sample
 
     def __len__(self):
@@ -126,28 +121,31 @@ def test_network(net, test_dataloader, device):
         for i, batch in enumerate(test_dataloader):
             # Get a batch and potentially send it to GPU memory.
             # inputs, target = batch["input"].to(device), batch["target"].to(device)
-            if "dinuc" in batch:
-                mononuc, dinuc, target = batch["mononuc"].to(device), batch["dinuc"].to(device), batch["target"].to(device)
-                inputs = (mononuc, dinuc)
-            else:
-                inputs, target = batch["mononuc"].to(device), batch["target"].to(device)
+            mononuc = batch["mononuc"].to(device)
+            dinuc = batch["dinuc"].to(device) if 'dinuc' in batch else None
+            b = batch['batch'].to(device)
+            target = batch["target"].to(device)
+            inputs = (mononuc, dinuc, b, target)
             output = net(inputs)
+            
             all_outputs.append(output.squeeze().cpu().detach().numpy())
             all_targets.append(target)
     return np.array(all_targets), np.array(all_outputs)
 
 
-def train_network(net, train_dataloader, device, optimiser, criterion, num_epochs=15):
+def train_network(net, train_dataloader, device, optimiser, criterion, num_epochs=15, log_each=None):
     loss_history = []
     for epoch in range(num_epochs):
         running_loss = 0
         for i, batch in enumerate(train_dataloader):
             # Get a batch and potentially send it to GPU memory.
-            if "dinuc" in batch:
-                mononuc, dinuc, target = batch["mononuc"].to(device), batch["dinuc"].to(device), batch["target"].to(device)
-                inputs = (mononuc, dinuc)
-            else:
-                inputs, target = batch["mononuc"].to(device), batch["target"].to(device)
+            # print(batch.keys())
+            mononuc = batch["mononuc"].to(device)
+            dinuc = batch["dinuc"].to(device) if 'dinuc' in batch else None
+            b = batch['batch'].to(device)
+            target = batch["target"].to(device)
+            inputs = (mononuc, dinuc, b, target)
+            
             optimiser.zero_grad()  # PyTorch calculates gradients by accumulating contributions to them (useful for
             # RNNs).  Hence we must manully set them to zero before calculating them.
             outputs = net(inputs)  # Forward pass through the network.
@@ -155,19 +153,19 @@ def train_network(net, train_dataloader, device, optimiser, criterion, num_epoch
             loss.backward()  # Calculate gradients.
             optimiser.step()  # Step to minimise the loss according to the gradient.
             running_loss += loss.item()
-        print("Epoch: %2d, Loss: %.3f" % (epoch + 1, running_loss / len(train_dataloader)))
+        if log_each is None or (epoch % log_each == 0):
+            print("Epoch: %2d, Loss: %.3f" % (epoch + 1, running_loss / len(train_dataloader)))
+
+        # print("Epoch: %2d, Loss: %.3f" % (epoch + 1, running_loss / len(train_dataloader)))
         loss_history.append(running_loss / len(train_dataloader))
+    
     return loss_history
 
 
-def create_simulated_data():
-    # motif = 'AGGAACCTA'
-    motif = 'GATA'
-    # SELEX
-    x1, y1 = mb.datasets.simulate_xy(motif, n_trials=20000, seqlen=20, max_mismatches=5)
-    # ChIP-seq
-    x2, y2 = mb.datasets.simulate_xy(motif, n_trials=20000, seqlen=100, max_mismatches=-1)
+def create_simulated_data(motif='GATA', batch=None, n_trials=20000, seqlen=100, multiplier=10):
+    x2, y2 = mb.datasets.simulate_xy(motif, n_trials=n_trials, seqlen=seqlen, max_mismatches=-1, batch=multiplier)
     y2 = ((y2 - y2.min()) / (np.max(y2) - np.min(y2))).astype(np.float32)
+    
     # data = pd.DataFrame({'seq': x1, 'enr_approx': y1})
     data = pd.DataFrame({'seq': x2, 'target': y2})
     # divide in train and test data -- copied from above, organize differently!
@@ -177,7 +175,10 @@ def create_simulated_data():
     train_dataframe.index = range(len(train_dataframe))
     # create datasets and dataloaders
     train_data = ChipSeqDataset(data_frame=train_dataframe)
+    train_data.batch = np.repeat(batch, len(train_dataframe.index))
+    
     train_loader = tdata.DataLoader(dataset=train_data, batch_size=256, shuffle=True)
     test_data = ChipSeqDataset(data_frame=test_dataframe)
+    test_data.batch = np.repeat(batch, len(test_dataframe.index))
     test_loader = tdata.DataLoader(dataset=test_data, batch_size=1, shuffle=False)
     return train_loader, test_loader
