@@ -36,11 +36,12 @@ def _onehot_mononuc_with_gaps(seq, label_encoder=LabelEncoder(), onehot_encoder=
 
 def _onehot_dinuc_with_gaps(seq):
     r = 2
-    index = [''.join(c) for c in itertools.product('ACTG', repeat=r)]
-    m = pd.DataFrame(index=index)
+    index = np.array([''.join(c) for c in itertools.product('ACTG', repeat=r)])
+    m = np.zeros([len(index), len(seq) - r + 1]) # pd.DataFrame(index=index)
+    # print(m.shape)
     for i in range(len(seq) - r + 1):
         di = seq[i: i + 2]
-        m[i] = np.where(di == m.index, 1, 0)
+        m[:, i] = np.where(di == index, 1, 0)
     return np.array(m)
 
 # Class for reading training/testing SELEX dataset files.
@@ -112,6 +113,7 @@ class MultiDataset(tdata.Dataset):
         self.mononuc = np.array([_onehot_mononuc_with_gaps(row['seq'], self.le, self.oe) for index, row in data_frame.iterrows()])
         print('prepare dinuc feats...')
         self.dinuc = np.array([_onehot_dinuc_with_gaps(row['seq']) for index, row in data_frame.iterrows()])
+        self.is_count_data = data_frame['is_count_data'].astype(int)
 
     def __getitem__(self, index):
         # Return a single input/label pair from the dataset.
@@ -122,7 +124,9 @@ class MultiDataset(tdata.Dataset):
         # print(self.batch.shape)
         batch = self.batch[index]
         dinuc_sample = self.dinuc[index]
-        sample = {"mononuc": mononuc_sample, "dinuc": dinuc_sample, "target": target_sample, "batch": batch}
+        is_count_data = self.is_count_data[index]
+        sample = {"mononuc": mononuc_sample, "dinuc": dinuc_sample,
+                  "target": target_sample, "batch": batch, "is_count_data": is_count_data}
         return sample
 
     def __len__(self):
@@ -136,6 +140,41 @@ class PoissonLoss(tnn.Module):
 
     def forward(self, inputs, targets):
         return torch.mean(inputs - targets*torch.log(inputs))
+
+    
+# (negative) Log-likelihood of the Poisson distribution
+class MultiDatasetLoss(tnn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, inputs, targets, is_count_data):
+        
+        a, b = inputs[is_count_data == 1], inputs[is_count_data == 0]        
+        # print(a.shape, b.shape)
+        
+        
+        # print('poisson')
+        loss = 0.0
+        
+        # add poisson loss
+        if a.shape[0] > 0:
+            loss += torch.mean(targets[is_count_data == 1] - a*torch.log(targets[is_count_data == 1]))
+
+        # print('BCE')
+        # print(b)
+        # print(b.shape)
+        # print(targets[is_count_data == 0])
+        # print(targets[is_count_data == 0].shape)
+
+        m = torch.nn.Sigmoid()
+        bce = torch.nn.BCELoss()
+        bce_loss = bce(m(b), targets[is_count_data == 0])
+        if b.shape[0] > 0:
+            loss += bce_loss
+        
+        # print(poisson_loss, bce_loss)
+        return loss
+        # assert False
 
 
 # Custom loss function
@@ -187,6 +226,8 @@ def test_network(net, test_dataloader, device):
             dinuc = batch["dinuc"].to(device) if 'dinuc' in batch else None
             b = batch['batch'].to(device)
             target = batch["target"].to(device)
+            
+            
             inputs = (mononuc, dinuc, b, target)
             output = net(inputs)
             
@@ -202,16 +243,24 @@ def train_network(net, train_dataloader, device, optimiser, criterion, num_epoch
         for i, batch in enumerate(train_dataloader):
             # Get a batch and potentially send it to GPU memory.
             # print(batch.keys())
-            mononuc = batch["mononuc"].to(device)
-            dinuc = batch["dinuc"].to(device) if 'dinuc' in batch else None
+            mononuc = batch["mononuc"].type(torch.LongTensor).to(device)
+            dinuc = batch["dinuc"].type(torch.LongTensor).to(device) if 'dinuc' in batch else None
             b = batch['batch'].to(device)
             target = batch["target"].to(device)
-            inputs = (mononuc, dinuc, b, target)
+            is_count_data = batch['is_count_data']
             
+            # print('mono', type(mononuc))
+            # print('dinuc', type(dinuc))
+            # print('batch', type(b))
+            
+            inputs = (mononuc, dinuc, b, target)
             optimiser.zero_grad()  # PyTorch calculates gradients by accumulating contributions to them (useful for
             # RNNs).  Hence we must manully set them to zero before calculating them.
             outputs = net(inputs)  # Forward pass through the network.
-            loss = criterion(outputs, target)
+            loss = criterion(outputs, target, is_count_data)
+            # print('here...')
+            # print(loss)
+            # assert False
             loss.backward()  # Calculate gradients.
             optimiser.step()  # Step to minimise the loss according to the gradient.
             running_loss += loss.item()
@@ -282,12 +331,13 @@ def create_multi_data(n_chip=100, n_selex=100):
     # chip seq
     x_chip, y_chip = mb.datasets.gata_remap(n_sample=n_chip)
     df_chip = pd.DataFrame({'seq': x_chip, 'target': y_chip})
+    df_chip['is_count_data'] = np.repeat(0, df_chip.shape[0])
 
     # selex
-    n_selex = 100
-    seqlen=20
-    x_selex, y_selex = mb.datasets.simulate_xy('GATA', n_trials=n_selex, seqlen=seqlen, max_mismatches=-1, batch=1)
+    seqlen = 20
+    x_selex, y_selex = mb.datasets.simulate_xy('GATA', n_trials=n_selex, seqlen=seqlen, max_mismatches=-1, batch=100)
     df_selex = pd.DataFrame({'seq': x_selex, 'target': y_selex})
+    df_selex['is_count_data'] = np.repeat(1, df_selex.shape[0])
     datasets = [df_chip, df_selex]
     data = pd.concat(datasets)
     
@@ -310,6 +360,8 @@ def create_multi_data(n_chip=100, n_selex=100):
     
 #     print(data['batch'].value_counts())
 #     print(data.head())
+    
+    # print(data.columns)
     
     # divide in train and test data -- copied from above, organize differently!
     test_dataframe = data.sample(frac=0.01)

@@ -85,12 +85,27 @@ class DinucMulti(tnn.Module):
     def forward(self, x):
         # Create the forward pass through the network.
         mono, di, batch = x[0], x[1], x[2]
-        mono = torch.unsqueeze(mono, 1)
-        mono = self.conv_mono(mono)
-        di = torch.unsqueeze(di, 1)
         
-        print(di)
+        # print('mono', type(mono))
+        # print('di', type(di))
+        # print('batch', type(batch))
+        
+        mono = torch.unsqueeze(mono, 1)
+        mono = mono.type(torch.float32)
+        
+        # print('mono type', mono.dtype)
+        # mono = mono.type(torch.LongTensor)
+        mono = self.conv_mono(mono)
+        
+        # print(di)
+        di = torch.unsqueeze(di, 1)
+        di = di.type(torch.float32)
+
         di = self.conv_di(di)
+        
+        # this is necessary but it needs to be rellocated
+        di = di.type(torch.LongTensor)
+        
         mono = torch.exp(mono)
         di = torch.exp(di)
         mono = mono.view(mono.shape[0], -1)  # Flatten tensor.
@@ -112,6 +127,8 @@ class DinucMulti(tnn.Module):
         # print('x before b',x.shape)
         # print('b dim', b.shape)
         x = x * b
+        # print(x[:10])
+        # assert False
         # print('x after b', x.shape)
         # assert False
 
