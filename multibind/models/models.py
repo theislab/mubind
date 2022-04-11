@@ -88,6 +88,8 @@ class DinucMulti(tnn.Module):
         mono = torch.unsqueeze(mono, 1)
         mono = self.conv_mono(mono)
         di = torch.unsqueeze(di, 1)
+        
+        print(di)
         di = self.conv_di(di)
         mono = torch.exp(mono)
         di = torch.exp(di)

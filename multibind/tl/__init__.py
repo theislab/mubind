@@ -7,5 +7,5 @@ from multibind.tl.prediction import (
     # create_datasets,
     test_network,
     train_network,
-    create_simulated_data,
+    create_multi_data,
 )
