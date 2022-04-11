@@ -14,6 +14,12 @@ def _onehot_mononuc(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEnco
     pre_onehot = onehot_encoder.fit_transform(seq_int.reshape(-1, 1))
     return pre_onehot.T[:, :-4].astype(np.float32)
 
+def _onehot_covar(covar, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
+    covar_arr = np.array(list(covar))
+    covar_int = label_encoder.fit_transform(covar_arr)
+    pre_onehot = onehot_encoder.fit_transform(covar_int.reshape(-1, 1))
+    return pre_onehot.astype(np.int)
+
 def _onehot_dinuc(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
     extended_seq = seq + 'AACAGATCCGCTGGTTA'  # The added string contains each possible dinucleotide feature once
     dinuc_arr = np.array([extended_seq[i:i+2] for i in range(len(extended_seq) - 1)])
@@ -58,6 +64,9 @@ class ChipSeqDataset(tdata.Dataset):
         # Return a single input/label pair from the dataset.
         mononuc_sample = self.mononuc[index]
         target_sample = self.target[index]
+        
+        # print(self.batch)
+        # print(self.batch.shape)
         batch = self.batch[index]
         dinuc_sample = self.dinuc[index]
         sample = {"mononuc": mononuc_sample, "dinuc": dinuc_sample, "target": target_sample, "batch": batch}
@@ -70,7 +79,7 @@ class ChipSeqDataset(tdata.Dataset):
 # (negative) Log-likelihood of the Poisson distribution
 class PoissonLoss(tnn.Module):
     def __init__(self):
-        super(PoissonLoss, self).__init__()
+        super().__init__()
 
     def forward(self, inputs, targets):
         return torch.mean(inputs - targets*torch.log(inputs))
@@ -79,7 +88,7 @@ class PoissonLoss(tnn.Module):
 # Custom loss function
 class CustomLoss(tnn.Module):
     def __init__(self, weight=None, size_average=True):
-        super(CustomLoss, self).__init__()
+        super().__init__()
 
     def forward(self, inputs, rounds, avoid_zero=True):
         if avoid_zero:
@@ -162,23 +171,56 @@ def train_network(net, train_dataloader, device, optimiser, criterion, num_epoch
     return loss_history
 
 
-def create_simulated_data(motif='GATA', batch=None, n_trials=20000, seqlen=100, multiplier=10):
-    x2, y2 = mb.datasets.simulate_xy(motif, n_trials=n_trials, seqlen=seqlen, max_mismatches=-1, batch=multiplier)
-    y2 = ((y2 - y2.min()) / (np.max(y2) - np.min(y2))).astype(np.float32)
+def create_simulated_data(motif='GATA', n_batch=None, n_trials=20000, seqlen=100, batch_sizes=10):
+    x2, y2 = mb.datasets.simulate_xy(motif, n_trials=n_trials, seqlen=seqlen, max_mismatches=-1, batch=1)
+    
+    # print('skip normalizing...')
+    # y2 = ((y2 - y2.min()) / (np.max(y2) - np.min(y2))).astype(np.float32)
     
     # data = pd.DataFrame({'seq': x1, 'enr_approx': y1})
     data = pd.DataFrame({'seq': x2, 'target': y2})
+    batch = _onehot_covar(np.random.random_integers(0, n_batch - 1, len(y2)))
+    
+    assert n_batch == len(batch_sizes)
+    batch_mult = np.array(batch_sizes)[(np.argmax(batch, axis=1))]    
+    # print(batch_mult)
+    # df = pd.DataFrame()
+    # df['y.before'] = np.array(data['target'])
+    # print(np.argmax(batch, axis=1))
+    # df['batch'] = np.argmax(batch, axis=1)
+    # df['mult'] = batch_mult
+    # df['y.after'] = np.array(data['target']) * np.array(batch_mult)
+    # print('head...')
+    # print(df.head(25))
+    # print('tail')
+    # print(df.tail(25))
+    
+    data['target'] = np.array(data['target']) * np.array(batch_mult)
+    # assert False
+    
     # divide in train and test data -- copied from above, organize differently!
     test_dataframe = data.sample(frac=0.01)
     train_dataframe = data.drop(test_dataframe.index)
+    batch_test = np.argmax(batch[test_dataframe.index], axis=1)
+    batch_train = np.argmax(batch[train_dataframe.index], axis=1)
+
     test_dataframe.index = range(len(test_dataframe))
     train_dataframe.index = range(len(train_dataframe))
+
+    n_train = len(train_dataframe.index)
+    n_test = len(test_dataframe.index)
+    n_dim = n_train + n_test
+    
     # create datasets and dataloaders
-    train_data = ChipSeqDataset(data_frame=train_dataframe)
-    train_data.batch = np.repeat(batch, len(train_dataframe.index))
+    # print(train_dataframe)
+    # print(batch, n_train)
+    # print(batch[:n_train])
+    train_data = ChipSeqDataset(data_frame=train_dataframe)    
+    train_data.batch = batch_train
     
     train_loader = tdata.DataLoader(dataset=train_data, batch_size=256, shuffle=True)
     test_data = ChipSeqDataset(data_frame=test_dataframe)
-    test_data.batch = np.repeat(batch, len(test_dataframe.index))
+    test_data.batch = batch_test
+
     test_loader = tdata.DataLoader(dataset=test_data, batch_size=1, shuffle=False)
     return train_loader, test_loader

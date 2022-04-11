@@ -2,6 +2,7 @@ import random
 import numpy as np
 import itertools
 from difflib import SequenceMatcher
+import random
 
 def _get_random_sequence(seqlen=50, options='ACTG'):
     return ''.join(random.choice(options) for _ in range(seqlen))
@@ -33,10 +34,7 @@ def _mismatch(word, letters, num_mismatches):
             yield ''.join(poss)
             
 # Generate a seq of sequences with a seuquence embedded
-def simulate_xy(motif, batch=100, n_trials=500, seqlen=50, random_seed=500, max_mismatches=-1):
-    import random
-    random.seed(random_seed)
-
+def simulate_xy(motif, batch=100, n_trials=500, seqlen=50, max_mismatches=-1, min_count=1):
     import numpy as np
     x = np.array([_get_random_sequence(seqlen) + 'ACGT' for k in range(n_trials)])
     
@@ -55,7 +53,8 @@ def simulate_xy(motif, batch=100, n_trials=500, seqlen=50, random_seed=500, max_
         p = np.random.choice(range(len(x[0]) - 4 - len(opt)))
         x[i] = x[i][:p] + opt + x[i][p + len(opt):]
         y.append(int(_similar(motif, opt) * batch))
-    y = np.array(y)
+    
+    y = np.array(y) + min_count
     x = np.array(x)
     
     return x, y
