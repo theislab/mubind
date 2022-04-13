@@ -4,6 +4,104 @@ import numpy as np
 import itertools
 from difflib import SequenceMatcher
 import random
+import torch.utils.data as tdata
+import torch.nn as tnn
+import multibind as mb
+import numpy as np
+from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import OneHotEncoder
+
+# Class for reading training/testing SELEX dataset files.
+class SelexDataset(tdata.Dataset):
+    def __init__(self, data_frame):
+        self.target = data_frame['enr_approx']
+        # self.rounds = self.data[[0, 1]].to_numpy()
+        self.le = LabelEncoder()
+        self.oe = OneHotEncoder(sparse=False)
+        self.length = len(data_frame)
+        self.inputs = np.array([mb.tl.onehot_mononuc(row['seq'], self.le, self.oe) for index, row in data_frame.iterrows()])
+
+    def __getitem__(self, index):
+        # Return a single input/label pair from the dataset.
+        input_sample = self.inputs[index]
+        target_sample = self.target[index]
+        sample = {"mononuc": input_sample, "target": target_sample}
+        return sample
+
+    def __len__(self):
+        return self.length
+
+
+# Class for reading training/testing ChIPSeq dataset files.
+class ChipSeqDataset(tdata.Dataset):
+    def __init__(self, data_frame, use_dinuc=False, batch=None):
+        self.batch = batch
+        self.target = data_frame['target'].astype(np.float32)
+        # self.rounds = self.data[[0, 1]].to_numpy()
+        self.le = LabelEncoder()
+        self.oe = OneHotEncoder(sparse=False)
+        self.length = len(data_frame)
+        self.mononuc = np.array([mb.tl.onehot_mononuc(row['seq'], self.le, self.oe) for index, row in data_frame.iterrows()])
+        self.dinuc = np.array([mb.tl.onehot_dinuc(row['seq'], self.le, self.oe) for index, row in data_frame.iterrows()])
+        self.is_count_data = np.array(data_frame.is_count_data)
+
+    def __getitem__(self, index):
+        # Return a single input/label pair from the dataset.
+        mononuc_sample = self.mononuc[index]
+        target_sample = self.target[index]
+        
+        # print(self.batch)
+        # print(self.batch.shape)
+        batch = self.batch[index]
+        dinuc_sample = self.dinuc[index]
+        is_count_data = self.is_count_data[index]
+        sample = {"mononuc": mononuc_sample, "dinuc": dinuc_sample, "target": target_sample, "batch": batch,
+                 "is_count_data": is_count_data}
+        return sample
+
+    def __len__(self):
+        return self.length
+    
+# Class for curating multi-source data (chip/selex/PBM).
+class MultiDataset(tdata.Dataset):
+    def __init__(self, data_frame, use_dinuc=False, batch=None):
+        self.batch = batch
+        self.target = data_frame['target'].astype(np.float32)
+        # self.rounds = self.data[[0, 1]].to_numpy()
+        self.le = LabelEncoder()
+        self.oe = OneHotEncoder(sparse=False)
+        self.length = len(data_frame)
+        
+        # mononuc = []
+        # for index, row in data_frame.iterrows():
+        #     # print(row['seq'], self.le, self.oe)
+        #     m = mb.tl.onehot_mononuc(row['seq'], self.le, self.oe)
+        #     mononuc.append(m)
+        # # assert False
+        # self.mononuc = np.array(mononuc)
+        # print('prepare mononuc feats...')
+        self.mononuc = np.array([mb.tl.onehot_mononuc_with_gaps(row['seq'], self.le, self.oe) for index, row in data_frame.iterrows()])
+        # print('prepare dinuc feats...')
+        self.dinuc = np.array([mb.tl.onehot_dinuc_with_gaps(row['seq']) for index, row in data_frame.iterrows()])
+        self.is_count_data = data_frame['is_count_data'].astype(int)
+
+    def __getitem__(self, index):
+        # Return a single input/label pair from the dataset.
+        mononuc_sample = self.mononuc[index]
+        target_sample = self.target[index]
+        
+        # print(self.batch)l
+        # print(self.batch.shape)
+        batch = self.batch_one_hot[index]
+        dinuc_sample = self.dinuc[index]
+        is_count_data = self.is_count_data[index]
+        sample = {"mononuc": mononuc_sample, "dinuc": dinuc_sample,
+                  "target": target_sample, "batch": batch,
+                  "is_count_data": is_count_data}
+        return sample
+
+    def __len__(self):
+        return self.length
 
 def _get_random_sequence(seqlen=50, options='ACTG'):
     return ''.join(random.choice(options) for _ in range(seqlen))
