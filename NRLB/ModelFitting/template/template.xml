@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SELEXSequencingConfig  xmlns:xsi="http://www.columabia.edu/"  xsi:noNamespaceSchemaLocation="selex.xsd">
+	<SequencingRunInfo name="protName.0">	 <!-- information needed for differentiating multiple sequencing info instances -->
+	
+		<DataFile>r0FilePath</DataFile>
+		<SequencingPlatform>xxxx</SequencingPlatform>
+		<ResearcherName>fdgdfgdf</ResearcherName>
+		<ResearcherEmail>xxx@columbia.edu</ResearcherEmail>
+		<SequencingFacilityName>Columbia University Genome Center</SequencingFacilityName>
+		<SequencingFacilityEmail>bla@bla.edu</SequencingFacilityEmail>
+		<Description>asdfsdf</Description> <!--  -->
+		<Notes></Notes>
+			
+		<Sample name="R0" round="0">
+			<Protein>N/A</Protein>
+			<Concentration></Concentration>		<!-- #optional -->
+			<VariableRegionLength>variableRegionLength</VariableRegionLength>
+			<LeftFlank>lFlank</LeftFlank>  
+			<RightFlank>rFlank</RightFlank> 
+			<LeftBarcode>lBarcode</LeftBarcode>
+			<RightBarcode>rBarcode</RightBarcode>
+			<Round0></Round0>
+			<Notes></Notes>
+		</Sample>
+        </SequencingRunInfo>
+
+        <SequencingRunInfo name="protName.1">       <!-- information needed for differentiating multiple sequencing info instances -->
+
+                <DataFile>r1FilePath</DataFile>
+                <SequencingPlatform>xxxx</SequencingPlatform>
+                <ResearcherName>fdgdfgdf</ResearcherName>
+                <ResearcherEmail>xxx@columbia.edu</ResearcherEmail>
+                <SequencingFacilityName>Columbia University Genome Center</SequencingFacilityName>
+                <SequencingFacilityEmail>bla@bla.edu</SequencingFacilityEmail>
+                <Description>asdfsdf</Description> <!--  -->
+                <Notes></Notes>
+	
+		<Sample name="R1" round="1">
+			<Protein>N/A</Protein>
+			<Concentration></Concentration>		<!-- #optional -->
+			<VariableRegionLength>variableRegionLength</VariableRegionLength>
+			<LeftFlank>lFlank</LeftFlank>  
+			<RightFlank>rFlank</RightFlank> 
+			<LeftBarcode>lBarcode</LeftBarcode>
+			<RightBarcode>rBarcode</RightBarcode>
+			<Round0></Round0>
+			<Notes></Notes>
+		</Sample>
+
+	</SequencingRunInfo>
+</SELEXSequencingConfig>

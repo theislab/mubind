@@ -1,0 +1,19 @@
+forceRecalc		=false					# Force the recalculation of kmer tables, even if they exist				
+
+#######################
+### FASTQ File Info ###
+#######################
+protName		=MAX					# Name of the factor
+r0FilePath		=../test_data/MAX_R0.fastq.gz		# Round 0 file path
+r1FilePath		=../test_data/MAX_R1.fastq.gz		# Round 1 file path
+variableRegionLength	=16					# Length of variable region
+lFlank			=GTTCAGAGTTCTACAGTCCGACGATCTGG		# Left flank
+rFlank			=CCAGAACTCGTATGCCGTCTTCTGCTTG		# Right flank
+lBarcode		=					# Left barcode (if needed for demultiplexing)
+rBarcode		=					# Right barcode (if needed for demultiplexing)
+
+#######################
+#### Round0  Model ####
+#######################
+R0MinK			=1					# Minimum kmer length for R0 Model
+R0MaxK			=4					# Maximum kmer length for R0 Model (optimal model automatically selected)

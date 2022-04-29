@@ -1,0 +1,30 @@
+forceRecalc		=true		# Force the recalculation of fits, even if output files exist
+
+########################
+### Runtime Settings ###
+########################
+nThreads		= 4		# nThreads sets the number of threads Java should use (should be equal to the maximum hyperthreading capability of your system)
+isVerbose		= true		# isVerbose toggles verbose output for the optimizer
+
+########################
+# Feature  Information #
+########################
+useDinuc                = false		# Should dinucleotide features be used? Options: "true" "false" OR "true,false"
+useNSBinding            = true		# Should nonspecific binding be used?
+nShifts                 = 1             # Number of shifts to be tested
+flankLength             = 0             # Flank lengths to be tested
+
+########################
+### Mode Information ###
+########################
+nModes                  = 1             # Define number of modes
+startK                  = 8		# Starting K
+maxK                    = 10		# Ending K
+useSymmetry             = true		# Should symmetry be used?
+sweepLengths		= true		# Sweep through binding length sizes
+
+########################
+### Optimizer Config ###
+########################
+errorBars               = true		# Should error bars be computed?
+lambda                  = 1E-6		# Regularization parameter. Should be ingored in most cases
