@@ -4,7 +4,7 @@ from sklearn.preprocessing import OneHotEncoder
 import itertools
 
 def onehot_mononuc(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
-    seq_arr = np.array(list(seq + 'ACGT_'))
+    seq_arr = np.array(list(seq + 'ACGT'))
     seq_int = label_encoder.fit_transform(seq_arr)
     pre_onehot = onehot_encoder.fit_transform(seq_int.reshape(-1, 1))
     return pre_onehot.T[:, :-4].astype(np.float32)
