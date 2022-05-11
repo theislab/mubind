@@ -22,3 +22,11 @@ def create_logo(net):
     weights = pd.DataFrame(weights)
     weights.index = 'A', 'C', 'G', 'T'
     crp_logo = logomaker.Logo(weights.T, shade_below=.5, fade_below=.5)
+    
+def conv_mono(model):
+    weights = model.conv_mono.weight
+    weights = weights.squeeze().cpu().detach().numpy()
+    weights = pd.DataFrame(weights)
+    weights.index = 'A', 'C', 'G', 'T'
+    crp_logo = logomaker.Logo(weights.T, shade_below=.5, fade_below=.5)
+    plt.show()
