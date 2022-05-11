@@ -8,33 +8,43 @@ import torch.utils.data as tdata
 import torch.nn as tnn
 import multibind as mb
 import numpy as np
+from Bio.Seq import Seq
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import OneHotEncoder
 
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
-    def __init__(self, data_frame):
-        self.target = data_frame['enr_approx']
-        self.batch = data_frame['batch']
-        self.is_count_data = data_frame['is_count_data']
-
-        print('batch', self.batch)
-        # self.rounds = self.data[[0, 1]].to_numpy()
+    def __init__(self, data_frame, n_rounds=1):
+        labels = [i for i in range(n_rounds+1)]
+        # self.target = np.array(data_frame[labels])
+        self.rounds = np.array(data_frame[labels])
+        self.seq = np.array(data_frame['seq'])
         self.le = LabelEncoder()
         self.oe = OneHotEncoder(sparse=False)
         self.length = len(data_frame)
-        self.inputs = np.array([mb.tl.onehot_mononuc(row['seq'], self.le, self.oe) for index, row in data_frame.iterrows()])
+        self.mononuc = np.array([mb.tl.onehot_mononuc(row['seq'], self.le, self.oe) for index, row in data_frame.iterrows()])
+        self.mononuc_rev = np.array([mb.tl.onehot_mononuc(str(Seq(row['seq']).reverse_complement()), self.le, self.oe)
+                                     for index, row in data_frame.iterrows()])
+        self.dinuc = np.array([mb.tl.onehot_dinuc_with_gaps(row['seq']) for index, row in data_frame.iterrows()])
+        self.dinuc_rev = np.array([mb.tl.onehot_dinuc(str(Seq(row['seq']).reverse_complement()), self.le, self.oe)
+                                   for index, row in data_frame.iterrows()])
 
     def __getitem__(self, index):
         # Return a single input/label pair from the dataset.
-        sample = {"mononuc": self.inputs[index],
-                  "target": self.target[index],
-                  "is_count_data": self.is_count_data[index],
-                  "batch": self.batch[index]}
+        mononuc_sample = self.mononuc[index]
+        mononuc_rev = self.mononuc_rev[index]
+        dinuc_sample = self.dinuc[index]
+        dinuc_rev = self.dinuc_rev[index]
+        rounds_sample = self.rounds[index]
+        seq_sample = self.seq[index]
+        sample = {"mononuc": mononuc_sample, "mononuc_rev": mononuc_rev,
+                  "dinuc": dinuc_sample, "dinuc_rev": dinuc_rev,
+                  "rounds": rounds_sample, "seq": seq_sample}
         return sample
 
     def __len__(self):
         return self.length
+
 
 
 # Class for reading training/testing ChIPSeq dataset files.

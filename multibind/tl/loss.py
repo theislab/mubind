@@ -5,9 +5,9 @@ import torch.nn as tnn
 
 class PoissonLoss(tnn.Module):
     def __init__(self):
-        super(PoissonLoss, self).__init__()
+        super().__init__()
 
-    def forward(self, y_pred, y_true, is_count_data):
+    def forward(self, y_pred, y_true):
         return torch.mean(y_pred - y_true*torch.log(y_pred))
     
 # (negative) Log-likelihood of the Poisson distribution
