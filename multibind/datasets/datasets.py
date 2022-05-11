@@ -15,6 +15,10 @@ from sklearn.preprocessing import OneHotEncoder
 class SelexDataset(tdata.Dataset):
     def __init__(self, data_frame):
         self.target = data_frame['enr_approx']
+        self.batch = data_frame['batch']
+        self.is_count_data = data_frame['is_count_data']
+
+        print('batch', self.batch)
         # self.rounds = self.data[[0, 1]].to_numpy()
         self.le = LabelEncoder()
         self.oe = OneHotEncoder(sparse=False)
@@ -23,9 +27,10 @@ class SelexDataset(tdata.Dataset):
 
     def __getitem__(self, index):
         # Return a single input/label pair from the dataset.
-        input_sample = self.inputs[index]
-        target_sample = self.target[index]
-        sample = {"mononuc": input_sample, "target": target_sample}
+        sample = {"mononuc": self.inputs[index],
+                  "target": self.target[index],
+                  "is_count_data": self.is_count_data[index],
+                  "batch": self.batch[index]}
         return sample
 
     def __len__(self):
