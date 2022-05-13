@@ -7,9 +7,9 @@ import multibind as mb
 import itertools
 import copy
 
-def _calculate_enrichment(data, approx=True):
-    data['p0'] = data[0] / np.sum(data[0])
-    data['p1'] = data[1] / np.sum(data[1])
+def calculate_enrichment(data, approx=True, cols=[0, 1]):
+    data['p0'] = data[cols[0]] / np.sum(data[cols[0]])
+    data['p1'] = data[cols[1]] / np.sum(data[cols[1]])
     data['enr'] = data['p1'] / data['p0']
     if approx:
         data['enr_approx'] = np.where(data['p0'] == 0, data['p1'] / (data['p0'] + 1e-06), data['enr'])
@@ -19,7 +19,7 @@ def create_datasets(data_file):
     # read data and calculate additional columns
     data = pd.read_csv(data_file, sep='\t', header=None)
     data.columns = ['seq', 0, 1]
-    data = _calculate_enrichment(data)
+    data = calculate_enrichment(data)
     # divide in train and test data
     test_dataframe = data.sample(frac=0.001)
     train_dataframe = data.drop(test_dataframe.index)

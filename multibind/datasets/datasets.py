@@ -47,6 +47,7 @@ class SelexDataset(tdata.Dataset):
         return self.length
 
 
+
 # Class for reading training/testing ChIPSeq dataset files.
 class ChipSeqDataset(tdata.Dataset):
     def __init__(self, data_frame, use_dinuc=False, batch=None):
