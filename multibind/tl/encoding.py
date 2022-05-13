@@ -3,11 +3,13 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import OneHotEncoder
 import itertools
 
+# models N as (0.25, 0.25, 0.25, 0.25)
 def onehot_mononuc(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
-    seq_arr = np.array(list(seq + 'ACGT'))
+    seq_arr = np.array(list(seq + 'ACGNT'))
     seq_int = label_encoder.fit_transform(seq_arr)
     pre_onehot = onehot_encoder.fit_transform(seq_int.reshape(-1, 1))
-    return pre_onehot.T[:, :-4].astype(np.float32)
+    return (pre_onehot.T[[0, 1, 2, 4], :-5] + 0.25 * np.repeat(np.reshape(pre_onehot.T[3, :-5], [1, -1]), 4, axis=0)) \
+        .astype(np.float32)
 
 def onehot_covar(covar, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
     covar_arr = np.array(list(covar))
@@ -22,6 +24,7 @@ def onehot_dinuc(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder
     pre_onehot = onehot_encoder.fit_transform(seq_int.reshape(-1, 1))
     return pre_onehot.T[:, :-17].astype(np.float32)
 
+# models _ as (0, 0, 0, 0)
 def onehot_mononuc_with_gaps(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
     seq_arr = np.array(list(seq + 'ACGT_'))
     seq_int = label_encoder.fit_transform(seq_arr)

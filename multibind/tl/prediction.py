@@ -53,9 +53,16 @@ def test_network(net, test_dataloader, device):
     return np.array(all_targets), np.array(all_outputs)
 
 
-def train_network(net, train_dataloader, device, optimiser, criterion, num_epochs=15, log_each=None):
+loss_history = []
+
+
+# if early_stopping is positive, training is stopped if over the length of early_stopping no improvement happened or
+# num_epochs is reached.
+def train_network(net, train_dataloader, device, optimiser, criterion, num_epochs=15, early_stopping=-1, log_each=None):
+    global loss_history
     loss_history = []
     best_loss = None
+    best_epoch = -1
     for epoch in range(num_epochs):
         running_loss = 0
         for i, batch in enumerate(train_dataloader):
@@ -91,12 +98,24 @@ def train_network(net, train_dataloader, device, optimiser, criterion, num_epoch
 
         if best_loss is None or loss_final < best_loss:
             best_loss = loss_final
+            best_epoch = epoch
             net.best_model_state = copy.deepcopy(net.state_dict())
 
         # print("Epoch: %2d, Loss: %.3f" % (epoch + 1, running_loss / len(train_dataloader)))
         loss_history.append(loss_final)
 
+        if early_stopping > 0 and epoch >= best_epoch + early_stopping:
+            break
+
     return loss_history
+
+
+# returns the last loss value if it exists
+def get_last_loss_value():
+    global loss_history
+    if len(loss_history) > 0:
+        return loss_history[-1]
+    return None
 
 
 def create_simulated_data(motif='GATA', n_batch=None, n_trials=20000, seqlen=100, batch_sizes=10):

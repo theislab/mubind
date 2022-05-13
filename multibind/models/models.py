@@ -70,6 +70,7 @@ class Dinuc(tnn.Module):
 
 # One selex datasets with multiple rounds of counts
 class DinucSelex(tnn.Module):
+    # n_rounds indicates the number of experimental rounds
     def __init__(self, use_dinuc=False, kernels=[0, 14, 12], n_rounds=1, rho=1, gamma=0):
         super().__init__()
         if use_dinuc:
@@ -91,8 +92,10 @@ class DinucSelex(tnn.Module):
                 self.padding.append(tnn.ConstantPad2d((k-1, k-1, 0, 0), 0.25))
                 self.conv_mono.append(tnn.Conv2d(1, 1, kernel_size=(4, k), padding=(0, 0), bias=False))
                 self.conv_di.append(tnn.Conv2d(1, 1, kernel_size=(16, k), padding=(0, 0), bias=False))
-        self.log_activity = tnn.Embedding(len(kernels), n_rounds)
-        self.log_eta = tnn.Embedding(n_rounds, 1)
+        self.log_activity = tnn.Embedding(len(kernels), n_rounds+1)
+        self.log_activity.weight.data.uniform_(0, 0)  # initialize log_activity as zeros.
+        self.log_eta = tnn.Embedding(n_rounds+1, 1)
+        self.log_eta.weight.data.uniform_(0, 0)
         self.best_model_state = None
 
     def forward(self, x):
@@ -118,7 +121,7 @@ class DinucSelex(tnn.Module):
 
         eta = torch.exp(self.log_eta.weight.T)
         predictions_ = [x[:, 0]]
-        for i in range(1, self.n_rounds):
+        for i in range(1, self.n_rounds+1):
             predictions_.append(predictions_[-1] * x[:, i])
         predictions = torch.stack(predictions_).T
         predictions = predictions * eta

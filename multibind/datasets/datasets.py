@@ -27,7 +27,7 @@ class SelexDataset(tdata.Dataset):
         self.mononuc_rev = np.array([mb.tl.onehot_mononuc(str(Seq(row['seq']).reverse_complement()), self.le, self.oe)
                                      for index, row in data_frame.iterrows()])
         self.dinuc = np.array([mb.tl.onehot_dinuc_with_gaps(row['seq']) for index, row in data_frame.iterrows()])
-        self.dinuc_rev = np.array([mb.tl.onehot_dinuc(str(Seq(row['seq']).reverse_complement()), self.le, self.oe)
+        self.dinuc_rev = np.array([mb.tl.onehot_dinuc_with_gaps(str(Seq(row['seq']).reverse_complement()))
                                    for index, row in data_frame.iterrows()])
 
     def __getitem__(self, index):
