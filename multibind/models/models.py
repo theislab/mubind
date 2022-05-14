@@ -66,7 +66,69 @@ class Dinuc(tnn.Module):
         x = x / (1 + x)
         x = x.view(-1)  # Flatten tensor.
         return x
-    
+
+
+# One selex datasets with multiple rounds of counts
+class DinucSelex(tnn.Module):
+    # n_rounds indicates the number of experimental rounds
+    def __init__(self, use_dinuc=False, kernels=[0, 14, 12], n_rounds=1, rho=1, gamma=0):
+        super().__init__()
+        if use_dinuc:
+            print("Dinuc features not implemented yet. Using only mononuc features.")
+        self.use_dinuc = use_dinuc
+        self.n_rounds = n_rounds
+        self.rho = rho
+        self.gamma = gamma
+        self.padding = tnn.ModuleList()
+        self.conv_mono = tnn.ModuleList()
+        self.conv_di = tnn.ModuleList()
+        self.kernels = kernels
+        for k in self.kernels:
+            if k == 0:
+                self.padding.append(tnn.ConstantPad2d((k - 1, k - 1, 0, 0), 0.25))
+                self.conv_mono.append(None)
+                self.conv_di.append(None)
+            else:
+                self.padding.append(tnn.ConstantPad2d((k-1, k-1, 0, 0), 0.25))
+                self.conv_mono.append(tnn.Conv2d(1, 1, kernel_size=(4, k), padding=(0, 0), bias=False))
+                self.conv_di.append(tnn.Conv2d(1, 1, kernel_size=(16, k), padding=(0, 0), bias=False))
+        self.log_activity = tnn.Embedding(len(kernels), n_rounds+1)
+        self.log_activity.weight.data.uniform_(0, 0)  # initialize log_activity as zeros.
+        self.log_eta = tnn.Embedding(n_rounds+1, 1)
+        self.log_eta.weight.data.uniform_(0, 0)
+        self.best_model_state = None
+
+    def forward(self, x):
+        # Create the forward pass through the network.
+        mono, mono_rev, di, di_rev, batch, seqlen, countsum = x
+        mono = torch.unsqueeze(mono, 1)
+        mono_rev = torch.unsqueeze(mono_rev, 1)
+        # x = torch.zeros([mono.shape[0], len(self.kernels)], requires_grad=True)
+        x_ = []
+        for i in range(len(self.kernels)):
+            if self.kernels[i] == 0:
+                x_.append(torch.Tensor([1.0] * mono.shape[0]))
+            else:
+                temp = self.conv_mono[i](mono) + self.conv_mono[i](mono_rev)
+                temp = torch.exp(temp)
+                temp = temp.view(temp.shape[0], -1)
+                temp = torch.sum(temp, axis=1)
+                x_.append(temp)
+        x = torch.stack(x_).T
+
+        a = torch.exp(self.log_activity.weight)
+        x = torch.matmul(x, a)
+
+        eta = torch.exp(self.log_eta.weight.T)
+        predictions_ = [x[:, 0]]
+        for i in range(1, self.n_rounds+1):
+            predictions_.append(predictions_[-1] * x[:, i])
+        predictions = torch.stack(predictions_).T
+        predictions = predictions * eta
+        predictions = (predictions.T / torch.sum(predictions, axis=1))
+        return (predictions * countsum).T
+
+
 # Multiple datasets
 class DinucMulti(tnn.Module):
     def __init__(self, use_dinuc=False, n_datasets=1, n_latent=1, w=8):
