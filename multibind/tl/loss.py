@@ -2,14 +2,14 @@ import torch
 import torch.nn as tnn
 
 
-
 class PoissonLoss(tnn.Module):
     def __init__(self):
         super().__init__()
 
     def forward(self, y_pred, y_true):
         return torch.mean(y_pred - y_true*torch.log(y_pred))
-    
+
+
 # (negative) Log-likelihood of the Poisson distribution
 class MultiDatasetLoss(tnn.Module):
     def __init__(self):
@@ -24,23 +24,24 @@ class MultiDatasetLoss(tnn.Module):
         poisson_loss = None
         if a.shape[0] > 0:
             loss = a - y_true[is_count_data == 1]*torch.log(a)
-            loss = torch.abs(loss)
-            poisson_loss = torch.mean(loss)
+            # loss = torch.abs(loss)
+            poisson_loss = torch.sum(loss)
 
-        m = torch.nn.Sigmoid()
-        bce = torch.nn.BCELoss()
+        # m = torch.nn.Sigmoid()
+        bce = torch.nn.BCELoss(reduction='sum')
         bce_loss = None
         if b.shape[0] > 0:
-            bce_loss = bce(m(b), y_true[is_count_data == 0])
-        
+            # print(b)
+            bce_loss = bce(b / (1 + b), y_true[is_count_data == 0])
+
         # print(poisson_loss, bce_loss)
         if a.shape[0] != 0 and b.shape[0] != 0:
-            return poisson_loss + bce_loss
+            return (poisson_loss + bce_loss) / len(y_true)
         elif a.shape[0] != 0:
-            return poisson_loss
+            return poisson_loss / len(y_true)
         elif b.shape[0] != 0:
-            return bce_loss
-        assert False # problem with the input data
+            return bce_loss / len(y_true)
+        assert False  # problem with the input data
 
 
 # Custom loss function
