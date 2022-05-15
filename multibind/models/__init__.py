@@ -1,2 +1,2 @@
 
-from multibind.models.models import Mono, Dinuc, DinucMulti, DinucSelex
+from multibind.models.models import DinucMulti, DinucSelex
