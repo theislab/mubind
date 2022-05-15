@@ -12,6 +12,7 @@ from Bio.Seq import Seq
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import OneHotEncoder
 
+
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
     def __init__(self, data_frame, n_rounds=1):
@@ -22,23 +23,26 @@ class SelexDataset(tdata.Dataset):
         self.le = LabelEncoder()
         self.oe = OneHotEncoder(sparse=False)
         self.length = len(data_frame)
-        self.mononuc = np.array([mb.tl.onehot_mononuc(row['seq'], self.le, self.oe) for index, row in data_frame.iterrows()])
-        self.mononuc_rev = np.array([mb.tl.onehot_mononuc(str(Seq(row['seq']).reverse_complement()), self.le, self.oe)
-                                     for index, row in data_frame.iterrows()])
-        self.dinuc = np.array([mb.tl.onehot_dinuc_with_gaps(row['seq']) for index, row in data_frame.iterrows()])
-        self.dinuc_rev = np.array([mb.tl.onehot_dinuc(str(Seq(row['seq']).reverse_complement()), self.le, self.oe)
-                                   for index, row in data_frame.iterrows()])
+        self.mononuc = np.array([mb.tl.onehot_mononuc(row['seq'], self.le, self.oe)
+                                 for index, row in data_frame.iterrows()])
+        # self.mononuc_rev = np.array([mb.tl.onehot_mononuc(str(Seq(row['seq']).reverse_complement()), self.le, self.oe)
+        #                             for index, row in data_frame.iterrows()])
+        # self.dinuc = np.array([mb.tl.onehot_dinuc_with_gaps(row['seq']) for index, row in data_frame.iterrows()])
+        # self.dinuc_rev = np.array([mb.tl.onehot_dinuc_with_gaps(str(Seq(row['seq']).reverse_complement()))
+        #                           for index, row in data_frame.iterrows()])
 
     def __getitem__(self, index):
         # Return a single input/label pair from the dataset.
         mononuc_sample = self.mononuc[index]
-        mononuc_rev = self.mononuc_rev[index]
-        dinuc_sample = self.dinuc[index]
-        dinuc_rev = self.dinuc_rev[index]
+        # mononuc_rev = self.mononuc_rev[index]
+        # dinuc_sample = self.dinuc[index]
+        # dinuc_rev = self.dinuc_rev[index]
         rounds_sample = self.rounds[index]
         seq_sample = self.seq[index]
-        sample = {"mononuc": mononuc_sample, "mononuc_rev": mononuc_rev,
-                  "dinuc": dinuc_sample, "dinuc_rev": dinuc_rev,
+        sample = {"mononuc": mononuc_sample,
+                  # "mononuc_rev": mononuc_rev,
+                  # "dinuc": dinuc_sample,
+                  # "dinuc_rev": dinuc_rev,
                   "rounds": rounds_sample, "seq": seq_sample}
         return sample
 

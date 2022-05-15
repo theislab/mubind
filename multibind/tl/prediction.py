@@ -26,9 +26,9 @@ def create_datasets(data_file):
     test_dataframe.index = range(len(test_dataframe))
     train_dataframe.index = range(len(train_dataframe))
     # create datasets and dataloaders
-    train_data = SelexDataset(data_frame=train_dataframe)
+    train_data = mb.datasets.SelexDataset(data_frame=train_dataframe)
     train_loader = tdata.DataLoader(dataset=train_data, batch_size=256, shuffle=True)
-    test_data = SelexDataset(data_frame=test_dataframe)
+    test_data = mb.datasets.SelexDataset(data_frame=test_dataframe)
     test_loader = tdata.DataLoader(dataset=test_data, batch_size=1, shuffle=False)
     return train_loader, test_loader
 
@@ -53,9 +53,16 @@ def test_network(net, test_dataloader, device):
     return np.array(all_targets), np.array(all_outputs)
 
 
-def train_network(net, train_dataloader, device, optimiser, criterion, num_epochs=15, log_each=None):
+loss_history = []
+
+
+# if early_stopping is positive, training is stopped if over the length of early_stopping no improvement happened or
+# num_epochs is reached.
+def train_network(net, train_dataloader, device, optimiser, criterion, num_epochs=15, early_stopping=-1, log_each=None):
+    global loss_history
     loss_history = []
     best_loss = None
+    best_epoch = -1
     for epoch in range(num_epochs):
         running_loss = 0
         for i, batch in enumerate(train_dataloader):
@@ -63,16 +70,16 @@ def train_network(net, train_dataloader, device, optimiser, criterion, num_epoch
             # print(batch.keys())
             # mononuc = batch["mononuc"].type(torch.LongTensor).to(device)
             mononuc = batch['mononuc'].to(device)
-            mononuc_rev = batch['mononuc_rev'].to(device)
-            dinuc = batch['dinuc'].type(torch.LongTensor).to(device) if 'dinuc' in batch else None
-            dinuc_rev = batch['dinuc_rev'].to(device) if 'dinuc_rev' in batch else None
+            # mononuc_rev = batch['mononuc_rev'].to(device)
+            # dinuc = batch['dinuc'].type(torch.LongTensor).to(device) if 'dinuc' in batch else None
+            # dinuc_rev = batch['dinuc_rev'].to(device) if 'dinuc_rev' in batch else None
             b = batch['batch'].to(device) if 'batch' in batch else None
             target = batch['target'].to(device) if 'target' in batch else None
             rounds = batch['rounds'].to(device) if 'rounds' in batch else None
             is_count_data = batch['is_count_data'] if 'is_count_data' in batch else None
             seqlen = batch['seqlen'] if 'seqlen' in batch else None
 
-            inputs = (mononuc, mononuc_rev, dinuc, dinuc_rev, b, seqlen, torch.sum(rounds, axis=1))
+            inputs = (mononuc, b, seqlen, torch.sum(rounds, axis=1))
             optimiser.zero_grad()  # PyTorch calculates gradients by accumulating contributions to them (useful for
             # RNNs).  Hence we must manully set them to zero before calculating them.
             outputs = net(inputs)  # Forward pass through the network.
@@ -91,12 +98,24 @@ def train_network(net, train_dataloader, device, optimiser, criterion, num_epoch
 
         if best_loss is None or loss_final < best_loss:
             best_loss = loss_final
+            best_epoch = epoch
             net.best_model_state = copy.deepcopy(net.state_dict())
 
         # print("Epoch: %2d, Loss: %.3f" % (epoch + 1, running_loss / len(train_dataloader)))
         loss_history.append(loss_final)
 
+        if early_stopping > 0 and epoch >= best_epoch + early_stopping:
+            break
+
     return loss_history
+
+
+# returns the last loss value if it exists
+def get_last_loss_value():
+    global loss_history
+    if len(loss_history) > 0:
+        return loss_history[-1]
+    return None
 
 
 def create_simulated_data(motif='GATA', n_batch=None, n_trials=20000, seqlen=100, batch_sizes=10):
