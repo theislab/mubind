@@ -19,6 +19,7 @@ class SelexDataset(tdata.Dataset):
         labels = [i for i in range(n_rounds+1)]
         # self.target = np.array(data_frame[labels])
         self.rounds = np.array(data_frame[labels])
+        self.countsum = np.sum(self.rounds, axis=1)
         self.seq = np.array(data_frame['seq'])
         self.le = LabelEncoder()
         self.oe = OneHotEncoder(sparse=False)
@@ -43,7 +44,9 @@ class SelexDataset(tdata.Dataset):
                   # "mononuc_rev": mononuc_rev,
                   # "dinuc": dinuc_sample,
                   # "dinuc_rev": dinuc_rev,
-                  "rounds": rounds_sample, "seq": seq_sample}
+                  "rounds": rounds_sample,
+                  "seq": seq_sample,
+                  "countsum": self.countsum[index]}
         return sample
 
     def __len__(self):

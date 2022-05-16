@@ -27,7 +27,7 @@ def _mono2dinuc(mono):
 # One selex datasets with multiple rounds of counts
 class DinucSelex(tnn.Module):
     # n_rounds indicates the number of experimental rounds
-    def __init__(self, use_dinuc=False, kernels=[0, 14, 12], n_rounds=1, rho=1, gamma=0):
+    def __init__(self, use_dinuc=False, kernels=[0, 14, 12], n_rounds=1, rho=1, gamma=0, enr_series=True):
         super().__init__()
         if use_dinuc:
             print("Dinuc features not implemented yet. Using only mononuc features.")
@@ -39,6 +39,8 @@ class DinucSelex(tnn.Module):
         self.conv_mono = tnn.ModuleList()
         self.conv_di = tnn.ModuleList()
         self.kernels = kernels
+        
+        self.enr_series = enr_series
         
         for k in self.kernels:
             if k == 0:
@@ -94,18 +96,27 @@ class DinucSelex(tnn.Module):
                 
         # print(x_.device)
         x = torch.stack(x_).T
-
         a = torch.exp(self.log_activity.weight)
         x = torch.matmul(x, a)
+        
+        out = None
+        # sequential enrichment or independent samples
+        if self.enr_series:
+            predictions_ = [x[:, 0]]
+            for i in range(1, self.n_rounds+1):
+                predictions_.append(predictions_[-1] * x[:, i])
+            out = torch.stack(predictions_).T
+        else:
+            out = x
 
         eta = torch.exp(self.log_eta.weight.T)
-        predictions_ = [x[:, 0]]
-        for i in range(1, self.n_rounds+1):
-            predictions_.append(predictions_[-1] * x[:, i])
-        predictions = torch.stack(predictions_).T
-        predictions = predictions * eta
-        predictions = (predictions.T / torch.sum(predictions, axis=1))
-        return (predictions * countsum).T
+        out = out * eta
+        out = (out.T / torch.sum(out, axis=1))
+        out = (out * countsum).T
+
+        # print(out.shape)
+        # assert False
+        return out
 
 
 # Multiple datasets

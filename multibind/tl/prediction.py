@@ -78,8 +78,9 @@ def train_network(net, train_dataloader, device, optimiser, criterion, num_epoch
             rounds = batch['rounds'].to(device) if 'rounds' in batch else None
             is_count_data = batch['is_count_data'] if 'is_count_data' in batch else None
             seqlen = batch['seqlen'] if 'seqlen' in batch else None
+            countsum = batch['countsum'].to(device) if 'countsum' in batch else None
 
-            inputs = (mononuc, b, seqlen, torch.sum(rounds, axis=1))
+            inputs = (mononuc, b, seqlen, countsum)
             optimiser.zero_grad()  # PyTorch calculates gradients by accumulating contributions to them (useful for
             # RNNs).  Hence we must manully set them to zero before calculating them.
             outputs = net(inputs)  # Forward pass through the network.
