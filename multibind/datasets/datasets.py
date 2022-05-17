@@ -34,18 +34,15 @@ class SelexDataset(tdata.Dataset):
 
     def __getitem__(self, index):
         # Return a single input/label pair from the dataset.
-        mononuc_sample = self.mononuc[index]
         # mononuc_rev = self.mononuc_rev[index]
         # dinuc_sample = self.dinuc[index]
         # dinuc_rev = self.dinuc_rev[index]
-        rounds_sample = self.rounds[index]
-        seq_sample = self.seq[index]
-        sample = {"mononuc": mononuc_sample,
+        sample = {"mononuc": self.mononuc[index],
                   # "mononuc_rev": mononuc_rev,
                   # "dinuc": dinuc_sample,
                   # "dinuc_rev": dinuc_rev,
-                  "rounds": rounds_sample,
-                  "seq": seq_sample,
+                  "rounds": self.rounds[index],
+                  "seq": self.seq[index],
                   "countsum": self.countsum[index]}
         return sample
 

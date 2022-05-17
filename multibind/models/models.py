@@ -27,7 +27,8 @@ def _mono2dinuc(mono):
 # One selex datasets with multiple rounds of counts
 class DinucSelex(tnn.Module):
     # n_rounds indicates the number of experimental rounds
-    def __init__(self, use_dinuc=False, kernels=[0, 14, 12], n_rounds=1, rho=1, gamma=0, enr_series=True):
+    def __init__(self, use_dinuc=False, kernels=[0, 14, 12], n_rounds=1, rho=1, gamma=0, enr_series=True,
+                padding_const=0.25):
         super().__init__()
         if use_dinuc:
             print("Dinuc features not implemented yet. Using only mononuc features.")
@@ -35,7 +36,12 @@ class DinucSelex(tnn.Module):
         self.n_rounds = n_rounds
         self.rho = rho
         self.gamma = gamma
-        self.padding = tnn.ModuleList()
+        
+        # self.padding = tnn.ModuleList()
+        # only keep one padding equals to the length of the max kernel
+        self.padding = tnn.ConstantPad2d((max(kernels) - 1, max(kernels) - 1, 0, 0),
+                                         padding_const)
+        
         self.conv_mono = tnn.ModuleList()
         self.conv_di = tnn.ModuleList()
         self.kernels = kernels
@@ -44,19 +50,20 @@ class DinucSelex(tnn.Module):
         
         for k in self.kernels:
             if k == 0:
-                self.padding.append(tnn.ConstantPad2d((k - 1, k - 1, 0, 0), 0.25))
+                # self.padding.append(tnn.ConstantPad2d((k - 1, k - 1, 0, 0), 0.25))
                 self.conv_mono.append(None)
                 self.conv_di.append(None)
             else:
-                self.padding.append(tnn.ConstantPad2d((k-1, k-1, 0, 0), 0.25))
+                # self.padding.append(tnn.ConstantPad2d((k - 1, k - 1, 0, 0), 0.25))
                 self.conv_mono.append(tnn.Conv2d(1, 1, kernel_size=(4, k), padding=(0, 0), bias=False))
                 self.conv_di.append(tnn.Conv2d(1, 1, kernel_size=(16, k), padding=(0, 0), bias=False))
         
-        self.log_activity = tnn.Embedding(len(kernels), n_rounds+1)
+        self.log_activity = tnn.Embedding(len(kernels), n_rounds + 1)
         self.log_activity.weight.data.uniform_(0, 0)  # initialize log_activity as zeros.
         self.log_eta = tnn.Embedding(n_rounds+1, 1)
         self.log_eta.weight.data.uniform_(0, 0)
         self.best_model_state = None
+        self.best_loss = None
 
     def forward(self, x):
         # Create the forward pass through the network.
@@ -68,8 +75,16 @@ class DinucSelex(tnn.Module):
         # print(mono.shape, di.shape)
         # assert False
         
+        # print(mono.shape)
+        
+        # padding of sequences
+        mono = self.padding(mono)
+        # print(mono.shape)
+        # assert False
+        
         # prepare the other three objects that we need
         mono_rev = _mono2revmono(mono)
+        
         di = _mono2dinuc(mono)
         di_rev = _mono2dinuc(mono_rev)
         
@@ -115,6 +130,7 @@ class DinucSelex(tnn.Module):
         out = (out * countsum).T
 
         # print(out.shape)
+        # print(out[:5,:])
         # assert False
         return out
 

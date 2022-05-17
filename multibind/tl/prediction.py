@@ -3,6 +3,7 @@ import pandas as pd
 import torch
 import torch.utils.data as tdata
 import torch.nn as tnn
+import torch.optim as topti
 import multibind as mb
 import itertools
 import copy
@@ -67,12 +68,7 @@ def train_network(net, train_dataloader, device, optimiser, criterion, num_epoch
         running_loss = 0
         for i, batch in enumerate(train_dataloader):
             # Get a batch and potentially send it to GPU memory.
-            # print(batch.keys())
-            # mononuc = batch["mononuc"].type(torch.LongTensor).to(device)
             mononuc = batch['mononuc'].to(device)
-            # mononuc_rev = batch['mononuc_rev'].to(device)
-            # dinuc = batch['dinuc'].type(torch.LongTensor).to(device) if 'dinuc' in batch else None
-            # dinuc_rev = batch['dinuc_rev'].to(device) if 'dinuc_rev' in batch else None
             b = batch['batch'].to(device) if 'batch' in batch else None
             target = batch['target'].to(device) if 'target' in batch else None
             rounds = batch['rounds'].to(device) if 'rounds' in batch else None
@@ -84,23 +80,22 @@ def train_network(net, train_dataloader, device, optimiser, criterion, num_epoch
             optimiser.zero_grad()  # PyTorch calculates gradients by accumulating contributions to them (useful for
             # RNNs).  Hence we must manully set them to zero before calculating them.
             outputs = net(inputs)  # Forward pass through the network.
+            # print('outputs', rounds)
+            # print('rounds', rounds)
             loss = criterion(outputs, rounds)
-            # loss = criterion(outputs/(1+outputs), target) #, is_count_data)
-            # print('here...')
-            # print(loss)
-            # assert False
             loss.backward()  # Calculate gradients.
             optimiser.step()  # Step to minimise the loss according to the gradient.
             running_loss += loss.item()
 
         loss_final = running_loss / len(train_dataloader)
-        if log_each is None or (epoch % log_each == 0):
+        if log_each != -1 and (epoch % log_each == 0):
             print("Epoch: %2d, Loss: %.3f" % (epoch + 1, loss_final))
 
         if best_loss is None or loss_final < best_loss:
             best_loss = loss_final
             best_epoch = epoch
             net.best_model_state = copy.deepcopy(net.state_dict())
+            net.best_loss = best_loss
 
         # print("Epoch: %2d, Loss: %.3f" % (epoch + 1, running_loss / len(train_dataloader)))
         loss_history.append(loss_final)
@@ -109,6 +104,58 @@ def train_network(net, train_dataloader, device, optimiser, criterion, num_epoch
             break
 
     return loss_history
+
+def update_grad(model, position, value):
+    if model.conv_mono[position] is not None:
+        model.conv_mono[position].weight.requires_grad = value
+    if model.conv_di[position] is not None:
+        model.conv_di[position].weight.requires_grad = value
+    # model.log_activities[position].requires_grad = value
+    if not value and model.kernels[position] is not 0:
+        model.conv_mono[position].weight.grad = None
+        model.conv_di[position].weight.grad = None
+        # model.log_activities[position].grad = None
+
+    # padding required?
+    # model.padding[position].weight.requires_grad = valueassert False
+def train_shift(model, train, shift=0, device=None, num_epochs=500, early_stopping=15,
+                log_each=-1, update_grad_i=None, kernel_i=None):
+            
+    # shift mono
+    for i, m in enumerate(model.conv_mono):
+        if kernel_i is not None and kernel_i != i:
+            continue
+        if m is None:
+            continue
+        # update the weight
+        if shift == 1:
+            m.weight = torch.nn.Parameter(torch.cat([m.weight[:,:,:,1:], torch.zeros(1, 1, 4, 1).to(device)], dim=3))
+        elif shift == -1:
+            m.weight = torch.nn.Parameter(torch.cat([torch.zeros(1, 1, 4, 1).to(device), m.weight[:,:,:,:-1], ], dim=3))
+    # shift di
+    for i, m in enumerate(model.conv_di):
+        if kernel_i is not None and kernel_i != i:
+            continue
+        if m is None:
+            continue
+        # update the weight
+        if shift == 1:
+            m.weight = torch.nn.Parameter(torch.cat([m.weight[:,:,:,1:], torch.zeros(1, 1, 16, 1).to(device)], dim=3))
+        elif shift == -1:
+            m.weight = torch.nn.Parameter(torch.cat([torch.zeros(1, 1, 16, 1).to(device), m.weight[:,:,:,:-1]], dim=3))
+
+    # requires grad update
+    n_kernels = len(model.conv_mono)
+    for ki in range(n_kernels):
+        update_grad(model, ki, ki == update_grad_i)
+
+    optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.001)
+    criterion = mb.tl.PoissonLoss()
+    
+    mb.tl.train_network(model, train, device, optimiser,
+                        criterion, num_epochs=500, early_stopping=15, log_each=-1)
+    
+    return model
 
 
 # returns the last loss value if it exists
