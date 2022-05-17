@@ -15,7 +15,7 @@ from sklearn.preprocessing import OneHotEncoder
 
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
-    def __init__(self, data_frame, n_rounds=1):
+    def __init__(self, data_frame, n_rounds=1, max_length=None):
         labels = [i for i in range(n_rounds+1)]
         # self.target = np.array(data_frame[labels])
         self.rounds = np.array(data_frame[labels])
@@ -24,8 +24,12 @@ class SelexDataset(tdata.Dataset):
         self.le = LabelEncoder()
         self.oe = OneHotEncoder(sparse=False)
         self.length = len(data_frame)
-        self.mononuc = np.array([mb.tl.onehot_mononuc(row['seq'], self.le, self.oe)
-                                 for index, row in data_frame.iterrows()])
+        if max_length is None:
+            self.mononuc = mb.tl.onehot_mononuc_fast(data_frame['seq'], encode_reverse=False)
+        else:
+            self.mononuc = mb.tl.onehot_mononuc_multi(data_frame['seq'], max_length=max_length)
+        # self.mononuc = np.array([mb.tl.onehot_mononuc(row['seq'], self.le, self.oe)
+        #                          for index, row in data_frame.iterrows()])
         # self.mononuc_rev = np.array([mb.tl.onehot_mononuc(str(Seq(row['seq']).reverse_complement()), self.le, self.oe)
         #                             for index, row in data_frame.iterrows()])
         # self.dinuc = np.array([mb.tl.onehot_dinuc_with_gaps(row['seq']) for index, row in data_frame.iterrows()])

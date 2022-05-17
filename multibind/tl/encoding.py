@@ -11,6 +11,19 @@ def onehot_mononuc(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncod
     return (pre_onehot.T[[0, 1, 2, 4], :-5] + 0.25 * np.repeat(np.reshape(pre_onehot.T[3, :-5], [1, -1]), 4, axis=0)) \
         .astype(np.float32)
 
+def onehot_mononuc_multi(seqs, max_length):
+    result = np.full([len(seqs), 4, max_length], 0.25, dtype=np.float32)
+    for i, seq in seqs.iteritems():
+        shift = int((max_length - len(seq))/2)
+        for j in range(len(seq)):
+            base = seq[j]
+            if base == 'A': result[i, :, j+shift] = [1, 0, 0, 0]
+            elif base == 'C': result[i, :, j+shift] = [0, 1, 0, 0]
+            elif base == 'G': result[i, :, j+shift] = [0, 0, 1, 0]
+            elif base == 'T': result[i, :, j+shift] = [0, 0, 0, 1]
+            else: result[i, :, j] = [0.25, 0.25, 0.25, 0.25]
+    return result
+
 def onehot_covar(covar, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
     covar_arr = np.array(list(covar))
     covar_int = label_encoder.fit_transform(covar_arr)
