@@ -15,17 +15,33 @@ from sklearn.preprocessing import OneHotEncoder
 
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
-    def __init__(self, data_frame, n_rounds=1):
+    def __init__(self, df, n_rounds=1, single_encoding_step=True):
         labels = [i for i in range(n_rounds+1)]
         # self.target = np.array(data_frame[labels])
-        self.rounds = np.array(data_frame[labels])
+        self.rounds = np.array(df[labels])
         self.countsum = np.sum(self.rounds, axis=1)
-        self.seq = np.array(data_frame['seq'])
+        self.seq = np.array(df['seq'])
         self.le = LabelEncoder()
         self.oe = OneHotEncoder(sparse=False)
-        self.length = len(data_frame)
-        self.mononuc = np.array([mb.tl.onehot_mononuc(row['seq'], self.le, self.oe)
-                                 for index, row in data_frame.iterrows()])
+        self.length = len(df)
+        
+        self.mononuc = None
+        if single_encoding_step:
+            assert len(set(df['seq'].str.len())) == 1
+            n_entries = df.shape[0]
+            single_seq = ''.join(df['seq'].head(n_entries))
+            df_single_entry = df.head(1).copy()
+            df_single_entry['seq'] = [single_seq]
+            
+            # single encoding step
+            self.mononuc = np.array([mb.tl.onehot_mononuc(row['seq'], self.le, self.oe)
+                                     for index, row in df_single_entry.iterrows()])
+            # splitting step
+            self.mononuc = np.array(np.split(self.mononuc, n_entries, axis=2)).squeeze(1)
+            
+        else:
+            self.mononuc = np.array([mb.tl.onehot_mononuc(row['seq'], sefl.le, self.oe) for index, row in df.iterrows()])
+        
         # self.mononuc_rev = np.array([mb.tl.onehot_mononuc(str(Seq(row['seq']).reverse_complement()), self.le, self.oe)
         #                             for index, row in data_frame.iterrows()])
         # self.dinuc = np.array([mb.tl.onehot_dinuc_with_gaps(row['seq']) for index, row in data_frame.iterrows()])

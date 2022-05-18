@@ -2,8 +2,11 @@ import numpy as np
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import OneHotEncoder
 import itertools
+from numba import jit
 
 # models N as (0.25, 0.25, 0.25, 0.25)
+
+@jit
 def onehot_mononuc(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
     seq_arr = np.array(list(seq + 'ACGNT'))
     seq_int = label_encoder.fit_transform(seq_arr)
