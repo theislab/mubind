@@ -4,7 +4,7 @@ channels:
  - anaconda
  - bioconda
 dependencies:
- - python=3.6.3
+ - python>=3.8.1
  - jupyterlab
  - pandas
  - scikit-learn
