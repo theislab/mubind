@@ -25,7 +25,6 @@ class SelexDataset(tdata.Dataset):
         self.oe = OneHotEncoder(sparse=False)
         self.length = len(df)
 
-
         self.mononuc = None
         if single_encoding_step:
             assert len(set(df['seq'].str.len())) == 1
