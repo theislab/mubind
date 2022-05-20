@@ -24,7 +24,8 @@ class SelexDataset(tdata.Dataset):
         self.le = LabelEncoder()
         self.oe = OneHotEncoder(sparse=False)
         self.length = len(df)
-        
+
+
         self.mononuc = None
         if single_encoding_step:
             assert len(set(df['seq'].str.len())) == 1
@@ -32,16 +33,16 @@ class SelexDataset(tdata.Dataset):
             single_seq = ''.join(df['seq'].head(n_entries))
             df_single_entry = df.head(1).copy()
             df_single_entry['seq'] = [single_seq]
-            
+
             # single encoding step
             self.mononuc = np.array([mb.tl.onehot_mononuc(row['seq'], self.le, self.oe)
                                      for index, row in df_single_entry.iterrows()])
             # splitting step
             self.mononuc = np.array(np.split(self.mononuc, n_entries, axis=2)).squeeze(1)
-            
+
         else:
             self.mononuc = np.array([mb.tl.onehot_mononuc(row['seq'], sefl.le, self.oe) for index, row in df.iterrows()])
-        
+
         # self.mononuc_rev = np.array([mb.tl.onehot_mononuc(str(Seq(row['seq']).reverse_complement()), self.le, self.oe)
         #                             for index, row in data_frame.iterrows()])
         # self.dinuc = np.array([mb.tl.onehot_dinuc_with_gaps(row['seq']) for index, row in data_frame.iterrows()])
@@ -84,7 +85,7 @@ class ChipSeqDataset(tdata.Dataset):
         # Return a single input/label pair from the dataset.
         mononuc_sample = self.mononuc[index]
         target_sample = self.target[index]
-        
+
         # print(self.batch)
         # print(self.batch.shape)
         batch = self.batch[index]
@@ -96,7 +97,7 @@ class ChipSeqDataset(tdata.Dataset):
 
     def __len__(self):
         return self.length
-    
+
 # Class for curating multi-source data (chip/selex/PBM).
 class MultiDataset(tdata.Dataset):
     def __init__(self, data_frame, use_dinuc=False, batch=None):
@@ -106,7 +107,7 @@ class MultiDataset(tdata.Dataset):
         self.le = LabelEncoder()
         self.oe = OneHotEncoder(sparse=False)
         self.length = len(data_frame)
-        
+
         # mononuc = []
         # for index, row in data_frame.iterrows():
         #     # print(row['seq'], self.le, self.oe)
@@ -124,7 +125,7 @@ class MultiDataset(tdata.Dataset):
         # Return a single input/label pair from the dataset.
         mononuc_sample = self.mononuc[index]
         target_sample = self.target[index]
-        
+
         # print(self.batch)l
         # print(self.batch.shape)
         batch = self.batch_one_hot[index]
@@ -147,9 +148,9 @@ def _similar(a, b):
 
 def simulate_data(motif, seqlen=50, n_trials=1000, random_seed=500):
     seqs = [_get_random_sequence(seqlen) for i in range(n_trials)]
-    
+
     random.seed(random_seed)
-    
+
     for i in range(len(seqs)):
         s = seqs[i]
         p = random.randint(0, len(s) - len(motif) + 1)
@@ -166,33 +167,33 @@ def _mismatch(word, letters, num_mismatches):
             this_word[loc] = [l for l in letters if l != orig_char]
         for poss in itertools.product(*this_word):
             yield ''.join(poss)
-            
+
 # Generate a seq of sequences with a seuquence embedded
 def simulate_xy(motif, batch=100, n_trials=500, seqlen=50, max_mismatches=-1, min_count=1):
     import numpy as np
     x = np.array([_get_random_sequence(seqlen) + 'ACGT' for k in range(n_trials)])
-    
+
     options = []
     mismatch_values = list(range(0, len(motif)))
     if max_mismatches > 0:
         mismatch_values = mismatch_values[:max_mismatches]
-        
+
     for n_mismatches in mismatch_values:
         next_options = np.random.choice(list(_mismatch(motif, 'ACGT', n_mismatches)), int(n_trials / len(mismatch_values)))
         # print(n_mismatches, len(next_options), next_options)
         options += list(next_options)
-        
+
     y = []
     for i, opt in zip(range(len(x)), options):
         p = np.random.choice(range(len(x[0]) - 4 - len(opt)))
         x[i] = x[i][:p] + opt + x[i][p + len(opt):]
         y.append(int(_similar(motif, opt) * batch))
-    
+
     y = np.array(y) + min_count
     x = np.array(x)
-    
+
     return x, y
-    
+
 def gata_remap(n_sample=5000):
     import screg as scr
     from os.path import join
