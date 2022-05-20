@@ -10,3 +10,6 @@ PyTorch learning of molecular binding modes using multiple genomics data sources
 2. `conda activate multibind`
 3. `pip install -e .`
 
+Notes
+- The usage of `cookiecutter` requires `git >=2.38`
+  - `conda install -c anaconda git`

@@ -40,7 +40,7 @@ class SelexDataset(tdata.Dataset):
             self.mononuc = np.array(np.split(self.mononuc, n_entries, axis=2)).squeeze(1)
             
         else:
-            self.mononuc = np.array([mb.tl.onehot_mononuc(row['seq'], sefl.le, self.oe) for index, row in df.iterrows()])
+            self.mononuc = np.array([mb.tl.onehot_mononuc(row['seq'], self.le, self.oe) for index, row in df.iterrows()])
         
         # self.mononuc_rev = np.array([mb.tl.onehot_mononuc(str(Seq(row['seq']).reverse_complement()), self.le, self.oe)
         #                             for index, row in data_frame.iterrows()])

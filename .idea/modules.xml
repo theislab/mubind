@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/../bindome/.idea/bindome.iml" filepath="$PROJECT_DIR$/../bindome/.idea/bindome.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/multibind.iml" filepath="$PROJECT_DIR$/.idea/multibind.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../multibind_scverse/.idea/multibind_scverse.iml" filepath="$PROJECT_DIR$/../../multibind_scverse/.idea/multibind_scverse.iml" />
+    </modules>
+  </component>
+</project>
