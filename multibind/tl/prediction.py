@@ -110,11 +110,12 @@ def update_grad(model, position, value):
         model.conv_mono[position].weight.requires_grad = value
     if model.conv_di[position] is not None:
         model.conv_di[position].weight.requires_grad = value
-    # model.log_activities[position].requires_grad = value
-    if not value and model.kernels[position] is not 0:
-        model.conv_mono[position].weight.grad = None
-        model.conv_di[position].weight.grad = None
-        # model.log_activities[position].grad = None
+    model.log_activities[position].requires_grad = value
+    if not value:
+        model.log_activities[position].grad = None
+        if model.kernels[position] is not 0:
+            model.conv_mono[position].weight.grad = None
+            model.conv_di[position].weight.grad = None
 
     # padding required?
     # model.padding[position].weight.requires_grad = valueassert False
