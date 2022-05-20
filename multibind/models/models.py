@@ -27,13 +27,12 @@ def _mono2dinuc(mono):
 # One selex datasets with multiple rounds of counts
 class DinucSelex(tnn.Module):
     # n_rounds indicates the number of experimental rounds
-    def __init__(self, use_dinuc=False, kernels=[0, 14, 12], n_rounds=1, rho=1, gamma=0, enr_series=True,
+    def __init__(self, use_dinuc=False, kernels=[0, 14, 12], n_rounds=1, n_libraries=1, rho=1, gamma=0, enr_series=True,
                 padding_const=0.25):
         super().__init__()
-        if use_dinuc:
-            print("Dinuc features not implemented yet. Using only mononuc features.")
         self.use_dinuc = use_dinuc
         self.n_rounds = n_rounds
+        self.n_libraries = n_libraries
         self.rho = rho
         self.gamma = gamma
         
@@ -44,24 +43,27 @@ class DinucSelex(tnn.Module):
         
         self.conv_mono = tnn.ModuleList()
         self.conv_di = tnn.ModuleList()
+        self.log_activities = tnn.ParameterList()
         self.kernels = kernels
-        
         self.enr_series = enr_series
+        # self.log_activities = tnn.Parameter(torch.zeros([n_libraries, len(kernels), n_rounds+1]))
+        self.log_etas = tnn.Parameter(torch.zeros([n_libraries, n_rounds + 1]))
         
         for k in self.kernels:
             if k == 0:
-                # self.padding.append(tnn.ConstantPad2d((k - 1, k - 1, 0, 0), 0.25))
+                # self.padding.append(None)
                 self.conv_mono.append(None)
                 self.conv_di.append(None)
             else:
                 # self.padding.append(tnn.ConstantPad2d((k - 1, k - 1, 0, 0), 0.25))
                 self.conv_mono.append(tnn.Conv2d(1, 1, kernel_size=(4, k), padding=(0, 0), bias=False))
                 self.conv_di.append(tnn.Conv2d(1, 1, kernel_size=(16, k), padding=(0, 0), bias=False))
-        
-        self.log_activity = tnn.Embedding(len(kernels), n_rounds + 1)
-        self.log_activity.weight.data.uniform_(0, 0)  # initialize log_activity as zeros.
-        self.log_eta = tnn.Embedding(n_rounds+1, 1)
-        self.log_eta.weight.data.uniform_(0, 0)
+            self.log_activities.append(tnn.Parameter(torch.zeros([n_libraries, n_rounds + 1], dtype=torch.float32)))
+
+        # self.log_activity = tnn.Embedding(len(kernels), n_rounds+1)
+        # self.log_activity.weight.data.uniform_(0, 0)  # initialize log_activity as zeros.
+        # self.log_eta = tnn.Embedding(n_rounds+1, 1)
+        # self.log_eta.weight.data.uniform_(0, 0)
         self.best_model_state = None
         self.best_loss = None
 
@@ -87,11 +89,12 @@ class DinucSelex(tnn.Module):
         
         di = _mono2dinuc(mono)
         di_rev = _mono2dinuc(mono_rev)
-        
-        
+
         # unsqueeze mono after preparing di and unsqueezing mono
         mono_rev = torch.unsqueeze(mono_rev, 1)
         mono = torch.unsqueeze(mono, 1)
+        di = torch.unsqueeze(di, 1)
+        di_rev = torch.unsqueeze(di_rev, 1)
         
         # x = torch.zeros([mono.shape[0], len(self.kernels)], requires_grad=True)
         x_ = []
@@ -102,37 +105,47 @@ class DinucSelex(tnn.Module):
                 temp = torch.Tensor([1.0] * mono.shape[0]).to(device=mono.device)
                 x_.append(temp)
             else:
-                temp = self.conv_mono[i](mono) + self.conv_mono[i](mono_rev)
+                if self.use_dinuc:
+                    temp = torch.cat((self.conv_mono[i](mono), self.conv_mono[i](mono_rev), self.conv_di[i](di),
+                                      self.conv_di[i](di_rev)), dim=3)
+                else:
+                    temp = torch.cat((self.conv_mono[i](mono), self.conv_mono[i](mono_rev)), dim=3)
                 temp = torch.exp(temp)
                 temp = temp.view(temp.shape[0], -1)
                 temp = torch.sum(temp, axis=1)
                 x_.append(temp)
                 # print(temp.shape, x_.shape)
-                
-        # print(x_.device)
         x = torch.stack(x_).T
-        a = torch.exp(self.log_activity.weight)
-        x = torch.matmul(x, a)
-        
+
+        scores = torch.zeros([x.shape[0], self.n_rounds+1])
+        for i in range(self.n_libraries):
+            # a = torch.exp(self.log_activities[i, :, :])
+            a = torch.exp(torch.stack(list(self.log_activities), dim=1)[i, :, :])
+            scores[batch == i] = torch.matmul(x[batch == i], a)
+        # a = torch.reshape(a, [a.shape[0], a.shape[2]])
+        # x = torch.matmul(x, a)
+
         out = None
         # sequential enrichment or independent samples
         if self.enr_series:
-            predictions_ = [x[:, 0]]
+            predictions_ = [scores[:, 0]]
             for i in range(1, self.n_rounds+1):
-                predictions_.append(predictions_[-1] * x[:, i])
+                predictions_.append(predictions_[-1] * scores[:, i])
             out = torch.stack(predictions_).T
         else:
-            out = x
+            out = scores
 
-        eta = torch.exp(self.log_eta.weight.T)
-        out = out * eta
-        out = (out.T / torch.sum(out, axis=1))
-        out = (out * countsum).T
+        results = torch.zeros([mono.shape[0], self.n_rounds+1])
+        for i in range(self.n_libraries):
+            eta = torch.exp(self.log_etas[i, :])
+            out[batch == i] = out[batch == i] * eta
+            results[batch == i] = (out[batch == i].T / torch.sum(out[batch == i], axis=1)).T
+            results[batch == i] = (results[batch == i].T * countsum[batch == i]).T
 
         # print(out.shape)
         # print(out[:5,:])
         # assert False
-        return out
+        return results
 
 
 # Multiple datasets

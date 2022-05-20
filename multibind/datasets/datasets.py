@@ -6,25 +6,24 @@ from difflib import SequenceMatcher
 import random
 import torch.utils.data as tdata
 import torch.nn as tnn
-import multibind as mb
-import numpy as np
-from Bio.Seq import Seq
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import OneHotEncoder
 
 
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
-    def __init__(self, df, n_rounds=1, single_encoding_step=True):
+    def __init__(self, data_frame, n_rounds=1, max_length=None, single_encoding_step=False):
+
+      
         labels = [i for i in range(n_rounds+1)]
         # self.target = np.array(data_frame[labels])
         self.rounds = np.array(df[labels])
         self.countsum = np.sum(self.rounds, axis=1)
         self.seq = np.array(df['seq'])
-        self.le = LabelEncoder()
-        self.oe = OneHotEncoder(sparse=False)
         self.length = len(df)
-
+        self.seq = np.array(data_frame['seq'])
+        self.batch = np.array(data_frame['batch']) if 'batch' in data_frame.columns else None
+        
         self.mononuc = None
         if single_encoding_step:
             assert len(set(df['seq'].str.len())) == 1
@@ -38,9 +37,13 @@ class SelexDataset(tdata.Dataset):
                                      for index, row in df_single_entry.iterrows()])
             # splitting step
             self.mononuc = np.array(np.split(self.mononuc, n_entries, axis=2)).squeeze(1)
-
         else:
-            self.mononuc = np.array([mb.tl.onehot_mononuc(row['seq'], sefl.le, self.oe) for index, row in df.iterrows()])
+            self.le = LabelEncoder()
+            self.oe = OneHotEncoder(sparse=False)
+            self.length = len(data_frame)
+            if max_length is None:
+                max_length = len(self.seq[0])
+            self.mononuc = mb.tl.onehot_mononuc_multi(data_frame['seq'], max_length=max_length)
 
         # self.mononuc_rev = np.array([mb.tl.onehot_mononuc(str(Seq(row['seq']).reverse_complement()), self.le, self.oe)
         #                             for index, row in data_frame.iterrows()])
@@ -57,6 +60,7 @@ class SelexDataset(tdata.Dataset):
                   # "mononuc_rev": mononuc_rev,
                   # "dinuc": dinuc_sample,
                   # "dinuc_rev": dinuc_rev,
+                  "batch": self.batch[index] if self.batch is not None else None,
                   "rounds": self.rounds[index],
                   "seq": self.seq[index],
                   "countsum": self.countsum[index]}
