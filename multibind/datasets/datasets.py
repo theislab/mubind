@@ -6,9 +6,6 @@ from difflib import SequenceMatcher
 import random
 import torch.utils.data as tdata
 import torch.nn as tnn
-import multibind as mb
-import numpy as np
-from Bio.Seq import Seq
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import OneHotEncoder
 
@@ -21,13 +18,13 @@ class SelexDataset(tdata.Dataset):
         self.rounds = np.array(data_frame[labels])
         self.countsum = np.sum(self.rounds, axis=1)
         self.seq = np.array(data_frame['seq'])
+        self.batch = np.array(data_frame['batch']) if 'batch' in data_frame.columns else None
         self.le = LabelEncoder()
         self.oe = OneHotEncoder(sparse=False)
         self.length = len(data_frame)
         if max_length is None:
-            self.mononuc = mb.tl.onehot_mononuc_fast(data_frame['seq'], encode_reverse=False)
-        else:
-            self.mononuc = mb.tl.onehot_mononuc_multi(data_frame['seq'], max_length=max_length)
+            max_length = len(self.seq[0])
+        self.mononuc = mb.tl.onehot_mononuc_multi(data_frame['seq'], max_length=max_length)
         # self.mononuc = np.array([mb.tl.onehot_mononuc(row['seq'], self.le, self.oe)
         #                          for index, row in data_frame.iterrows()])
         # self.mononuc_rev = np.array([mb.tl.onehot_mononuc(str(Seq(row['seq']).reverse_complement()), self.le, self.oe)
@@ -45,6 +42,7 @@ class SelexDataset(tdata.Dataset):
                   # "mononuc_rev": mononuc_rev,
                   # "dinuc": dinuc_sample,
                   # "dinuc_rev": dinuc_rev,
+                  "batch": self.batch[index] if self.batch is not None else None,
                   "rounds": self.rounds[index],
                   "seq": self.seq[index],
                   "countsum": self.countsum[index]}

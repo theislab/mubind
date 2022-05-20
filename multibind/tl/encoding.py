@@ -21,7 +21,6 @@ def onehot_mononuc_multi(seqs, max_length):
             elif base == 'C': result[i, :, j+shift] = [0, 1, 0, 0]
             elif base == 'G': result[i, :, j+shift] = [0, 0, 1, 0]
             elif base == 'T': result[i, :, j+shift] = [0, 0, 0, 1]
-            else: result[i, :, j] = [0.25, 0.25, 0.25, 0.25]
     return result
 
 def onehot_covar(covar, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
