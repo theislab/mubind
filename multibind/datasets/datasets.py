@@ -25,8 +25,6 @@ class SelexDataset(tdata.Dataset):
         if max_length is None:
             max_length = len(self.seq[0])
         self.mononuc = mb.tl.onehot_mononuc_multi(data_frame['seq'], max_length=max_length)
-        # self.mononuc = np.array([mb.tl.onehot_mononuc(row['seq'], self.le, self.oe)
-        #                          for index, row in data_frame.iterrows()])
         # self.mononuc_rev = np.array([mb.tl.onehot_mononuc(str(Seq(row['seq']).reverse_complement()), self.le, self.oe)
         #                             for index, row in data_frame.iterrows()])
         # self.dinuc = np.array([mb.tl.onehot_dinuc_with_gaps(row['seq']) for index, row in data_frame.iterrows()])

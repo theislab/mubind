@@ -52,3 +52,43 @@ def onehot_dinuc_with_gaps(seq):
         di = seq[i: i + 2]
         m[:, i] = np.where(di == index, 1, 0)
     return np.array(m)
+
+# works only for sequences which have the same length
+def onehot_dinuc_fast(seqs):
+    result = np.zeros([len(seqs), 16, len(seqs[0])-1], dtype=np.float32)
+    for i, seq in seqs.iteritems():
+        b2 = seq[0]
+        for j in range(len(seq) - 1):
+            b1 = b2
+            b2 = seq[j+1]
+            if b1 == 'A':
+                if b2 == 'A': result[i, 0, j] = 1
+                elif b2 == 'C': result[i, 1, j] = 1
+                elif b2 == 'G': result[i, 2, j] = 1
+                elif b2 == 'T': result[i, 3, j] = 1
+                else: result[i, 0:4, j] = [0.25, 0.25, 0.25, 0.25]
+            elif b1 == 'C':
+                if b2 == 'A': result[i, 4, j] = 1
+                elif b2 == 'C': result[i, 5, j] = 1
+                elif b2 == 'G': result[i, 6, j] = 1
+                elif b2 == 'T': result[i, 7, j] = 1
+                else: result[i, 4:8, j] = [0.25, 0.25, 0.25, 0.25]
+            elif b1 == 'G':
+                if b2 == 'A': result[i, 8, j] = 1
+                elif b2 == 'C': result[i, 9, j] = 1
+                elif b2 == 'G': result[i, 10, j] = 1
+                elif b2 == 'T': result[i, 11, j] = 1
+                else: result[i, 8:12, j] = [0.25, 0.25, 0.25, 0.25]
+            elif b1 == 'T':
+                if b2 == 'A': result[i, 12, j] = 1
+                elif b2 == 'C': result[i, 13, j] = 1
+                elif b2 == 'G': result[i, 14, j] = 1
+                elif b2 == 'T': result[i, 15, j] = 1
+                else: result[i, 12:16, j] = [0.25, 0.25, 0.25, 0.25]
+            else:
+                if b2 == 'A': result[i, [0, 4, 8, 12], j] = [0.25, 0.25, 0.25, 0.25]
+                elif b2 == 'C': result[i, [1, 5, 9, 13], j] = [0.25, 0.25, 0.25, 0.25]
+                elif b2 == 'G': result[i, [2, 6, 10, 14], j] = [0.25, 0.25, 0.25, 0.25]
+                elif b2 == 'T': result[i, [3, 7, 11, 15], j] = [0.25, 0.25, 0.25, 0.25]
+                else: result[i, :, j] = [0.0625]*16
+    return result
