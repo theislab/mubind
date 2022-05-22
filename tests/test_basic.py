@@ -1,12 +1,12 @@
 import pytest
 
-import multibind
-
+def test_import():
+    import warnings
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    import multibind as mb
 
 def test_package_has_version():
-    multibind.__version__
-
-
-@pytest.mark.skip(reason="This decorator should be removed when test passes.")
-def test_example():
-    assert 1 == 0  # This test is designed to fail.
+    import warnings
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    import multibind as mb
+    mb.__version__

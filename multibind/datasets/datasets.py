@@ -12,18 +12,20 @@ from sklearn.preprocessing import OneHotEncoder
 
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
-    def __init__(self, data_frame, n_rounds=1, max_length=None, single_encoding_step=False):
+    def __init__(self, df, n_rounds=1, max_length=None, single_encoding_step=False):
 
-      
+
         labels = [i for i in range(n_rounds+1)]
         # self.target = np.array(data_frame[labels])
         self.rounds = np.array(df[labels])
         self.countsum = np.sum(self.rounds, axis=1)
         self.seq = np.array(df['seq'])
         self.length = len(df)
-        self.seq = np.array(data_frame['seq'])
-        self.batch = np.array(data_frame['batch']) if 'batch' in data_frame.columns else None
-        
+        self.seq = np.array(df['seq'])
+        self.batch = np.array(df['batch']) if 'batch' in df.columns else np.repeat(0, df.shape[0])
+        self.le = LabelEncoder()
+        self.oe = OneHotEncoder(sparse=False)
+
         self.mononuc = None
         if single_encoding_step:
             assert len(set(df['seq'].str.len())) == 1
@@ -38,12 +40,10 @@ class SelexDataset(tdata.Dataset):
             # splitting step
             self.mononuc = np.array(np.split(self.mononuc, n_entries, axis=2)).squeeze(1)
         else:
-            self.le = LabelEncoder()
-            self.oe = OneHotEncoder(sparse=False)
-            self.length = len(data_frame)
+            self.length = len(df)
             if max_length is None:
                 max_length = len(self.seq[0])
-            self.mononuc = mb.tl.onehot_mononuc_multi(data_frame['seq'], max_length=max_length)
+            self.mononuc = mb.tl.onehot_mononuc_multi(df['seq'], max_length=max_length)
 
         # self.mononuc_rev = np.array([mb.tl.onehot_mononuc(str(Seq(row['seq']).reverse_complement()), self.le, self.oe)
         #                             for index, row in data_frame.iterrows()])
