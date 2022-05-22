@@ -16,6 +16,8 @@ import multibind.tl
 import multibind.datasets
 import multibind.models
 
-import bindome
-
-multibind.bindome = bindome
+try:
+    import bindome
+    multibind.bindome = bindome
+except ImportError as e:
+    print('bindome has not been installed. Please check at https://github.com/theislab/bindome') # module doesn't exist, deal with it.
