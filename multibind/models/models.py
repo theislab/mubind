@@ -61,8 +61,7 @@ class DinucSelex(tnn.Module):
 
         # self.padding = tnn.ModuleList()
         # only keep one padding equals to the length of the max kernel
-        self.padding = tnn.ConstantPad2d(
-            (max(kernels) - 1, max(kernels) - 1, 0, 0), padding_const)
+        self.padding = tnn.ConstantPad2d((max(kernels) - 1, max(kernels) - 1, 0, 0), padding_const)
 
         self.conv_mono = tnn.ModuleList()
         self.conv_di = tnn.ModuleList()
@@ -79,12 +78,9 @@ class DinucSelex(tnn.Module):
                 self.conv_di.append(None)
             else:
                 # self.padding.append(tnn.ConstantPad2d((k - 1, k - 1, 0, 0), 0.25))
-                self.conv_mono.append(tnn.Conv2d(
-                    1, 1, kernel_size=(4, k), padding=(0, 0), bias=False))
-                self.conv_di.append(tnn.Conv2d(
-                    1, 1, kernel_size=(16, k), padding=(0, 0), bias=False))
-            self.log_activities.append(tnn.Parameter(torch.zeros(
-                [n_libraries, n_rounds + 1], dtype=torch.float32)))
+                self.conv_mono.append(tnn.Conv2d(1, 1, kernel_size=(4, k), padding=(0, 0), bias=False))
+                self.conv_di.append(tnn.Conv2d(1, 1, kernel_size=(16, k), padding=(0, 0), bias=False))
+            self.log_activities.append(tnn.Parameter(torch.zeros([n_libraries, n_rounds + 1], dtype=torch.float32)))
 
         # self.log_activity = tnn.Embedding(len(kernels), n_rounds+1)
         # self.log_activity.weight.data.uniform_(0, 0)  # initialize log_activity as zeros.
@@ -142,8 +138,7 @@ class DinucSelex(tnn.Module):
                         dim=3,
                     )
                 else:
-                    temp = torch.cat(
-                        (self.conv_mono[i](mono), self.conv_mono[i](mono_rev)), dim=3)
+                    temp = torch.cat((self.conv_mono[i](mono), self.conv_mono[i](mono_rev)), dim=3)
                 temp = torch.exp(temp)
                 temp = temp.view(temp.shape[0], -1)
                 temp = torch.sum(temp, axis=1)
@@ -151,8 +146,7 @@ class DinucSelex(tnn.Module):
                 # print(temp.shape, x_.shape)
         x = torch.stack(x_).T
 
-        scores = torch.zeros([x.shape[0], self.n_rounds + 1]
-                             ).to(device=mono.device) + min_value# conversion for gpu
+        scores = torch.zeros([x.shape[0], self.n_rounds + 1]).to(device=mono.device) + min_value  # conversion for gpu
         for i in range(self.n_libraries):
             # a = torch.exp(self.log_activities[i, :, :])
             a = torch.exp(torch.stack(list(self.log_activities), dim=1)[i, :, :])
@@ -170,15 +164,14 @@ class DinucSelex(tnn.Module):
         else:
             out = scores
 
-        results = torch.zeros([mono.shape[0], self.n_rounds + 1]
-                              ).to(device=mono.device) + min_value # conversion for gpu
+        results = (
+            torch.zeros([mono.shape[0], self.n_rounds + 1]).to(device=mono.device) + min_value
+        )  # conversion for gpu
         for i in range(self.n_libraries):
             eta = torch.exp(self.log_etas[i, :])
             out[batch == i] = out[batch == i] * eta
-            results[batch == i] = (out[batch == i].T /
-                                   torch.sum(out[batch == i], axis=1)).T
-            results[batch == i] = (results[batch == i].T *
-                                   countsum[batch == i].type(torch.float32)).T
+            results[batch == i] = (out[batch == i].T / torch.sum(out[batch == i], axis=1)).T
+            results[batch == i] = (results[batch == i].T * countsum[batch == i].type(torch.float32)).T
 
         # print(out.shape)
         # print(out[:5,:])

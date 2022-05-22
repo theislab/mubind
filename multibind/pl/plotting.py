@@ -61,8 +61,7 @@ def conv_di(model):
 
 def plot_activities(model):
     # shape of activities: [n_libraries, len(kernels), n_rounds+1]
-    activities = np.exp(torch.stack(list(model.log_activities),
-                        dim=1).cpu().detach().numpy())
+    activities = np.exp(torch.stack(list(model.log_activities), dim=1).cpu().detach().numpy())
     n_cols = activities.shape[0]
     plt.figure(figsize=(min(6 * n_cols, 20), 5))
     for i in range(n_cols):
