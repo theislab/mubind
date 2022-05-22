@@ -9,3 +9,4 @@ torch
 logomaker
 biopython
 numba
+pytest
