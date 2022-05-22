@@ -12,7 +12,7 @@ def _mono2dinuc(mono):
     # print(x.shape)
     dinuc = torch.cat([# AX
                        (x[:,0,:] * x[:,4,:]), (x[:,0,:] * x[:,5,:]), (x[:,0,:] * x[:,6,:]), (x[:,0,:] * x[:,7,:]),
-                       # CX               
+                       # CX
                        (x[:,1,:] * x[:,4,:]), (x[:,1,:] * x[:,5,:]), (x[:,1,:] * x[:,6,:]), (x[:,1,:] * x[:,7,:]),
                        # GX
                        (x[:,2,:] * x[:,4,:]), (x[:,2,:] * x[:,5,:]), (x[:,2,:] * x[:,6,:]), (x[:,2,:] * x[:,7,:]),
@@ -35,12 +35,12 @@ class DinucSelex(tnn.Module):
         self.n_libraries = n_libraries
         self.rho = rho
         self.gamma = gamma
-        
+
         # self.padding = tnn.ModuleList()
         # only keep one padding equals to the length of the max kernel
         self.padding = tnn.ConstantPad2d((max(kernels) - 1, max(kernels) - 1, 0, 0),
                                          padding_const)
-        
+
         self.conv_mono = tnn.ModuleList()
         self.conv_di = tnn.ModuleList()
         self.log_activities = tnn.ParameterList()
@@ -48,7 +48,7 @@ class DinucSelex(tnn.Module):
         self.enr_series = enr_series
         # self.log_activities = tnn.Parameter(torch.zeros([n_libraries, len(kernels), n_rounds+1]))
         self.log_etas = tnn.Parameter(torch.zeros([n_libraries, n_rounds + 1]))
-        
+
         for k in self.kernels:
             if k == 0:
                 # self.padding.append(None)
@@ -70,23 +70,23 @@ class DinucSelex(tnn.Module):
     def forward(self, x):
         # Create the forward pass through the network.
         mono, batch, seqlen, countsum = x
-        
+
         # convert mono to dinuc
         # print(mono.shape)
 
         # print(mono.shape, di.shape)
         # assert False
-        
+
         # print(mono.shape)
-        
+
         # padding of sequences
         mono = self.padding(mono)
         # print(mono.shape)
         # assert False
-        
+
         # prepare the other three objects that we need
         mono_rev = _mono2revmono(mono)
-        
+
         di = _mono2dinuc(mono)
         di_rev = _mono2dinuc(mono_rev)
 
@@ -95,7 +95,7 @@ class DinucSelex(tnn.Module):
         mono = torch.unsqueeze(mono, 1)
         di = torch.unsqueeze(di, 1)
         di_rev = torch.unsqueeze(di_rev, 1)
-        
+
         # x = torch.zeros([mono.shape[0], len(self.kernels)], requires_grad=True)
         x_ = []
         # print(mono.device)
@@ -117,7 +117,7 @@ class DinucSelex(tnn.Module):
                 # print(temp.shape, x_.shape)
         x = torch.stack(x_).T
 
-        scores = torch.zeros([x.shape[0], self.n_rounds+1])
+        scores = torch.zeros([x.shape[0], self.n_rounds+1]).to(device=mono.device) # conversion for gpu
         for i in range(self.n_libraries):
             # a = torch.exp(self.log_activities[i, :, :])
             a = torch.exp(torch.stack(list(self.log_activities), dim=1)[i, :, :])
@@ -135,12 +135,13 @@ class DinucSelex(tnn.Module):
         else:
             out = scores
 
-        results = torch.zeros([mono.shape[0], self.n_rounds+1])
+
+        results = torch.zeros([mono.shape[0], self.n_rounds+1]).to(device=mono.device) # conversion for gpu
         for i in range(self.n_libraries):
             eta = torch.exp(self.log_etas[i, :])
             out[batch == i] = out[batch == i] * eta
             results[batch == i] = (out[batch == i].T / torch.sum(out[batch == i], axis=1)).T
-            results[batch == i] = (results[batch == i].T * countsum[batch == i]).T
+            results[batch == i] = (results[batch == i].T * countsum[batch == i].type(torch.float32)).T
 
         # print(out.shape)
         # print(out[:5,:])
@@ -156,9 +157,9 @@ class DinucMulti(tnn.Module):
         # Create and initialise weights and biases for the layers.
         self.conv_mono = tnn.Conv2d(1, 1, kernel_size=(4, w), bias=False)
         self.conv_di = tnn.Conv2d(1, 1, kernel_size=(16, w), bias=False)
-        
+
         self.embedding = tnn.Embedding(n_datasets, n_latent)
-        
+
         self.best_model_state = None
         # self.fc = tnn.Linear(193, 1, bias=True)
         # torch.nn.init.uniform_(self.fc.weight, 0.0, 2/193)
@@ -214,5 +215,5 @@ class DinucMulti(tnn.Module):
         # print('x after emb', b.shape)
 
 
-        
+
         return x
