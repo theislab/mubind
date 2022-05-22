@@ -1,5 +1,3 @@
-
-
 from multibind.tl.prediction import (
     # SelexDataset,
     # ChipSeqDataset,
@@ -15,13 +13,12 @@ from multibind.tl.prediction import (
 )
 
 from multibind.tl.encoding import (
-    onehot_mononuc,
     onehot_covar,
     onehot_dinuc,
-    onehot_mononuc_with_gaps,
+    onehot_dinuc_fast,
     onehot_dinuc_with_gaps,
+    onehot_mononuc,
     onehot_mononuc_multi,
-    onehot_dinuc_fast
+    onehot_mononuc_with_gaps,
 )
-
 from multibind.tl.loss import MultiDatasetLoss, PoissonLoss

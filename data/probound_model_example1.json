@@ -1,417 +1,334 @@
 {
-"metadata": {
-"timeStamp": "2021-05-21 12:33:28.375",
-"logLikelihoodPerRead": 0.6609412316459564,
-"logLikelihood": 78566.67484492347,
-"gradientCalls": 789,
-"fitSteps": 766,
-"regularization": 0.02721635872762166,
-"functionCalls": 0,
-"fitter": "proBound",
-"fitName": "component2-4-all",
-"fitTime": 743.894,
-"dataLoops": 789
-},
-"optimizerSetting": {
-"output": {
-"outputPath": "jobs/f2900d99a9ca",
-"baseName": "fit"
-},
-"nThreads": 4,
-"likelihoodThreshold": 0.0002,
-"lbfgsSettings": {
-"memory": 100,
-"convergence": 1e-7,
-"MCSearch": true,
-"maxIters": 500
-},
-"lambdaL2": 0.000001,
-"fixedLibrarySize": false,
-"expBound": 40,
-"nRetries": 3,
-"hkSettings": {
-"epsilon": 1e-7,
-"kickFinal": false,
-"fdDelta": 0.0001,
-"kickAll": false,
-"maxIters": 200,
-"evCutoff": 1e-9
-}
-},
-"modelSettings": {
-"enrichmentModel": [
-{
-"variationsOptimized": false,
-"bindingSaturation": false,
-"cumulativeEnrichment": true,
-"concentration": 1,
-"modelType": "SELEX",
-"bindingModeInteractions": [],
-"componentName": "SELEX enrichment model 0",
-"freezingLevel": 0,
-"includeComponent": true,
-"bindingModes": [
-0,
-1,
-2
-],
-"variationDescription": [],
-"modifications": []
-}
-],
-"letterOrder": "ACGT",
-"countTable": [
-{
-"leftFlank": "ACACTCTTTCCCTACACGACGCTCTTCCGATCTTGACGTC",
-"variationsOptimized": true,
-"transliterate": {
-"in": [],
-"out": []
-},
-"variableRegionLength": 30,
-"countTableFile": "jobs/f2900d99a9ca/countTable.0.tsv.gz",
-"modeledColumns": [
-0,
-1
-],
-"inputFileType": "tsv.gz",
-"nColumns": 2,
-"rightFlank": "GACGTCAGATCGGAAGAGCTCGTATGCCGTCTTCTGCTTG",
-"componentName": "Count table 0",
-"freezingLevel": 0,
-"includeComponent": true,
-"variationDescription": []
-}
-],
-"bindingModeInteractions": [],
-"bindingModes": [
-{
-"variationsOptimized": true,
-"fitLogActivity": true,
-"flankLength": 0,
-"singleStrand": false,
-"variationName": "0;0;0",
-"size": 0,
-"dinucleotideDistance": 0,
-"componentName": "Binding mode 0",
-"freezingLevel": 0,
-"positionBias": false,
-"includeComponent": true,
-"variationDescription": [
-{
-"variationName": "0;0;0",
-"descriptionString": "Initial model."
-}
-],
-"modifications": []
-},
-{
-"variationsOptimized": true,
-"fitLogActivity": true,
-"flankLength": 7,
-"singleStrand": false,
-"variationName": "14;7;2",
-"size": 14,
-"dinucleotideDistance": 0,
-"componentName": "Binding mode 1",
-"freezingLevel": 0,
-"positionBias": false,
-"includeComponent": true,
-"variationDescription": [
-{
-"variationName": "12;7;0",
-"descriptionString": "Increases flank length."
-},
-{
-"variationName": "12;6;2",
-"descriptionString": "Heuristic shift (1)."
-},
-{
-"variationName": "12;6;1",
-"descriptionString": "Heuristic shift (1)."
-},
-{
-"variationName": "12;6;0",
-"descriptionString": "Increases flank length."
-},
-{
-"variationName": "16;8;3",
-"descriptionString": "Expands: deltaLeft = 1, deltaRight = 1, deltaFlank = 1."
-},
-{
-"variationName": "12;5;0",
-"descriptionString": "Initial model."
-},
-{
-"variationName": "14;7;2",
-"descriptionString": "Expands: deltaLeft = 1, deltaRight = 1, deltaFlank = 1."
-}
-],
-"modifications": []
-},
-{
-"variationsOptimized": true,
-"fitLogActivity": true,
-"flankLength": 5,
-"singleStrand": false,
-"variationName": "12;5;0",
-"size": 12,
-"dinucleotideDistance": 0,
-"componentName": "Binding mode 2",
-"freezingLevel": 0,
-"positionBias": false,
-"includeComponent": true,
-"variationDescription": [
-{
-"variationName": "12;6;0",
-"descriptionString": "Increases flank length."
-},
-{
-"variationName": "12;5;0",
-"descriptionString": "Initial model."
-}
-],
-"modifications": []
-}
-],
-"letterComplement": "C-G,A-T"
-},
-"coefficients": {
-"enrichmentModel": [
-{}
-],
-"countTable": [
-{
-"h": [
-2.406862200088049,
--2.406862200087929
-]
-}
-],
-"bindingModeInteractions": [],
-"bindingModes": [
-{
-"mononucleotide": [],
-"activity": [
-[
--3.205441092954406e-14,
--0.7879411363275897
-]
-],
-"dinucleotide": [],
-"modifications": []
-},
-{
-"mononucleotide": [
--1.2367155211747507,
-0.8345276995061088,
--0.6759880817405535,
--0.47761631953722566,
--1.1031738285733064,
--0.9228000402177465,
-1.0803608826116062,
--0.6101792367989115,
--0.6623942121515632,
-1.235582641856006,
--0.5077624211017717,
--1.6212182315776884,
--1.1727982749517842,
-1.6043011168661243,
--0.9980332917303202,
--0.9892617731627522,
--0.07504203804557914,
-0.8564686850482643,
--1.1193463965134376,
--1.2178724734649462,
--1.0710302803991305,
-1.0063182553631218,
--1.4803851532740617,
--0.010695044664580686,
--0.9751186680593396,
-1.6852380506172782,
--1.2490441039253615,
--1.0168675016123112,
--0.8383771400517754,
--0.5781739406745541,
--1.2413125565617875,
-1.1020714143104817,
-0.4815915269377371,
--1.0464573337499596,
--0.32223365202885995,
--0.668692764136674,
--1.2235424245106592,
--0.35177408422041395,
-0.6209590264632225,
--0.6014347407088009,
--0.4234103004211573,
-0.0457545954450697,
--1.011086571974562,
--0.1670499460272685,
--1.4103125286727491,
--0.5761564148940482,
-1.3473978867246004,
--0.9167211661343888,
--0.8686068812638903,
--0.953897471501341,
-0.7981314276731134,
--0.5314192978862552,
--0.6865966806309284,
--0.04792112537094185,
--0.9472497596464109,
-0.12597534270157118
-],
-"activity": [
-[
-2.9650697906261684e-14,
--1.5557922229748533
-]
-],
-"dinucleotide": [],
-"modifications": []
-},
-{
-"mononucleotide": [
--0.0628002414937536,
-0.0020017459069982366,
--0.03897503195650488,
-0.03749880242096015,
-0.06683294002647285,
-0.008902297153628537,
--0.25482585974016714,
-0.11681589761495893,
-0.04538743392072704,
--0.33909222615144674,
-0.269092537086702,
--0.03766246889902896,
--0.011149895288075544,
-0.11857711154752004,
--0.31295000133919904,
-0.14324806026127607,
-0.5858876364696763,
--0.4029830960138381,
--0.25277846233823753,
-0.007599197724774407,
--0.21359595299359257,
--0.07701945319143023,
-0.09247181361358414,
-0.13586886844124416,
--0.2650443440586193,
--0.02714357844812883,
--0.1567738393259034,
-0.3866870369932455,
-0.05606769365647195,
--0.13847629310393259,
-0.13087620331703115,
--0.11074232721433051,
-0.09391599114262006,
-0.0002829572031998322,
-0.04328470159494262,
--0.19975837450106948,
--0.09634023311630557,
-0.5836816528613247,
--0.5230410360147757,
--0.026575108197309915,
-0.22047996215323132,
--0.31418625554111607,
-0.2318163567514139,
--0.2003847866161521,
--0.14806151934685716,
-0.02976244211567419,
-0.01628143364548482,
-0.03974291952370085
-],
-"activity": [
-[
--3.1230777185901823e-7,
--0.06227490263385268
-]
-],
-"dinucleotide": [],
-"modifications": []
-}
-]
-},
-"modelFittingConstraints": {
-"enrichmentModel": [
-{
-"trySaturation": false
-}
-],
-"countTable": [
-{}
-],
-"bindingModes": [
-{
-"maxFlankLength": -1,
-"positionBiasBinWidth": 1,
-"optimizeSizeHeuristic": false,
-"maxSize": -1,
-"optimizeFlankLength": false,
-"symmetryString": "null",
-"roundSpecificActivity": true,
-"informationThreshold": 0.1,
-"optimizeMotifShift": false,
-"fittingStages": [],
-"optimizeMotifShiftHeuristic": false,
-"experimentSpecificPositionBias": true,
-"minSize": -1,
-"experimentSpecificActivity": true,
-"optimizeSize": false
-},
-{
-"maxFlankLength": -1,
-"positionBiasBinWidth": 1,
-"optimizeSizeHeuristic": true,
-"maxSize": 18,
-"optimizeFlankLength": false,
-"symmetryString": "null",
-"roundSpecificActivity": true,
-"informationThreshold": 0.1,
-"optimizeMotifShift": false,
-"fittingStages": [
-{
-"optimizeFlankLength": true
-},
-{
-"optimizeMotifShiftHeuristic": true
-},
-{
-"optimizeSizeHeuristic": true
-}
-],
-"optimizeMotifShiftHeuristic": false,
-"experimentSpecificPositionBias": true,
-"minSize": -1,
-"experimentSpecificActivity": true,
-"optimizeSize": false
-},
-{
-"maxFlankLength": -1,
-"positionBiasBinWidth": 1,
-"optimizeSizeHeuristic": true,
-"maxSize": 18,
-"optimizeFlankLength": false,
-"symmetryString": "null",
-"roundSpecificActivity": true,
-"informationThreshold": 0.1,
-"optimizeMotifShift": false,
-"fittingStages": [
-{
-"optimizeFlankLength": true
-},
-{
-"optimizeMotifShiftHeuristic": true
-},
-{
-"optimizeSizeHeuristic": true
-}
-],
-"optimizeMotifShiftHeuristic": false,
-"experimentSpecificPositionBias": true,
-"minSize": -1,
-"experimentSpecificActivity": true,
-"optimizeSize": false
-}
-]
-}
+    "metadata": {
+        "timeStamp": "2021-05-21 12:33:28.375",
+        "logLikelihoodPerRead": 0.6609412316459564,
+        "logLikelihood": 78566.67484492347,
+        "gradientCalls": 789,
+        "fitSteps": 766,
+        "regularization": 0.02721635872762166,
+        "functionCalls": 0,
+        "fitter": "proBound",
+        "fitName": "component2-4-all",
+        "fitTime": 743.894,
+        "dataLoops": 789
+    },
+    "optimizerSetting": {
+        "output": {
+            "outputPath": "jobs/f2900d99a9ca",
+            "baseName": "fit"
+        },
+        "nThreads": 4,
+        "likelihoodThreshold": 0.0002,
+        "lbfgsSettings": {
+            "memory": 100,
+            "convergence": 1e-7,
+            "MCSearch": true,
+            "maxIters": 500
+        },
+        "lambdaL2": 0.000001,
+        "fixedLibrarySize": false,
+        "expBound": 40,
+        "nRetries": 3,
+        "hkSettings": {
+            "epsilon": 1e-7,
+            "kickFinal": false,
+            "fdDelta": 0.0001,
+            "kickAll": false,
+            "maxIters": 200,
+            "evCutoff": 1e-9
+        }
+    },
+    "modelSettings": {
+        "enrichmentModel": [
+            {
+                "variationsOptimized": false,
+                "bindingSaturation": false,
+                "cumulativeEnrichment": true,
+                "concentration": 1,
+                "modelType": "SELEX",
+                "bindingModeInteractions": [],
+                "componentName": "SELEX enrichment model 0",
+                "freezingLevel": 0,
+                "includeComponent": true,
+                "bindingModes": [0, 1, 2],
+                "variationDescription": [],
+                "modifications": []
+            }
+        ],
+        "letterOrder": "ACGT",
+        "countTable": [
+            {
+                "leftFlank": "ACACTCTTTCCCTACACGACGCTCTTCCGATCTTGACGTC",
+                "variationsOptimized": true,
+                "transliterate": {
+                    "in": [],
+                    "out": []
+                },
+                "variableRegionLength": 30,
+                "countTableFile": "jobs/f2900d99a9ca/countTable.0.tsv.gz",
+                "modeledColumns": [0, 1],
+                "inputFileType": "tsv.gz",
+                "nColumns": 2,
+                "rightFlank": "GACGTCAGATCGGAAGAGCTCGTATGCCGTCTTCTGCTTG",
+                "componentName": "Count table 0",
+                "freezingLevel": 0,
+                "includeComponent": true,
+                "variationDescription": []
+            }
+        ],
+        "bindingModeInteractions": [],
+        "bindingModes": [
+            {
+                "variationsOptimized": true,
+                "fitLogActivity": true,
+                "flankLength": 0,
+                "singleStrand": false,
+                "variationName": "0;0;0",
+                "size": 0,
+                "dinucleotideDistance": 0,
+                "componentName": "Binding mode 0",
+                "freezingLevel": 0,
+                "positionBias": false,
+                "includeComponent": true,
+                "variationDescription": [
+                    {
+                        "variationName": "0;0;0",
+                        "descriptionString": "Initial model."
+                    }
+                ],
+                "modifications": []
+            },
+            {
+                "variationsOptimized": true,
+                "fitLogActivity": true,
+                "flankLength": 7,
+                "singleStrand": false,
+                "variationName": "14;7;2",
+                "size": 14,
+                "dinucleotideDistance": 0,
+                "componentName": "Binding mode 1",
+                "freezingLevel": 0,
+                "positionBias": false,
+                "includeComponent": true,
+                "variationDescription": [
+                    {
+                        "variationName": "12;7;0",
+                        "descriptionString": "Increases flank length."
+                    },
+                    {
+                        "variationName": "12;6;2",
+                        "descriptionString": "Heuristic shift (1)."
+                    },
+                    {
+                        "variationName": "12;6;1",
+                        "descriptionString": "Heuristic shift (1)."
+                    },
+                    {
+                        "variationName": "12;6;0",
+                        "descriptionString": "Increases flank length."
+                    },
+                    {
+                        "variationName": "16;8;3",
+                        "descriptionString": "Expands: deltaLeft = 1, deltaRight = 1, deltaFlank = 1."
+                    },
+                    {
+                        "variationName": "12;5;0",
+                        "descriptionString": "Initial model."
+                    },
+                    {
+                        "variationName": "14;7;2",
+                        "descriptionString": "Expands: deltaLeft = 1, deltaRight = 1, deltaFlank = 1."
+                    }
+                ],
+                "modifications": []
+            },
+            {
+                "variationsOptimized": true,
+                "fitLogActivity": true,
+                "flankLength": 5,
+                "singleStrand": false,
+                "variationName": "12;5;0",
+                "size": 12,
+                "dinucleotideDistance": 0,
+                "componentName": "Binding mode 2",
+                "freezingLevel": 0,
+                "positionBias": false,
+                "includeComponent": true,
+                "variationDescription": [
+                    {
+                        "variationName": "12;6;0",
+                        "descriptionString": "Increases flank length."
+                    },
+                    {
+                        "variationName": "12;5;0",
+                        "descriptionString": "Initial model."
+                    }
+                ],
+                "modifications": []
+            }
+        ],
+        "letterComplement": "C-G,A-T"
+    },
+    "coefficients": {
+        "enrichmentModel": [{}],
+        "countTable": [
+            {
+                "h": [2.406862200088049, -2.406862200087929]
+            }
+        ],
+        "bindingModeInteractions": [],
+        "bindingModes": [
+            {
+                "mononucleotide": [],
+                "activity": [[-3.205441092954406e-14, -0.7879411363275897]],
+                "dinucleotide": [],
+                "modifications": []
+            },
+            {
+                "mononucleotide": [
+                    -1.2367155211747507, 0.8345276995061088,
+                    -0.6759880817405535, -0.47761631953722566,
+                    -1.1031738285733064, -0.9228000402177465,
+                    1.0803608826116062, -0.6101792367989115,
+                    -0.6623942121515632, 1.235582641856006, -0.5077624211017717,
+                    -1.6212182315776884, -1.1727982749517842,
+                    1.6043011168661243, -0.9980332917303202,
+                    -0.9892617731627522, -0.07504203804557914,
+                    0.8564686850482643, -1.1193463965134376,
+                    -1.2178724734649462, -1.0710302803991305,
+                    1.0063182553631218, -1.4803851532740617,
+                    -0.010695044664580686, -0.9751186680593396,
+                    1.6852380506172782, -1.2490441039253615,
+                    -1.0168675016123112, -0.8383771400517754,
+                    -0.5781739406745541, -1.2413125565617875,
+                    1.1020714143104817, 0.4815915269377371, -1.0464573337499596,
+                    -0.32223365202885995, -0.668692764136674,
+                    -1.2235424245106592, -0.35177408422041395,
+                    0.6209590264632225, -0.6014347407088009,
+                    -0.4234103004211573, 0.0457545954450697, -1.011086571974562,
+                    -0.1670499460272685, -1.4103125286727491,
+                    -0.5761564148940482, 1.3473978867246004,
+                    -0.9167211661343888, -0.8686068812638903,
+                    -0.953897471501341, 0.7981314276731134, -0.5314192978862552,
+                    -0.6865966806309284, -0.04792112537094185,
+                    -0.9472497596464109, 0.12597534270157118
+                ],
+                "activity": [[2.9650697906261684e-14, -1.5557922229748533]],
+                "dinucleotide": [],
+                "modifications": []
+            },
+            {
+                "mononucleotide": [
+                    -0.0628002414937536, 0.0020017459069982366,
+                    -0.03897503195650488, 0.03749880242096015,
+                    0.06683294002647285, 0.008902297153628537,
+                    -0.25482585974016714, 0.11681589761495893,
+                    0.04538743392072704, -0.33909222615144674,
+                    0.269092537086702, -0.03766246889902896,
+                    -0.011149895288075544, 0.11857711154752004,
+                    -0.31295000133919904, 0.14324806026127607,
+                    0.5858876364696763, -0.4029830960138381,
+                    -0.25277846233823753, 0.007599197724774407,
+                    -0.21359595299359257, -0.07701945319143023,
+                    0.09247181361358414, 0.13586886844124416,
+                    -0.2650443440586193, -0.02714357844812883,
+                    -0.1567738393259034, 0.3866870369932455,
+                    0.05606769365647195, -0.13847629310393259,
+                    0.13087620331703115, -0.11074232721433051,
+                    0.09391599114262006, 0.0002829572031998322,
+                    0.04328470159494262, -0.19975837450106948,
+                    -0.09634023311630557, 0.5836816528613247,
+                    -0.5230410360147757, -0.026575108197309915,
+                    0.22047996215323132, -0.31418625554111607,
+                    0.2318163567514139, -0.2003847866161521,
+                    -0.14806151934685716, 0.02976244211567419,
+                    0.01628143364548482, 0.03974291952370085
+                ],
+                "activity": [[-3.1230777185901823e-7, -0.06227490263385268]],
+                "dinucleotide": [],
+                "modifications": []
+            }
+        ]
+    },
+    "modelFittingConstraints": {
+        "enrichmentModel": [
+            {
+                "trySaturation": false
+            }
+        ],
+        "countTable": [{}],
+        "bindingModes": [
+            {
+                "maxFlankLength": -1,
+                "positionBiasBinWidth": 1,
+                "optimizeSizeHeuristic": false,
+                "maxSize": -1,
+                "optimizeFlankLength": false,
+                "symmetryString": "null",
+                "roundSpecificActivity": true,
+                "informationThreshold": 0.1,
+                "optimizeMotifShift": false,
+                "fittingStages": [],
+                "optimizeMotifShiftHeuristic": false,
+                "experimentSpecificPositionBias": true,
+                "minSize": -1,
+                "experimentSpecificActivity": true,
+                "optimizeSize": false
+            },
+            {
+                "maxFlankLength": -1,
+                "positionBiasBinWidth": 1,
+                "optimizeSizeHeuristic": true,
+                "maxSize": 18,
+                "optimizeFlankLength": false,
+                "symmetryString": "null",
+                "roundSpecificActivity": true,
+                "informationThreshold": 0.1,
+                "optimizeMotifShift": false,
+                "fittingStages": [
+                    {
+                        "optimizeFlankLength": true
+                    },
+                    {
+                        "optimizeMotifShiftHeuristic": true
+                    },
+                    {
+                        "optimizeSizeHeuristic": true
+                    }
+                ],
+                "optimizeMotifShiftHeuristic": false,
+                "experimentSpecificPositionBias": true,
+                "minSize": -1,
+                "experimentSpecificActivity": true,
+                "optimizeSize": false
+            },
+            {
+                "maxFlankLength": -1,
+                "positionBiasBinWidth": 1,
+                "optimizeSizeHeuristic": true,
+                "maxSize": 18,
+                "optimizeFlankLength": false,
+                "symmetryString": "null",
+                "roundSpecificActivity": true,
+                "informationThreshold": 0.1,
+                "optimizeMotifShift": false,
+                "fittingStages": [
+                    {
+                        "optimizeFlankLength": true
+                    },
+                    {
+                        "optimizeMotifShiftHeuristic": true
+                    },
+                    {
+                        "optimizeSizeHeuristic": true
+                    }
+                ],
+                "optimizeMotifShiftHeuristic": false,
+                "experimentSpecificPositionBias": true,
+                "minSize": -1,
+                "experimentSpecificActivity": true,
+                "optimizeSize": false
+            }
+        ]
+    }
 }

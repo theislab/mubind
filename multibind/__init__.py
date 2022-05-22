@@ -1,21 +1,21 @@
-
-
 from importlib.metadata import version
 
 from . import pl, pp, tl
 
-__all__ = ["pl", "pp", "tl"]
+__all__ = ["pl", "pp", "tl", "datasets"]
 
 __version__ = version("multibind")
 
 
-
 import multibind
-import multibind.pl
-import multibind.tl
 import multibind.datasets
 import multibind.models
+import multibind.pl
+import multibind.tl
 
-import bindome
+try:
+    import bindome
+    multibind.bindome = bindome
+except ImportError:
+    print("bindome has not been installed. Please check at https://github.com/theislab/bindome")
 
-multibind.bindome = bindome

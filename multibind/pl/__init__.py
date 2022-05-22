@@ -1,3 +1,8 @@
-
-
-from multibind.pl.plotting import scatter, create_heatmap, create_logo, conv_mono, conv_di, plot_activities
+from multibind.pl.plotting import (
+    conv_di,
+    conv_mono,
+    create_heatmap,
+    create_logo,
+    plot_activities,
+    scatter,
+)

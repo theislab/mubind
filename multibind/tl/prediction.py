@@ -14,8 +14,7 @@ def calculate_enrichment(data, approx=True, cols=[0, 1]):
     data["p1"] = data[cols[1]] / np.sum(data[cols[1]])
     data["enr"] = data["p1"] / data["p0"]
     if approx:
-        data["enr_approx"] = np.where(
-            data["p0"] == 0, data["p1"] / (data["p0"] + 1e-06), data["enr"])
+        data["enr_approx"] = np.where(data["p0"] == 0, data["p1"] / (data["p0"] + 1e-06), data["enr"])
     return data
 
 
@@ -109,20 +108,28 @@ def train_network(net, train_dataloader, device, optimiser, criterion, num_epoch
     return loss_history
 
 
-def train_iterative(train, device, n_kernels=4, min_w=10, max_w=20, n_rounds=None,
-                    num_epochs=100, early_stopping=15, log_each=10,
-                    optimize_motif_shift=True):
+def train_iterative(
+    train,
+    device,
+    n_kernels=4,
+    min_w=10,
+    max_w=20,
+    n_rounds=None,
+    num_epochs=100,
+    early_stopping=15,
+    log_each=10,
+    optimize_motif_shift=True,
+):
 
     model_by_k = {}
     res = []
     for w in range(14, max_w, 2):
         # step 1) freeze everything before the current binding mode
-        print('next w', w)
-        model = mb.models.DinucSelex(use_dinuc=True,
-                                     kernels=[0] + [w] * (n_kernels - 1), n_rounds=n_rounds).to(device)
+        print("next w", w)
+        model = mb.models.DinucSelex(use_dinuc=True, kernels=[0] + [w] * (n_kernels - 1), n_rounds=n_rounds).to(device)
 
         for i in range(0, n_kernels):
-            print('kernel to optimize %i' % i)
+            print("kernel to optimize %i" % i)
 
             for ki in range(n_kernels):
                 print('setting kernel at %i to %i' % (ki, ki == i))
@@ -130,15 +137,25 @@ def train_iterative(train, device, n_kernels=4, min_w=10, max_w=20, n_rounds=Non
 
             optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.001)
             criterion = mb.tl.PoissonLoss()
-            mb.tl.train_network(model, train, device, optimiser, criterion, num_epochs=num_epochs,
-                                early_stopping=early_stopping, log_each=log_each)
-            model.load_state_dict(model.best_model_state)  # probably here load the state of the best epoch and save
-            k_parms = '%i' % w
-            model_by_k[k_parms] = copy.deepcopy(model)  # store model parameters and fit for later visualization
+            mb.tl.train_network(
+                model,
+                train,
+                device,
+                optimiser,
+                criterion,
+                num_epochs=num_epochs,
+                early_stopping=early_stopping,
+                log_each=log_each,
+            )
+            # probably here load the state of the best epoch and save
+            model.load_state_dict(model.best_model_state)
+            k_parms = "%i" % w
+            # store model parameters and fit for later visualization
+            model_by_k[k_parms] = copy.deepcopy(model)
             # optimizer for left / right flanks
             best_loss = model_by_k[k_parms].best_loss
 
-            print('before shift optim.')
+            print("before shift optim.")
             mb.pl.conv_mono(model)
 
             #######
@@ -147,39 +164,59 @@ def train_iterative(train, device, n_kernels=4, min_w=10, max_w=20, n_rounds=Non
             if optimize_motif_shift and i != 0:
                 next_loss = None
                 while next_loss is None or next_loss < best_loss:
-                    print('optimize_motif_shift (%s)...' % ('once' if next_loss is None else 'again'), end='')
+                    print("optimize_motif_shift (%s)..." % ("once" if next_loss is None else "again"), end="")
                     model = model_by_k[k_parms]
                     best_loss = model.best_loss
 
-                    model_left = mb.tl.train_shift(copy.deepcopy(model), train, kernel_i=i, shift=1,
-                                                   device=device, num_epochs=num_epochs,
-                                                   early_stopping=early_stopping, log_each=log_each,
-                                                   update_grad_i=i)
-                    model_right = mb.tl.train_shift(copy.deepcopy(model), train, kernel_i=i, shift=-1,
-                                                    device=device, num_epochs=num_epochs,
-                                                    early_stopping=early_stopping, log_each=log_each,
-                                                    update_grad_i=i)
+                    model_left = mb.tl.train_shift(
+                        copy.deepcopy(model),
+                        train,
+                        kernel_i=i,
+                        shift=1,
+                        device=device,
+                        num_epochs=num_epochs,
+                        early_stopping=early_stopping,
+                        log_each=log_each,
+                        update_grad_i=i,
+                    )
+                    model_right = mb.tl.train_shift(
+                        copy.deepcopy(model),
+                        train,
+                        kernel_i=i,
+                        shift=-1,
+                        device=device,
+                        num_epochs=num_epochs,
+                        early_stopping=early_stopping,
+                        log_each=log_each,
+                        update_grad_i=i,
+                    )
                     print(best_loss, model_left.best_loss, model_right.best_loss)
-                    best = sorted([[model, best_loss],
-                                   [model_left, model_left.best_loss],
-                                   [model_right, model_right.best_loss]], key=lambda x: x[-1])
+                    best = sorted(
+                        [[model, best_loss], [model_left, model_left.best_loss], [model_right, model_right.best_loss]],
+                        key=lambda x: x[-1],
+                    )
                     next_model, next_loss = best[0]
                     model_by_k[k_parms] = copy.deepcopy(next_model)
 
             model = model_by_k[k_parms]
-            n_feat = sum([np.prod(layer.kernel_size) for conv in [model.conv_mono, model.conv_di] for layer in conv if
-                          layer is not None])
+            n_feat = sum(
+                np.prod(layer.kernel_size)
+                for conv in [model.conv_mono, model.conv_di]
+                for layer in conv
+                if layer is not None
+            )
             l_best = model.best_loss
 
-            print('after shift optimz model')
+            print("after shift optimz model")
             mb.pl.conv_mono(model_by_k[k_parms])
-            print('')
+            print("")
 
         r = [k_parms, w, n_feat, l_best]
         # print(r)
         res.append(r)
 
     return model_by_k, res
+
 
 def update_grad(model, position, value):
     if model.conv_mono[position] is not None:
@@ -221,8 +258,7 @@ def train_shift(
             continue
         # update the weight
         if shift == 1:
-            m.weight = torch.nn.Parameter(
-                torch.cat([m.weight[:, :, :, 1:], torch.zeros(1, 1, 4, 1).to(device)], dim=3))
+            m.weight = torch.nn.Parameter(torch.cat([m.weight[:, :, :, 1:], torch.zeros(1, 1, 4, 1).to(device)], dim=3))
         elif shift == -1:
             m.weight = torch.nn.Parameter(
                 torch.cat(
@@ -242,13 +278,11 @@ def train_shift(
         # update the weight
         if shift == 1:
             m.weight = torch.nn.Parameter(
-                torch.cat([m.weight[:, :, :, 1:], torch.zeros(
-                    1, 1, 16, 1).to(device)], dim=3)
+                torch.cat([m.weight[:, :, :, 1:], torch.zeros(1, 1, 16, 1).to(device)], dim=3)
             )
         elif shift == -1:
             m.weight = torch.nn.Parameter(
-                torch.cat([torch.zeros(1, 1, 16, 1).to(
-                    device), m.weight[:, :, :, :-1]], dim=3)
+                torch.cat([torch.zeros(1, 1, 16, 1).to(device), m.weight[:, :, :, :-1]], dim=3)
             )
 
     # requires grad update
@@ -259,8 +293,7 @@ def train_shift(
     optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.001)
     criterion = mb.tl.PoissonLoss()
 
-    mb.tl.train_network(model, train, device, optimiser, criterion,
-                        num_epochs=500, early_stopping=15, log_each=-1)
+    mb.tl.train_network(model, train, device, optimiser, criterion, num_epochs=500, early_stopping=15, log_each=-1)
 
     return model
 
@@ -274,8 +307,7 @@ def get_last_loss_value():
 
 
 def create_simulated_data(motif="GATA", n_batch=None, n_trials=20000, seqlen=100, batch_sizes=10):
-    x2, y2 = mb.datasets.simulate_xy(
-        motif, n_trials=n_trials, seqlen=seqlen, max_mismatches=-1, batch=1)
+    x2, y2 = mb.datasets.simulate_xy(motif, n_trials=n_trials, seqlen=seqlen, max_mismatches=-1, batch=1)
 
     # print('skip normalizing...')
     # y2 = ((y2 - y2.min()) / (np.max(y2) - np.min(y2))).astype(np.float32)
@@ -351,8 +383,7 @@ def create_multi_data(n_chip=100, n_selex=100, n_batch_selex=3):
     )  # multiplier=100)
     # print(train1.dataset.seq, train1.shape)
     # assert False
-    df_selex = pd.DataFrame(
-        {"seq": train1.dataset.seq, "target": train1.dataset.target})
+    df_selex = pd.DataFrame({"seq": train1.dataset.seq, "target": train1.dataset.target})
     df_selex["batch"] = pd.Series(train1.dataset.batch).astype(str).values + "_selex"
     df_selex["is_count_data"] = np.repeat(1, df_selex.shape[0])
     datasets = [df_chip, df_selex]
@@ -369,8 +400,7 @@ def create_multi_data(n_chip=100, n_selex=100, n_batch_selex=3):
     print("max seqlen", max_seqlen)
     max_seqlen = int(max_seqlen)
     data["k"] = "_"
-    padded_seq = data["seq"] + \
-        data["k"].str.repeat(max_seqlen - data["seqlen"].astype(int))
+    padded_seq = data["seq"] + data["k"].str.repeat(max_seqlen - data["seqlen"].astype(int))
     data["seq"] = np.where(data["seqlen"] < max_seqlen, padded_seq, data["seq"])
     data["seqlen"] = data["seq"].str.len()
     assert len(set(data["seqlen"])) == 1
