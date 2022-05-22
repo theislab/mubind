@@ -11,4 +11,5 @@ biopython
 numba
 pytest
 pytest-cov
-
+openpyxl
+anndata
