@@ -1,34 +1,57 @@
-import numpy as np
 import torch
 import torch.nn as tnn
 
+
 def _mono2revmono(x):
-    return torch.flip(x, [1])[:,[3,2,1,0],:]
+    return torch.flip(x, [1])[:, [3, 2, 1, 0], :]
+
 
 def _mono2dinuc(mono):
     # this is a concatenation of columns (i : i - 1) and (i + 1 : i)
     n_mono = mono.shape[1]
-    x = torch.cat([mono[:,:,:-1], mono[:,:,1:]], dim=1)
+    x = torch.cat([mono[:, :, :-1], mono[:, :, 1:]], dim=1)
     # print(x.shape)
-    dinuc = torch.cat([# AX
-                       (x[:,0,:] * x[:,4,:]), (x[:,0,:] * x[:,5,:]), (x[:,0,:] * x[:,6,:]), (x[:,0,:] * x[:,7,:]),
-                       # CX
-                       (x[:,1,:] * x[:,4,:]), (x[:,1,:] * x[:,5,:]), (x[:,1,:] * x[:,6,:]), (x[:,1,:] * x[:,7,:]),
-                       # GX
-                       (x[:,2,:] * x[:,4,:]), (x[:,2,:] * x[:,5,:]), (x[:,2,:] * x[:,6,:]), (x[:,2,:] * x[:,7,:]),
-                       # TX
-                       (x[:,3,:] * x[:,4,:]), (x[:,3,:] * x[:,5,:]),
-                       (x[:,3,:] * x[:,6,:]), (x[:,3,:] * x[:,7,:])], dim=1).reshape(x.shape[0],
-                                                                                     n_mono ** 2,
-                                                                                     x.shape[2])
+    dinuc = torch.cat(
+        [  # AX
+            (x[:, 0, :] * x[:, 4, :]),
+            (x[:, 0, :] * x[:, 5, :]),
+            (x[:, 0, :] * x[:, 6, :]),
+            (x[:, 0, :] * x[:, 7, :]),
+            # CX
+            (x[:, 1, :] * x[:, 4, :]),
+            (x[:, 1, :] * x[:, 5, :]),
+            (x[:, 1, :] * x[:, 6, :]),
+            (x[:, 1, :] * x[:, 7, :]),
+            # GX
+            (x[:, 2, :] * x[:, 4, :]),
+            (x[:, 2, :] * x[:, 5, :]),
+            (x[:, 2, :] * x[:, 6, :]),
+            (x[:, 2, :] * x[:, 7, :]),
+            # TX
+            (x[:, 3, :] * x[:, 4, :]),
+            (x[:, 3, :] * x[:, 5, :]),
+            (x[:, 3, :] * x[:, 6, :]),
+            (x[:, 3, :] * x[:, 7, :]),
+        ],
+        dim=1,
+    ).reshape(x.shape[0], n_mono**2, x.shape[2])
     return dinuc
 
 
 # One selex datasets with multiple rounds of counts
 class DinucSelex(tnn.Module):
     # n_rounds indicates the number of experimental rounds
-    def __init__(self, use_dinuc=False, kernels=[0, 14, 12], n_rounds=1, n_libraries=1, rho=1, gamma=0, enr_series=True,
-                padding_const=0.25):
+    def __init__(
+        self,
+        use_dinuc=False,
+        kernels=[0, 14, 12],
+        n_rounds=1,
+        n_libraries=1,
+        rho=1,
+        gamma=0,
+        enr_series=True,
+        padding_const=0.25,
+    ):
         super().__init__()
         self.use_dinuc = use_dinuc
         self.n_rounds = n_rounds
@@ -38,8 +61,8 @@ class DinucSelex(tnn.Module):
 
         # self.padding = tnn.ModuleList()
         # only keep one padding equals to the length of the max kernel
-        self.padding = tnn.ConstantPad2d((max(kernels) - 1, max(kernels) - 1, 0, 0),
-                                         padding_const)
+        self.padding = tnn.ConstantPad2d(
+            (max(kernels) - 1, max(kernels) - 1, 0, 0), padding_const)
 
         self.conv_mono = tnn.ModuleList()
         self.conv_di = tnn.ModuleList()
@@ -56,9 +79,12 @@ class DinucSelex(tnn.Module):
                 self.conv_di.append(None)
             else:
                 # self.padding.append(tnn.ConstantPad2d((k - 1, k - 1, 0, 0), 0.25))
-                self.conv_mono.append(tnn.Conv2d(1, 1, kernel_size=(4, k), padding=(0, 0), bias=False))
-                self.conv_di.append(tnn.Conv2d(1, 1, kernel_size=(16, k), padding=(0, 0), bias=False))
-            self.log_activities.append(tnn.Parameter(torch.zeros([n_libraries, n_rounds + 1], dtype=torch.float32)))
+                self.conv_mono.append(tnn.Conv2d(
+                    1, 1, kernel_size=(4, k), padding=(0, 0), bias=False))
+                self.conv_di.append(tnn.Conv2d(
+                    1, 1, kernel_size=(16, k), padding=(0, 0), bias=False))
+            self.log_activities.append(tnn.Parameter(torch.zeros(
+                [n_libraries, n_rounds + 1], dtype=torch.float32)))
 
         # self.log_activity = tnn.Embedding(len(kernels), n_rounds+1)
         # self.log_activity.weight.data.uniform_(0, 0)  # initialize log_activity as zeros.
@@ -67,7 +93,7 @@ class DinucSelex(tnn.Module):
         self.best_model_state = None
         self.best_loss = None
 
-    def forward(self, x):
+    def forward(self, x, min_value=1e-15):
         # Create the forward pass through the network.
         mono, batch, seqlen, countsum = x
 
@@ -106,10 +132,18 @@ class DinucSelex(tnn.Module):
                 x_.append(temp)
             else:
                 if self.use_dinuc:
-                    temp = torch.cat((self.conv_mono[i](mono), self.conv_mono[i](mono_rev), self.conv_di[i](di),
-                                      self.conv_di[i](di_rev)), dim=3)
+                    temp = torch.cat(
+                        (
+                            self.conv_mono[i](mono),
+                            self.conv_mono[i](mono_rev),
+                            self.conv_di[i](di),
+                            self.conv_di[i](di_rev),
+                        ),
+                        dim=3,
+                    )
                 else:
-                    temp = torch.cat((self.conv_mono[i](mono), self.conv_mono[i](mono_rev)), dim=3)
+                    temp = torch.cat(
+                        (self.conv_mono[i](mono), self.conv_mono[i](mono_rev)), dim=3)
                 temp = torch.exp(temp)
                 temp = temp.view(temp.shape[0], -1)
                 temp = torch.sum(temp, axis=1)
@@ -117,7 +151,8 @@ class DinucSelex(tnn.Module):
                 # print(temp.shape, x_.shape)
         x = torch.stack(x_).T
 
-        scores = torch.zeros([x.shape[0], self.n_rounds+1]).to(device=mono.device) # conversion for gpu
+        scores = torch.zeros([x.shape[0], self.n_rounds + 1]
+                             ).to(device=mono.device) + min_value# conversion for gpu
         for i in range(self.n_libraries):
             # a = torch.exp(self.log_activities[i, :, :])
             a = torch.exp(torch.stack(list(self.log_activities), dim=1)[i, :, :])
@@ -129,19 +164,21 @@ class DinucSelex(tnn.Module):
         # sequential enrichment or independent samples
         if self.enr_series:
             predictions_ = [scores[:, 0]]
-            for i in range(1, self.n_rounds+1):
+            for i in range(1, self.n_rounds + 1):
                 predictions_.append(predictions_[-1] * scores[:, i])
             out = torch.stack(predictions_).T
         else:
             out = scores
 
-
-        results = torch.zeros([mono.shape[0], self.n_rounds+1]).to(device=mono.device) # conversion for gpu
+        results = torch.zeros([mono.shape[0], self.n_rounds + 1]
+                              ).to(device=mono.device) + min_value # conversion for gpu
         for i in range(self.n_libraries):
             eta = torch.exp(self.log_etas[i, :])
             out[batch == i] = out[batch == i] * eta
-            results[batch == i] = (out[batch == i].T / torch.sum(out[batch == i], axis=1)).T
-            results[batch == i] = (results[batch == i].T * countsum[batch == i].type(torch.float32)).T
+            results[batch == i] = (out[batch == i].T /
+                                   torch.sum(out[batch == i], axis=1)).T
+            results[batch == i] = (results[batch == i].T *
+                                   countsum[batch == i].type(torch.float32)).T
 
         # print(out.shape)
         # print(out[:5,:])
@@ -213,7 +250,5 @@ class DinucMulti(tnn.Module):
         # b = b.view(-1)
         x = torch.sum(x.reshape(x.shape[0], 1) * b.T, axis=1)
         # print('x after emb', b.shape)
-
-
 
         return x
