@@ -125,6 +125,7 @@ def train_iterative(train, device, n_kernels=4, min_w=10, max_w=20, n_rounds=Non
             print('kernel to optimize %i' % i)
 
             for ki in range(n_kernels):
+                print('setting kernel at %i to %i' % (ki, ki == i))
                 mb.tl.update_grad(model, ki, ki == i)
 
             optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.001)
@@ -183,8 +184,12 @@ def train_iterative(train, device, n_kernels=4, min_w=10, max_w=20, n_rounds=Non
 def update_grad(model, position, value):
     if model.conv_mono[position] is not None:
         model.conv_mono[position].weight.requires_grad = value
+        print('mono grad', position, model.conv_mono[position].weight.grad)
+
     if model.conv_di[position] is not None:
         model.conv_di[position].weight.requires_grad = value
+        print('di grad', position, model.conv_mono[position].weight.grad)
+
     model.log_activities[position].requires_grad = value
     if not value:
         model.log_activities[position].grad = None

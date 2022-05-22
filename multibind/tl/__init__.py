@@ -7,6 +7,7 @@ from multibind.tl.prediction import (
     test_network,
     update_grad,
     train_network,
+    train_iterative,
     create_simulated_data,
     create_multi_data,
     get_last_loss_value,

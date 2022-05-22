@@ -152,7 +152,7 @@ class DinucSelex(tnn.Module):
         x = torch.stack(x_).T
 
         scores = torch.zeros([x.shape[0], self.n_rounds + 1]
-                             ).to(device=mono.device) + min_value# conversion for gpu
+                             ).to(device=mono.device) #  + min_value# conversion for gpu
         for i in range(self.n_libraries):
             # a = torch.exp(self.log_activities[i, :, :])
             a = torch.exp(torch.stack(list(self.log_activities), dim=1)[i, :, :])
@@ -170,8 +170,12 @@ class DinucSelex(tnn.Module):
         else:
             out = scores
 
+        # print(out[:5,:])
+
         results = torch.zeros([mono.shape[0], self.n_rounds + 1]
-                              ).to(device=mono.device) + min_value # conversion for gpu
+                              ).to(device=mono.device)#  + min_value # conversion for gpu
+
+        # print(results[:5,:])
         for i in range(self.n_libraries):
             eta = torch.exp(self.log_etas[i, :])
             out[batch == i] = out[batch == i] * eta
@@ -180,6 +184,8 @@ class DinucSelex(tnn.Module):
             results[batch == i] = (results[batch == i].T *
                                    countsum[batch == i].type(torch.float32)).T
 
+        # print(results[:5,:])
+        # assert False
         # print(out.shape)
         # print(out[:5,:])
         # assert False
