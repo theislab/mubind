@@ -21,18 +21,18 @@ fixedLibrarySize = false
 
 >> Determining fitting order.
 
- Summary of experiments 
- ====================== 
+ Summary of experiments
+ ======================
 Experiment 0:
 -------------
 Count table:      Count table 0
 Enrichment model: SELEX enrichment model 0
    Concentration: 1.0
-Binding modes: 
+Binding modes:
                   Binding mode 0
                   Binding mode 1
                   Binding mode 2
-Binding mode interactions: 
+Binding mode interactions:
                   NONE
 
 > Builds optimizer.
