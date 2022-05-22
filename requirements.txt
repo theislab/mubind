@@ -10,3 +10,5 @@ logomaker
 biopython
 numba
 pytest
+pytest-cov
+
