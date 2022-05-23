@@ -11,27 +11,34 @@ import multibind as mb
 
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
-    def __init__(self, df, n_rounds=1, max_length=None, single_encoding_step=False):
-
+    def __init__(self, df, n_rounds=1, enr_series=True, single_encoding_step=False):
+        df = df.reset_index(drop=True)
         labels = [i for i in range(n_rounds + 1)]
-        # self.target = np.array(data_frame[labels])
         self.rounds = np.array(df[labels])
+        self.n_rounds = n_rounds
         self.countsum = np.sum(self.rounds, axis=1)
         self.seq = np.array(df["seq"])
         self.length = len(df)
         self.seq = np.array(df["seq"])
-        self.batch = np.array(df["batch"]) if "batch" in df.columns else np.repeat(0, df.shape[0])
-        self.le = LabelEncoder()
-        self.oe = OneHotEncoder(sparse=False)
+        if "batch" not in df.columns:
+            df["batch"] = np.repeat(0, df.shape[0])
+        self.n_batches = len(set(df['batch']))
+        self.batch_names = {}
+        for i, name in enumerate(set(df['batch'])):
+            self.batch_names[i] = name
+            mask = df['batch'] == name
+            df.loc[mask, 'batch'] = i
+        self.batch = np.array(df["batch"])
+        self.enr_series = enr_series
 
-        self.mononuc = None
         if single_encoding_step:
             assert len(set(df["seq"].str.len())) == 1
             n_entries = df.shape[0]
             single_seq = "".join(df["seq"].head(n_entries))
             df_single_entry = df.head(1).copy()
             df_single_entry["seq"] = [single_seq]
-
+            self.le = LabelEncoder()
+            self.oe = OneHotEncoder(sparse=False)
             # single encoding step
             self.mononuc = np.array(
                 [mb.tl.onehot_mononuc(row["seq"], self.le, self.oe) for index, row in df_single_entry.iterrows()]
@@ -40,8 +47,7 @@ class SelexDataset(tdata.Dataset):
             self.mononuc = np.array(np.split(self.mononuc, n_entries, axis=2)).squeeze(1)
         else:
             self.length = len(df)
-            if max_length is None:
-                max_length = len(self.seq[0])
+            max_length = max(set(df["seq"].str.len()))
             self.mononuc = mb.tl.onehot_mononuc_multi(df["seq"], max_length=max_length)
 
         # self.mononuc_rev = np.array([mb.tl.onehot_mononuc(str(Seq(row['seq']).reverse_complement()), self.le, self.oe)
@@ -60,7 +66,7 @@ class SelexDataset(tdata.Dataset):
             # "mononuc_rev": mononuc_rev,
             # "dinuc": dinuc_sample,
             # "dinuc_rev": dinuc_rev,
-            "batch": self.batch[index] if self.batch is not None else None,
+            "batch": self.batch[index],
             "rounds": self.rounds[index],
             "seq": self.seq[index],
             "countsum": self.countsum[index],

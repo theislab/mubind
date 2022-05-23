@@ -61,7 +61,7 @@ loss_history = []
 # if early_stopping is positive, training is stopped if over the length of early_stopping no improvement happened or
 # num_epochs is reached.
 def train_network(
-    net,
+    model,
     train_dataloader,
     device,
     optimiser,
@@ -90,7 +90,7 @@ def train_network(
             # PyTorch calculates gradients by accumulating contributions to them (useful for
             optimiser.zero_grad()
             # RNNs).  Hence we must manully set them to zero before calculating them.
-            outputs = net(inputs)  # Forward pass through the network.
+            outputs = model(inputs)  # Forward pass through the network.
             # print('outputs', rounds)
             # print('rounds', rounds)
             loss = criterion(outputs, rounds)
@@ -105,8 +105,8 @@ def train_network(
         if best_loss is None or loss_final < best_loss:
             best_loss = loss_final
             best_epoch = epoch
-            net.best_model_state = copy.deepcopy(net.state_dict())
-            net.best_loss = best_loss
+            model.best_model_state = copy.deepcopy(model.state_dict())
+            model.best_loss = best_loss
 
         # print("Epoch: %2d, Loss: %.3f" % (epoch + 1, running_loss / len(train_dataloader)))
         loss_history.append(loss_final)
@@ -123,7 +123,6 @@ def train_iterative(
     n_kernels=4,
     min_w=10,
     max_w=20,
-    n_rounds=None,
     num_epochs=100,
     early_stopping=15,
     log_each=10,
@@ -132,10 +131,14 @@ def train_iterative(
 
     model_by_k = {}
     res = []
-    for w in range(14, max_w, 2):
+    n_rounds = train.dataset.n_rounds
+    n_batches = train.dataset.n_batches
+    enr_series = train.dataset.enr_series
+    for w in range(min_w, max_w, 2):
         # step 1) freeze everything before the current binding mode
         print("next w", w)
-        model = mb.models.DinucSelex(use_dinuc=True, kernels=[0] + [w] * (n_kernels - 1), n_rounds=n_rounds).to(device)
+        model = mb.models.DinucSelex(use_dinuc=True, kernels=[0] + [w] * (n_kernels - 1), n_rounds=n_rounds,
+                                     n_batches=n_batches, enr_series=enr_series).to(device)
 
         for i in range(0, n_kernels):
             print("kernel to optimize %i" % i)
@@ -315,9 +318,9 @@ def train_shift(
         device,
         optimiser,
         criterion,
-        num_epochs=500,
-        early_stopping=15,
-        log_each=-1,
+        num_epochs=num_epochs,
+        early_stopping=early_stopping,
+        log_each=log_each,
     )
 
     return model
