@@ -210,7 +210,8 @@ def simulate_xy(motif, batch=100, n_trials=500, seqlen=50, max_mismatches=-1, mi
 
     for n_mismatches in mismatch_values:
         next_options = np.random.choice(
-            list(_mismatch(motif, "ACGT", n_mismatches)), int(n_trials / len(mismatch_values))
+            list(_mismatch(motif, "ACGT", n_mismatches)),
+            int(n_trials / len(mismatch_values)),
         )
         # print(n_mismatches, len(next_options), next_options)
         options += list(next_options)
@@ -244,7 +245,10 @@ def gata_remap(n_sample=5000):
 
     fa_path = tempfile.mkstemp()[1]
     seqs = scr.gen.get_sequences_from_bed(
-        peaks_cd34[["chr", "summit.start", "summit.end"]], fa_path, gen_path=gen_path, uppercase=True
+        peaks_cd34[["chr", "summit.start", "summit.end"]],
+        fa_path,
+        gen_path=gen_path,
+        uppercase=True,
     )
     # only shuffling, no dinucleotide content control
     shuffled_seqs = [[h + "_rand", scr.gen.randomize_sequence(s)] for h, s in seqs]

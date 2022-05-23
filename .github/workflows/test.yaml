@@ -55,11 +55,11 @@ jobs:
                   DISPLAY: :42
               run: |
                   pytest -v --cov --color=yes
-            - name: Upload coverage
-              env:
-                  CODECOV_NAME: ${{ matrix.python }}-${{ matrix.os }}
-              run: |
-                  codecov --required --flags=unittests
+    #      - name: Upload coverage
+    #        env:
+    #          CODECOV_NAME: ${{ matrix.python }}-${{ matrix.os }}
+    #        run: |
+    #          codecov --required --flags=unittests
 
     package:
         runs-on: ubuntu-latest

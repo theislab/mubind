@@ -60,7 +60,16 @@ loss_history = []
 
 # if early_stopping is positive, training is stopped if over the length of early_stopping no improvement happened or
 # num_epochs is reached.
-def train_network(model, train_dataloader, device, optimiser, criterion, num_epochs=15, early_stopping=-1, log_each=None):
+def train_network(
+    model,
+    train_dataloader,
+    device,
+    optimiser,
+    criterion,
+    num_epochs=15,
+    early_stopping=-1,
+    log_each=None,
+):
     global loss_history
     loss_history = []
     best_loss = None
@@ -135,7 +144,7 @@ def train_iterative(
             print("kernel to optimize %i" % i)
 
             for ki in range(n_kernels):
-                print('setting kernel at %i to %i' % (ki, ki == i))
+                print("setting kernel at %i to %i" % (ki, ki == i))
                 mb.tl.update_grad(model, ki, ki == i)
 
             optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.001)
@@ -167,7 +176,10 @@ def train_iterative(
             if optimize_motif_shift and i != 0:
                 next_loss = None
                 while next_loss is None or next_loss < best_loss:
-                    print("optimize_motif_shift (%s)..." % ("once" if next_loss is None else "again"), end="")
+                    print(
+                        "optimize_motif_shift (%s)..." % ("once" if next_loss is None else "again"),
+                        end="",
+                    )
                     model = model_by_k[k_parms]
                     best_loss = model.best_loss
 
@@ -195,7 +207,11 @@ def train_iterative(
                     )
                     print(best_loss, model_left.best_loss, model_right.best_loss)
                     best = sorted(
-                        [[model, best_loss], [model_left, model_left.best_loss], [model_right, model_right.best_loss]],
+                        [
+                            [model, best_loss],
+                            [model_left, model_left.best_loss],
+                            [model_right, model_right.best_loss],
+                        ],
                         key=lambda x: x[-1],
                     )
                     next_model, next_loss = best[0]
@@ -224,11 +240,11 @@ def train_iterative(
 def update_grad(model, position, value):
     if model.conv_mono[position] is not None:
         model.conv_mono[position].weight.requires_grad = value
-        print('mono grad', position, model.conv_mono[position].weight.grad)
+        print("mono grad", position, model.conv_mono[position].weight.grad)
 
     if model.conv_di[position] is not None:
         model.conv_di[position].weight.requires_grad = value
-        print('di grad', position, model.conv_mono[position].weight.grad)
+        print("di grad", position, model.conv_mono[position].weight.grad)
 
     model.log_activities[position].requires_grad = value
     if not value:
@@ -296,8 +312,16 @@ def train_shift(
     optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.001)
     criterion = mb.tl.PoissonLoss()
 
-    mb.tl.train_network(model, train, device, optimiser, criterion, num_epochs=num_epochs,
-                        early_stopping=early_stopping, log_each=log_each)
+    mb.tl.train_network(
+        model,
+        train,
+        device,
+        optimiser,
+        criterion,
+        num_epochs=num_epochs,
+        early_stopping=early_stopping,
+        log_each=log_each,
+    )
 
     return model
 
@@ -383,7 +407,11 @@ def create_multi_data(n_chip=100, n_selex=100, n_batch_selex=3):
     # batch sizes. Dataset 2 has many times more reads than Dataset 1
     batch_sizes = [int(5 * 10**i) for i in range(n_batch_selex)]
     train1, test1 = mb.tl.create_simulated_data(
-        motif="GATA", n_batch=n_batch_selex, n_trials=n_selex, seqlen=10, batch_sizes=batch_sizes
+        motif="GATA",
+        n_batch=n_batch_selex,
+        n_trials=n_selex,
+        seqlen=10,
+        batch_sizes=batch_sizes,
     )  # multiplier=100)
     # print(train1.dataset.seq, train1.shape)
     # assert False
