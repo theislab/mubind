@@ -1,17 +1,3 @@
-from multibind.tl.prediction import (
-    # SelexDataset,
-    # ChipSeqDataset,
-    # create_datasets,
-    test_network,
-    update_grad,
-    train_network,
-    train_iterative,
-    create_simulated_data,
-    create_multi_data,
-    get_last_loss_value,
-    train_shift,
-)
-
 from multibind.tl.encoding import (
     onehot_covar,
     onehot_dinuc,
@@ -22,3 +8,13 @@ from multibind.tl.encoding import (
     onehot_mononuc_with_gaps,
 )
 from multibind.tl.loss import MultiDatasetLoss, PoissonLoss
+from multibind.tl.prediction import (  # SelexDataset,; ChipSeqDataset,; create_datasets,
+    create_multi_data,
+    create_simulated_data,
+    get_last_loss_value,
+    test_network,
+    train_iterative,
+    train_network,
+    train_shift,
+    update_grad,
+)
