@@ -43,10 +43,10 @@ class DinucSelex(tnn.Module):
     # n_rounds indicates the number of experimental rounds
     def __init__(
         self,
+        n_rounds,
+        n_batches,
         use_dinuc=False,
         kernels=[0, 14, 12],
-        n_rounds=1,
-        n_libraries=1,
         rho=1,
         gamma=0,
         enr_series=True,
@@ -55,7 +55,7 @@ class DinucSelex(tnn.Module):
         super().__init__()
         self.use_dinuc = use_dinuc
         self.n_rounds = n_rounds
-        self.n_libraries = n_libraries
+        self.n_batches = n_batches
         self.rho = rho
         self.gamma = gamma
 
@@ -68,8 +68,8 @@ class DinucSelex(tnn.Module):
         self.log_activities = tnn.ParameterList()
         self.kernels = kernels
         self.enr_series = enr_series
-        # self.log_activities = tnn.Parameter(torch.zeros([n_libraries, len(kernels), n_rounds+1]))
-        self.log_etas = tnn.Parameter(torch.zeros([n_libraries, n_rounds + 1]))
+        # self.log_activities = tnn.Parameter(torch.zeros([n_batches, len(kernels), n_rounds+1]))
+        self.log_etas = tnn.Parameter(torch.zeros([n_batches, n_rounds + 1]))
 
         for k in self.kernels:
             if k == 0:
@@ -80,7 +80,7 @@ class DinucSelex(tnn.Module):
                 # self.padding.append(tnn.ConstantPad2d((k - 1, k - 1, 0, 0), 0.25))
                 self.conv_mono.append(tnn.Conv2d(1, 1, kernel_size=(4, k), padding=(0, 0), bias=False))
                 self.conv_di.append(tnn.Conv2d(1, 1, kernel_size=(16, k), padding=(0, 0), bias=False))
-            self.log_activities.append(tnn.Parameter(torch.zeros([n_libraries, n_rounds + 1], dtype=torch.float32)))
+            self.log_activities.append(tnn.Parameter(torch.zeros([n_batches, n_rounds + 1], dtype=torch.float32)))
 
         # self.log_activity = tnn.Embedding(len(kernels), n_rounds+1)
         # self.log_activity.weight.data.uniform_(0, 0)  # initialize log_activity as zeros.
@@ -148,14 +148,13 @@ class DinucSelex(tnn.Module):
 
         scores = torch.zeros([x.shape[0], self.n_rounds + 1]
                              ).to(device=mono.device) #  + min_value# conversion for gpu
-        for i in range(self.n_libraries):
+        for i in range(self.n_batches):
             # a = torch.exp(self.log_activities[i, :, :])
             a = torch.exp(torch.stack(list(self.log_activities), dim=1)[i, :, :])
             scores[batch == i] = torch.matmul(x[batch == i], a)
         # a = torch.reshape(a, [a.shape[0], a.shape[2]])
         # x = torch.matmul(x, a)
 
-        out = None
         # sequential enrichment or independent samples
         if self.enr_series:
             predictions_ = [scores[:, 0]]
@@ -168,7 +167,7 @@ class DinucSelex(tnn.Module):
         results = torch.zeros([mono.shape[0], self.n_rounds + 1]
                               ).to(device=mono.device)#  + min_value # conversion for gpu
 
-        for i in range(self.n_libraries):
+        for i in range(self.n_batches):
             eta = torch.exp(self.log_etas[i, :])
             out[batch == i] = out[batch == i] * eta
             results[batch == i] = (out[batch == i].T / torch.sum(out[batch == i], axis=1)).T
