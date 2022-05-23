@@ -54,7 +54,24 @@ def conv_di(model):
         weights = m.weight
         weights = weights.squeeze().cpu().detach().numpy()
         weights = pd.DataFrame(weights)
-        weights.index = "AA", "AC", "AG", "AT", "CA", "CC", "CG", "CT", "GA", "GC", "GG", "GT", "TA", "TC", "TG", "TT"
+        weights.index = (
+            "AA",
+            "AC",
+            "AG",
+            "AT",
+            "CA",
+            "CC",
+            "CG",
+            "CT",
+            "GA",
+            "GC",
+            "GG",
+            "GT",
+            "TA",
+            "TC",
+            "TG",
+            "TT",
+        )
         sns.heatmap(weights, cmap="coolwarm", center=0, ax=ax)
     plt.show()
 

@@ -19,7 +19,13 @@ def test_simdata_train():
     x2, y2 = mb.datasets.simulate_xy(motif, n_trials=1000, seqlen=30, max_mismatches=2)
     y2 = ((y2 - y2.min()) / (np.max(y2) - np.min(y2))).astype(np.float32)
     # data = pd.DataFrame({'seq': x1, 'enr_approx': y1})
-    data = pd.DataFrame({"seq": x2, 0: np.where(y2 == 0, 1, 0).astype(float), 1: np.where(y2 == 1, 1, 0).astype(float)})
+    data = pd.DataFrame(
+        {
+            "seq": x2,
+            0: np.where(y2 == 0, 1, 0).astype(float),
+            1: np.where(y2 == 1, 1, 0).astype(float),
+        }
+    )
 
     # divide in train and test data -- copied from above, organize differently!
     train_dataframe = data.copy()
