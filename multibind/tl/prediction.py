@@ -124,11 +124,12 @@ def train_iterative(
     res = []
     n_rounds = train.dataset.n_rounds
     n_batches = train.dataset.n_batches
+    enr_series = train.dataset.enr_series
     for w in range(min_w, max_w, 2):
         # step 1) freeze everything before the current binding mode
         print("next w", w)
         model = mb.models.DinucSelex(use_dinuc=True, kernels=[0] + [w] * (n_kernels - 1), n_rounds=n_rounds,
-                                     n_batches=n_batches).to(device)
+                                     n_batches=n_batches, enr_series=enr_series).to(device)
 
         for i in range(0, n_kernels):
             print("kernel to optimize %i" % i)

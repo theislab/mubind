@@ -43,9 +43,10 @@ def conv_mono(model, figsize=None):
     plt.show()
 
 
-def conv_di(model):
+def conv_di(model, figsize=None):
     n_cols = len(model.conv_mono)
-    plt.figure(figsize=(min(6 * n_cols, 20), 5))
+    if figsize is not None:
+        plt.figure(figsize=figsize)
     for i, m in enumerate(model.conv_di):
         # print(i, m)
         ax = plt.subplot(1, n_cols, i + 1)
@@ -59,16 +60,18 @@ def conv_di(model):
     plt.show()
 
 
-def plot_activities(model):
+def plot_activities(model, dataloader, figsize=None):
     # shape of activities: [n_libraries, len(kernels), n_rounds+1]
     activities = np.exp(torch.stack(list(model.log_activities), dim=1).cpu().detach().numpy())
     n_cols = activities.shape[0]
-    plt.figure(figsize=(min(6 * n_cols, 20), 5))
+    batch_names = dataloader.dataset.batch_names
+    if figsize is not None:
+        plt.figure(figsize=figsize)
     for i in range(n_cols):
         ax = plt.subplot(1, n_cols, i + 1)
         rel_activity = activities[i, :, :] / np.sum(activities[i, :, :])
         sns.heatmap(rel_activity.T, cmap="Reds", ax=ax)
-        plt.title("rel contrib. to lib." + str(i))
+        plt.title("rel contrib. to batch " + str(batch_names[i]))
         plt.ylabel("selection round")
         plt.xlabel("binding mode rel activity")
     plt.show()
