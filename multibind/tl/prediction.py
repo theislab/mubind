@@ -127,6 +127,7 @@ def train_iterative(
     early_stopping=15,
     log_each=10,
     optimize_motif_shift=True,
+    seed=None
 ):
 
     model_by_k = {}
@@ -139,6 +140,8 @@ def train_iterative(
         print("next w", w)
         model = mb.models.DinucSelex(use_dinuc=True, kernels=[0] + [w] * (n_kernels - 1), n_rounds=n_rounds,
                                      n_batches=n_batches, enr_series=enr_series).to(device)
+        if seed is not None:
+            model.set_seed(seed, 1)
 
         for i in range(0, n_kernels):
             print("kernel to optimize %i" % i)

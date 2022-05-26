@@ -180,6 +180,20 @@ class DinucSelex(tnn.Module):
         # assert False
         return results
 
+    def set_seed(self, seed, index, max=0, min=-1):
+        assert len(seed) <= self.conv_mono[index].kernel_size[1]
+        shift = int((self.conv_mono[index].kernel_size[1] - len(seed)) / 2)
+        seed_params = torch.full(self.conv_mono[index].kernel_size, max, dtype=torch.float32)
+        for i in range(len(seed)):
+            if seed[i] == 'A':
+                seed_params[:, i+shift] = torch.tensor([max, min, min, min])
+            elif seed[i] == 'C':
+                seed_params[:, i + shift] = torch.tensor([min, max, min, min])
+            elif seed[i] == 'G':
+                seed_params[:, i + shift] = torch.tensor([min, min, max, min])
+            elif seed[i] == 'T':
+                seed_params[:, i + shift] = torch.tensor([min, min, min, max])
+        self.conv_mono[index].weight = tnn.Parameter(torch.unsqueeze(torch.unsqueeze(seed_params, 0), 0))
 
 # Multiple datasets
 class DinucMulti(tnn.Module):
