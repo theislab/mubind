@@ -133,3 +133,15 @@ def onehot_dinuc_fast(seqs):
                 else:
                     result[i, :, j] = [0.0625] * 16
     return result
+
+
+def string2bin(s):
+    return sum( 5 ** i * " ACGT".index(p) for i, p in enumerate(s))
+
+
+def bin2string(n):
+    result = ""
+    while n:
+        n, p = divmod(n, 5)
+        result += " ACGT"[p]
+    return result

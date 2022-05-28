@@ -6,6 +6,8 @@ from multibind.tl.encoding import (
     onehot_mononuc,
     onehot_mononuc_multi,
     onehot_mononuc_with_gaps,
+    string2bin,
+    bin2string
 )
 from multibind.tl.loss import MultiDatasetLoss, PoissonLoss
 from multibind.tl.prediction import (  # SelexDataset,; ChipSeqDataset,; create_datasets,
