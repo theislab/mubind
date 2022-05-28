@@ -127,6 +127,11 @@ class DinucSelex(tnn.Module):
                 temp = torch.Tensor([1.0] * mono.shape[0]).to(device=mono.device)
                 x_.append(temp)
             else:
+
+                # check devices match
+                if self.conv_mono[i].weight.device != mono.device:
+                    self.conv_mono[i].weight.to(mono.device)
+
                 if self.use_dinuc:
                     temp = torch.cat(
                         (
@@ -194,6 +199,7 @@ class DinucSelex(tnn.Module):
             elif seed[i] == 'T':
                 seed_params[:, i + shift] = torch.tensor([min, min, min, max])
         self.conv_mono[index].weight = tnn.Parameter(torch.unsqueeze(torch.unsqueeze(seed_params, 0), 0))
+
 
 # Multiple datasets
 class DinucMulti(tnn.Module):
