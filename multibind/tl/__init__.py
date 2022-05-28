@@ -18,3 +18,8 @@ from multibind.tl.prediction import (  # SelexDataset,; ChipSeqDataset,; create_
     train_shift,
     update_grad,
 )
+
+from multibind.tl.kmers import (
+    seqs2kmers,
+    fastq2kmers,
+)

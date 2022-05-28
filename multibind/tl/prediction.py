@@ -142,6 +142,7 @@ def train_iterative(
                                      n_batches=n_batches, enr_series=enr_series).to(device)
         if seed is not None:
             model.set_seed(seed, 1)
+            model = model.to(device)
 
         for i in range(0, n_kernels):
             print("kernel to optimize %i" % i)
