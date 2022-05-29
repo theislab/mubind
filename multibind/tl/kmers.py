@@ -55,7 +55,8 @@ def fastq2kmers(fastq_path, k, kmc_tmp='kmc_tmp', log=False):
     if not os.path.exists(kmc_tmp):
         os.mkdir(kmc_tmp)
 
-    cmd = ' '.join(['kmc', '-k%i' % k, '-m8', fastq_path, 'NA', kmc_tmp, '1>', 'in.txt', '2>', 'err.txt'])
+    # ci0 is necessary to avoid filtering counts of one
+    cmd = ' '.join(['kmc', '-ci0', '-k%i' % k, '-m8', fastq_path, 'NA', kmc_tmp, '1>', 'in.txt', '2>', 'err.txt'])
     if log:
         print(cmd)
     os.system(cmd) # !kmc -k$k -m8 $fastq_path NA kmc_tmp 1> in.txt 2> err.txt
@@ -67,3 +68,14 @@ def fastq2kmers(fastq_path, k, kmc_tmp='kmc_tmp', log=False):
     df.columns = ['counts']
     # df = df.sort_values('counts', ascending=False)
     return df
+
+def log2fc_vs_zero(data, k):
+    # get a vector that indicates the mean log2fc between non-zero cycles and the zero cycle
+    kmers_by_k = {}
+    for round_k in data.columns[1:]:
+        print('checking kmers at round', round_k, data.shape)
+        kmers_by_k[round_k] = seqs2kmers(data.seq, k, counts=data[round_k])
+    ref = kmers_by_k[0]
+    pos = pd.concat([kmers_by_k[i] for i in kmers_by_k if i != 0], axis=1)
+    seeds = np.log2(pos.mean(axis=1) / (ref.mean(axis=1) + 1)).sort_values(ascending=False)
+    return seeds
