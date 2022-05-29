@@ -5,7 +5,7 @@ import pandas as pd
 import torch
 import torch.optim as topti
 import torch.utils.data as tdata
-
+import time
 import multibind as mb
 
 
@@ -55,7 +55,7 @@ def test_network(net, test_dataloader, device):
     return np.array(all_targets), np.array(all_outputs)
 
 
-loss_history = []
+# loss_history = []
 
 
 # if early_stopping is positive, training is stopped if over the length of early_stopping no improvement happened or
@@ -70,10 +70,12 @@ def train_network(
     early_stopping=-1,
     log_each=None,
 ):
-    global loss_history
+    # global loss_history
     loss_history = []
     best_loss = None
     best_epoch = -1
+
+    t0 = time.time()
     for epoch in range(num_epochs):
         running_loss = 0
         for i, batch in enumerate(train_dataloader):
@@ -100,7 +102,8 @@ def train_network(
 
         loss_final = running_loss / len(train_dataloader)
         if log_each != -1 and (epoch % log_each == 0):
-            print("Epoch: %2d, Loss: %.3f" % (epoch + 1, loss_final))
+            print("Epoch: %2d, Loss: %.4f" % (epoch + 1, loss_final),
+                  ', secs per epoch: %.3f s' % ((time.time() - t0) / max(epoch, 1)))
 
         if best_loss is None or loss_final < best_loss:
             best_loss = loss_final
@@ -114,7 +117,7 @@ def train_network(
         if early_stopping > 0 and epoch >= best_epoch + early_stopping:
             break
 
-    return loss_history
+    model.loss_history += loss_history
 
 
 def train_iterative(
@@ -127,31 +130,54 @@ def train_iterative(
     early_stopping=15,
     log_each=10,
     optimize_motif_shift=True,
-    seed=None
+    show_logo=True,
+    seed=None,
+    lr=0.01,
+    weight_decay=0.001,
+    **kwargs
 ):
 
     model_by_k = {}
     res = []
+    loss_history = []
     n_rounds = train.dataset.n_rounds
     n_batches = train.dataset.n_batches
     enr_series = train.dataset.enr_series
+
+    print('# rounds', n_rounds)
+    print('# batches', n_batches)
+    print('# enr_series', enr_series)
+
+
+    # color for visualization of history
+    colors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#ffff33", "#a65628"]
+
     for w in range(min_w, max_w, 2):
         # step 1) freeze everything before the current binding mode
         print("next w", w)
-        model = mb.models.DinucSelex(use_dinuc=True, kernels=[0] + [w] * (n_kernels - 1), n_rounds=n_rounds,
-                                     n_batches=n_batches, enr_series=enr_series).to(device)
+        model = mb.models.DinucSelex(kernels=[0] + [w] * (n_kernels - 1), n_rounds=n_rounds,
+                                     n_batches=n_batches, enr_series=enr_series, **kwargs).to(device)
+
+        # this sets up the seed at the first positoin
         if seed is not None:
             model.set_seed(seed, 1)
             model = model.to(device)
 
+
         for i in range(0, n_kernels):
             print("kernel to optimize %i" % i)
 
+            print('\nFreezing kernels')
             for ki in range(n_kernels):
-                print("setting kernel at %i to %i" % (ki, ki == i))
+                print("setting grad status of kernel at %i to %i" % (ki, ki == i))
                 mb.tl.update_grad(model, ki, ki == i)
+            print('\n')
 
-            optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.001)
+            if show_logo:
+                print("before kernel optimization.")
+                mb.pl.conv_mono(model)
+
+            optimiser = topti.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
             criterion = mb.tl.PoissonLoss()
             mb.tl.train_network(
                 model,
@@ -163,6 +189,8 @@ def train_iterative(
                 early_stopping=early_stopping,
                 log_each=log_each,
             )
+            # print('next color', colors[i])
+            model.loss_color += list(np.repeat(colors[i], len(model.loss_history)))
             # probably here load the state of the best epoch and save
             model.load_state_dict(model.best_model_state)
             k_parms = "%i" % w
@@ -171,24 +199,35 @@ def train_iterative(
             # optimizer for left / right flanks
             best_loss = model_by_k[k_parms].best_loss
 
-            print("before shift optim.")
-            mb.pl.conv_mono(model)
+            if show_logo:
+                print("after kernel opt / before shift optim.")
+                mb.pl.conv_mono(model)
+                mb.pl.plot_loss(model)
 
+            # print(model_by_k[k_parms].loss_color)
             #######
             # optimize the flanks through +1/-1 shifts
             #######
+            n_attempts = 0
+
             if optimize_motif_shift and i != 0:
                 next_loss = None
                 while next_loss is None or next_loss < best_loss:
+                    n_attempts += 1
                     print(
-                        "optimize_motif_shift (%s)..." % ("once" if next_loss is None else "again"),
+                        "\noptimize_motif_shift (%s)..." % ("first" if next_loss is None else "again"),
                         end="",
                     )
                     model = model_by_k[k_parms]
                     best_loss = model.best_loss
+                    next_color = colors[-(1 if n_attempts % 2 == 0 else -2)]
 
+                    print('left')
+                    model_left = copy.deepcopy(model)
+                    model_left.loss_history = []
+                    model_left.loss_color = []
                     model_left = mb.tl.train_shift(
-                        copy.deepcopy(model),
+                        model_left,
                         train,
                         kernel_i=i,
                         shift=1,
@@ -197,9 +236,17 @@ def train_iterative(
                         early_stopping=early_stopping,
                         log_each=log_each,
                         update_grad_i=i,
+                        lr=lr, weight_decay=weight_decay,
                     )
+                    model_left.loss_color += list(np.repeat(next_color, len(model_left.loss_history)))
+                    # print('history left', len(model_left.loss_history))
+
+                    print('right')
+                    model_right = copy.deepcopy(model)
+                    model_right.loss_history = []
+                    model_right.loss_color = []
                     model_right = mb.tl.train_shift(
-                        copy.deepcopy(model),
+                        model_right,
                         train,
                         kernel_i=i,
                         shift=-1,
@@ -208,17 +255,27 @@ def train_iterative(
                         early_stopping=early_stopping,
                         log_each=log_each,
                         update_grad_i=i,
+                        lr=lr, weight_decay=weight_decay,
                     )
-                    print(best_loss, model_left.best_loss, model_right.best_loss)
+                    model_right.loss_color += list(np.repeat(next_color, len(model_right.loss_history)))
+                    # print('history right', len(model_right.loss_history))
+
+                    print('curr=%.4f' % best_loss, 'left=%.4f' % model_left.best_loss, 'right=%.4f' % model_right.best_loss)
                     best = sorted(
                         [
-                            [model, best_loss],
-                            [model_left, model_left.best_loss],
-                            [model_right, model_right.best_loss],
+                            ['curr position', model, best_loss],
+                            ['left', model_left, model_left.best_loss],
+                            ['right', model_right, model_right.best_loss],
                         ],
                         key=lambda x: x[-1],
                     )
-                    next_model, next_loss = best[0]
+                    # print('\n history len')
+                    next_position, next_model, next_loss = best[0]
+                    if next_position == 'curr' or next_position == 'right':
+                        next_model.loss_history = model_by_k[k_parms].loss_history + next_model.loss_history
+                        next_model.loss_color = model_by_k[k_parms].loss_color + next_model.loss_color
+
+                    print('action: %s\n' % next_position)
                     model_by_k[k_parms] = copy.deepcopy(next_model)
 
             model = model_by_k[k_parms]
@@ -230,9 +287,11 @@ def train_iterative(
             )
             l_best = model.best_loss
 
-            print("after shift optimz model")
-            mb.pl.conv_mono(model_by_k[k_parms])
-            print("")
+            if show_logo:
+                print("after shift optimz model")
+                mb.pl.conv_mono(model_by_k[k_parms])
+                mb.pl.plot_loss(model)
+                print("")
 
         r = [k_parms, w, n_feat, l_best]
         # print(r)
@@ -271,6 +330,8 @@ def train_shift(
     log_each=-1,
     update_grad_i=None,
     kernel_i=None,
+    lr=0.01,
+    weight_decay=0.001
 ):
 
     # shift mono
@@ -313,7 +374,7 @@ def train_shift(
     for ki in range(n_kernels):
         update_grad(model, ki, ki == update_grad_i)
 
-    optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.001)
+    optimiser = topti.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = mb.tl.PoissonLoss()
 
     mb.tl.train_network(

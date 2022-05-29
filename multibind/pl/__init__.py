@@ -4,5 +4,6 @@ from multibind.pl.plotting import (
     create_heatmap,
     create_logo,
     plot_activities,
+    plot_loss,
     scatter,
 )

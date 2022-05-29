@@ -88,6 +88,8 @@ class DinucSelex(tnn.Module):
         # self.log_eta.weight.data.uniform_(0, 0)
         self.best_model_state = None
         self.best_loss = None
+        self.loss_history = []
+        self.loss_color = []
 
     def forward(self, x, min_value=1e-15):
         # Create the forward pass through the network.
