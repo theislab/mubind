@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 import os
+import gzip
 
 base_for = "ACGT"
 base_rev = "TGCA"
@@ -55,8 +56,11 @@ def fastq2kmers(fastq_path, k, kmc_tmp='kmc_tmp', log=False):
     if not os.path.exists(kmc_tmp):
         os.mkdir(kmc_tmp)
 
-    # ci0 is necessary to avoid filtering counts of one
-    cmd = ' '.join(['kmc', '-ci0', '-k%i' % k, '-m8', fastq_path, 'NA', kmc_tmp, '1>', 'in.txt', '2>', 'err.txt'])
+    # the maximum counter needs to be fixed
+    n_lines = len(gzip.open(fastq_path).readlines())
+
+    cmd = ' '.join(['kmc', '-cs%i' % n_lines, '-k%i' % k,
+                    '-m8', fastq_path, 'NA', kmc_tmp, '1>', 'in.txt', '2>', 'err.txt'])
     if log:
         print(cmd)
     os.system(cmd) # !kmc -k$k -m8 $fastq_path NA kmc_tmp 1> in.txt 2> err.txt
@@ -79,3 +83,62 @@ def log2fc_vs_zero(data, k):
     pos = pd.concat([kmers_by_k[i] for i in kmers_by_k if i != 0], axis=1)
     seeds = np.log2(pos.mean(axis=1) / (ref.mean(axis=1) + 1)).sort_values(ascending=False)
     return seeds
+
+def levenshteinDistanceDP(token1, token2):
+    distances = np.zeros((len(token1) + 1, len(token2) + 1))
+
+    for t1 in range(len(token1) + 1):
+        distances[t1][0] = t1
+
+    for t2 in range(len(token2) + 1):
+        distances[0][t2] = t2
+
+    a = 0
+    b = 0
+    c = 0
+
+    for t1 in range(1, len(token1) + 1):
+        for t2 in range(1, len(token2) + 1):
+            if (token1[t1 - 1] == token2[t2 - 1]):
+                distances[t1][t2] = distances[t1 - 1][t2 - 1]
+            else:
+                a = distances[t1][t2 - 1]
+                b = distances[t1 - 1][t2]
+                c = distances[t1 - 1][t2 - 1]
+
+                if (a <= b and a <= c):
+                    distances[t1][t2] = a + 1
+                elif (b <= a and b <= c):
+                    distances[t1][t2] = b + 1
+                else:
+                    distances[t1][t2] = c + 1
+
+    # printDistances(distances, len(token1), len(token2))
+    return distances[len(token1)][len(token2)]
+
+
+def levenshteinDistanceDNA(seq1, seq2):
+    return min(levenshteinDistanceDP(seq1, seq2), levenshteinDistanceDP(seq1, seq2.translate(comp_tab)[::-1]))
+
+
+def printDistances(distances, token1Length, token2Length):
+    for t1 in range(token1Length + 1):
+        for t2 in range(token2Length + 1):
+            print(int(distances[t1][t2]), end=" ")
+        print()
+
+# seeds = seeds.index
+def get_seed(data, k, n=100):
+    seeds = log2fc_vs_zero(data, k)
+    seqs = seeds.index[:n]
+    m = np.zeros((len(seqs), len(seqs)))
+    for i in range(len(seqs)):
+        for j in range(i, len(seqs)):
+            seq1 = seqs[i]
+            seq2 = seqs[j]
+            m[i, j] =  levenshteinDistanceDNA(seq1, seq2)
+            m[j, i] =  m[i, j]
+
+    best_seed = np.argmin(m.mean(axis=1))
+    seed = seqs[best_seed]
+    return seed

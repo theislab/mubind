@@ -24,4 +24,6 @@ from multibind.tl.prediction import (  # SelexDataset,; ChipSeqDataset,; create_
 from multibind.tl.kmers import (
     seqs2kmers,
     fastq2kmers,
+    log2fc_vs_zero,
+    get_seed
 )

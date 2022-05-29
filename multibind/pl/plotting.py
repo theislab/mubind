@@ -92,3 +92,11 @@ def plot_activities(model, dataloader, figsize=None):
         plt.ylabel("selection round")
         plt.xlabel("binding mode rel activity")
     plt.show()
+
+def plot_loss(model):
+    h, c = model.loss_history, model.loss_color
+    for i in range(len(h) - 2):
+        plt.plot([i, i + 1], h[i: i + 2], c=c[i])
+    plt.xlabel('# epochs')
+    plt.ylabel('loss')
+    plt.show()
