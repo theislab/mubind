@@ -84,7 +84,6 @@ def log2fc_vs_zero(data, k):
     seeds = np.log2(pos.mean(axis=1) / (ref.mean(axis=1) + 1)).sort_values(ascending=False)
     return seeds
 
-
 def levenshteinDistanceDP(token1, token2):
     distances = np.zeros((len(token1) + 1, len(token2) + 1))
 
