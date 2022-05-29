@@ -9,7 +9,7 @@ from multibind.tl.encoding import (
     string2bin,
     bin2string
 )
-from multibind.tl.loss import MultiDatasetLoss, PoissonLoss
+from multibind.tl.loss import MultiDatasetLoss, PoissonLoss, MSELoss
 from multibind.tl.prediction import (  # SelexDataset,; ChipSeqDataset,; create_datasets,
     create_multi_data,
     create_simulated_data,

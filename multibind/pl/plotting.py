@@ -27,14 +27,20 @@ def create_logo(net):
 
 
 def conv_mono(model, figsize=None):
+    print('log_etas')
+    print(model.log_etas)
     n_cols = len(model.conv_mono)
     if figsize is not None:
         plt.figure(figsize=figsize)
+    print('activities')
+    activities = np.exp(torch.stack(list(model.log_activities), dim=1).cpu().detach().numpy())
+    print(activities)
     for i, m in enumerate(model.conv_mono):
         # print(i, m)
-        ax = plt.subplot(1, n_cols, i + 1)
+
         if m is None:
             continue
+        ax = plt.subplot(1, n_cols - 1, i)
         weights = m.weight
         weights = weights.squeeze().cpu().detach().numpy()
         weights = pd.DataFrame(weights)
