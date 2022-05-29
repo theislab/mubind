@@ -75,6 +75,9 @@ def train_network(
     best_loss = None
     best_epoch = -1
 
+    print('optimizing using', str(type(optimiser)))
+    is_LBFGS = 'LBFGS' in str(optimiser)
+
     t0 = time.time()
     for epoch in range(num_epochs):
         running_loss = 0
@@ -90,20 +93,33 @@ def train_network(
 
             inputs = (mononuc, b, seqlen, countsum)
             # PyTorch calculates gradients by accumulating contributions to them (useful for
-            optimiser.zero_grad()
             # RNNs).  Hence we must manully set them to zero before calculating them.
-            outputs = model(inputs)  # Forward pass through the network.
             # print('outputs', rounds)
             # print('rounds', rounds)
-            loss = criterion(outputs, rounds)
-            loss.backward()  # Calculate gradients.
-            optimiser.step()  # Step to minimise the loss according to the gradient.
+            loss = None
+            if not is_LBFGS:
+                optimiser.zero_grad()
+                outputs = model(inputs)  # Forward pass through the network.
+                loss = criterion(outputs, rounds)
+                loss.backward()  # Calculate gradients.
+                optimiser.step()
+
+            else:
+                def closure():
+                    optimiser.zero_grad()
+                    # this statement here is mandatory to
+                    outputs = model(inputs)
+                    loss = criterion(outputs, rounds)
+                    loss.backward() # retain_graph=True)
+                    return loss
+                loss = optimiser.step(closure)  # Step to minimise the loss according to the gradient.
             running_loss += loss.item()
+
 
         loss_final = running_loss / len(train_dataloader)
         if log_each != -1 and (epoch % log_each == 0):
             print("Epoch: %2d, Loss: %.4f" % (epoch + 1, loss_final),
-                  ', secs per epoch: %.3f s' % ((time.time() - t0) / max(epoch, 1)))
+                  ', best epoch: %i' % best_epoch, 'secs per epoch: %.3f s' % ((time.time() - t0) / max(epoch, 1)))
 
         if best_loss is None or loss_final < best_loss:
             best_loss = loss_final
@@ -115,6 +131,9 @@ def train_network(
         loss_history.append(loss_final)
 
         if early_stopping > 0 and epoch >= best_epoch + early_stopping:
+            print("Epoch: %2d, Loss: %.4f" % (epoch + 1, loss_final),
+                  ', best epoch: %i' % best_epoch, 'secs per epoch: %.3f s' % ((time.time() - t0) / max(epoch, 1)))
+            print('early stop!')
             break
 
     model.loss_history += loss_history
@@ -131,6 +150,8 @@ def train_iterative(
     log_each=10,
     optimize_motif_shift=True,
     show_logo=True,
+    optimiser=None,
+    criterion=mb.tl.PoissonLoss(),
     seed=None,
     lr=0.01,
     weight_decay=0.001,
@@ -177,13 +198,13 @@ def train_iterative(
                 print("before kernel optimization.")
                 mb.pl.conv_mono(model)
 
-            optimiser = topti.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-            criterion = mb.tl.PoissonLoss()
+            next_optimiser = topti.Adam(model.parameters(),
+                                        lr=lr, weight_decay=weight_decay) if optimiser is None else optimiser(model.parameters(), lr=lr)
             mb.tl.train_network(
                 model,
                 train,
                 device,
-                optimiser,
+                next_optimiser,
                 criterion,
                 num_epochs=num_epochs,
                 early_stopping=early_stopping,
@@ -226,6 +247,9 @@ def train_iterative(
                     model_left = copy.deepcopy(model)
                     model_left.loss_history = []
                     model_left.loss_color = []
+
+                    next_optimiser = topti.Adam(model.parameters(),
+                                                lr=lr, weight_decay=weight_decay) if optimiser is None else optimiser(model.parameters(), lr=lr)
                     model_left = mb.tl.train_shift(
                         model_left,
                         train,
@@ -237,14 +261,18 @@ def train_iterative(
                         log_each=log_each,
                         update_grad_i=i,
                         lr=lr, weight_decay=weight_decay,
+                        optimiser=next_optimiser,
                     )
                     model_left.loss_color += list(np.repeat(next_color, len(model_left.loss_history)))
                     # print('history left', len(model_left.loss_history))
 
-                    print('right')
+                    print('\nright')
                     model_right = copy.deepcopy(model)
                     model_right.loss_history = []
                     model_right.loss_color = []
+
+                    next_optimiser = topti.Adam(model.parameters(),
+                                                lr=lr, weight_decay=weight_decay) if optimiser is None else optimiser(model.parameters(), lr=lr)
                     model_right = mb.tl.train_shift(
                         model_right,
                         train,
@@ -256,6 +284,7 @@ def train_iterative(
                         log_each=log_each,
                         update_grad_i=i,
                         lr=lr, weight_decay=weight_decay,
+                        optimiser=next_optimiser,
                     )
                     model_right.loss_color += list(np.repeat(next_color, len(model_right.loss_history)))
                     # print('history right', len(model_right.loss_history))
@@ -331,7 +360,8 @@ def train_shift(
     update_grad_i=None,
     kernel_i=None,
     lr=0.01,
-    weight_decay=0.001
+    weight_decay=0.001,
+    optimiser=None,
 ):
 
     # shift mono
@@ -374,7 +404,6 @@ def train_shift(
     for ki in range(n_kernels):
         update_grad(model, ki, ki == update_grad_i)
 
-    optimiser = topti.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = mb.tl.PoissonLoss()
 
     mb.tl.train_network(

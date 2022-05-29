@@ -9,6 +9,15 @@ class PoissonLoss(tnn.Module):
     def forward(self, y_pred, y_true):
         return torch.mean(y_pred - y_true * torch.log(y_pred))
 
+class MSELoss(tnn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, y_pred, y_true):
+        # print(y_pred[:5], y_true[:5])
+        # assert False
+        return torch.mean((y_pred - y_true) ** 2)
+
 
 # (negative) Log-likelihood of the Poisson distribution
 class MultiDatasetLoss(tnn.Module):

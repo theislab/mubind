@@ -163,10 +163,14 @@ class DinucSelex(tnn.Module):
 
         # sequential enrichment or independent samples
         if self.enr_series:
+            # print('using enrichment series')
             predictions_ = [scores[:, 0]]
             for i in range(1, self.n_rounds + 1):
                 predictions_.append(predictions_[-1] * scores[:, i])
             out = torch.stack(predictions_).T
+
+            # print('here...')
+            # print(out[:10])
         else:
             out = scores
 
@@ -185,6 +189,10 @@ class DinucSelex(tnn.Module):
         # print(out.shape)
         # print(out[:5,:])
         # assert False
+        # print('final...')
+        # print(out[:10])
+        # assert False
+
         return results
 
     def set_seed(self, seed, index, max=0, min=-1):
