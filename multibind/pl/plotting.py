@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import torch
+import multibind as mb
+from sklearn.metrics import r2_score
 
 
 def scatter(x, y):
@@ -106,3 +108,32 @@ def plot_loss(model):
     plt.xlabel('# epochs')
     plt.ylabel('loss')
     plt.show()
+
+
+# enr_round=-1 means that the last round is used
+def kmer_enrichment(model, train, k=8, base_round=0, enr_round=-1):
+    # getting the targets and predictions from the model
+    seqs, targets, pred = mb.tl.test_network(model, train, next(model.parameters()).device)
+
+    target_kmers = mb.tl.seqs2kmers(seqs, k=k, counts=targets)
+    target_labels = ['t'+str(i) for i in range(train.dataset.n_rounds + 1)]
+    target_kmers[target_labels] = np.stack(target_kmers['counts'].to_numpy())
+
+    pred_kmers = mb.tl.seqs2kmers(seqs, k=k, counts=pred)
+    pred_labels = ['p'+str(i) for i in range(train.dataset.n_rounds + 1)]
+    pred_kmers[pred_labels] = np.stack(pred_kmers['counts'].to_numpy())
+
+    counts = target_kmers[target_labels].merge(pred_kmers[pred_labels], left_index=True, right_index=True, how='outer').fillna(0)
+    if enr_round == -1:
+        enr_round = train.dataset.n_rounds
+    counts['enr_pred'] = (1 + counts[pred_labels[enr_round]]) / (1 + counts[pred_labels[base_round]])
+    counts['enr_obs'] = (1 + counts[target_labels[enr_round]]) / (1 + counts[target_labels[base_round]])
+    counts['f_pred'] = (1 / (enr_round - base_round)) * np.log10(counts['enr_pred'])
+    counts['f_obs'] = (1 / (enr_round - base_round)) * np.log10(counts['enr_obs'])
+
+    # plotting
+    p = sns.displot(counts, x='enr_pred', y='enr_obs', cbar=True)
+    p.set(xscale='log', yscale='log')
+    plt.plot([0.1, 10], [0.1, 10], linewidth=2)
+
+    print('R^2:', r2_score(counts['f_obs'], counts['f_pred']))
