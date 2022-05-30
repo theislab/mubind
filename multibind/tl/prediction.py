@@ -75,7 +75,7 @@ def train_network(
     best_loss = None
     best_epoch = -1
 
-    print('optimizing using', str(type(optimiser)))
+    print('optimizing using', str(type(optimiser)), 'and', str(type(criterion)))
     is_LBFGS = 'LBFGS' in str(optimiser)
 
     t0 = time.time()
@@ -264,6 +264,7 @@ def train_iterative(
                         update_grad_i=i,
                         lr=lr, weight_decay=weight_decay,
                         optimiser=next_optimiser,
+                        criterion=criterion,
                     )
                     model_left.loss_color += list(np.repeat(next_color, len(model_left.loss_history)))
                     # print('history left', len(model_left.loss_history))
@@ -287,6 +288,7 @@ def train_iterative(
                         update_grad_i=i,
                         lr=lr, weight_decay=weight_decay,
                         optimiser=next_optimiser,
+                        criterion=criterion,
                     )
                     model_right.loss_color += list(np.repeat(next_color, len(model_right.loss_history)))
                     # print('history right', len(model_right.loss_history))
@@ -364,6 +366,7 @@ def train_shift(
     lr=0.01,
     weight_decay=0.001,
     optimiser=None,
+    criterion=None
 ):
 
     # shift mono
@@ -406,7 +409,8 @@ def train_shift(
     for ki in range(n_kernels):
         update_grad(model, ki, ki == update_grad_i)
 
-    criterion = mb.tl.PoissonLoss()
+    if criterion is None:
+        criterion = mb.tl.PoissonLoss()
 
     mb.tl.train_network(
         model,
