@@ -84,6 +84,7 @@ def train_network(
     best_epoch = -1
 
     print('optimizing using', str(type(optimiser)), 'and', str(type(criterion)))
+    print('dir weight', dirichlet_regularization)
     is_LBFGS = 'LBFGS' in str(optimiser)
 
     t0 = time.time()
@@ -163,6 +164,7 @@ def train_iterative(
     seed=None,
     lr=0.01,
     weight_decay=0.001,
+    dirichlet_regularization=0,
     **kwargs
 ):
 
@@ -219,6 +221,7 @@ def train_iterative(
                 num_epochs=num_epochs,
                 early_stopping=early_stopping,
                 log_each=log_each,
+                dirichlet_regularization=dirichlet_regularization,
             )
             # print('next color', colors[i])
             model.loss_color += list(np.repeat(colors[i], len(model.loss_history)))
@@ -272,7 +275,8 @@ def train_iterative(
                         update_grad_i=i,
                         lr=lr, weight_decay=weight_decay,
                         optimiser=next_optimiser,
-                        criterion=criterion,
+                        dirichlet_regularization=dirichlet_regularization,
+                        **kwargs,
                     )
                     model_left.loss_color += list(np.repeat(next_color, len(model_left.loss_history)))
                     # print('history left', len(model_left.loss_history))
@@ -297,6 +301,7 @@ def train_iterative(
                         lr=lr, weight_decay=weight_decay,
                         optimiser=next_optimiser,
                         criterion=criterion,
+                        dirichlet_regularization=dirichlet_regularization,
                     )
                     model_right.loss_color += list(np.repeat(next_color, len(model_right.loss_history)))
                     # print('history right', len(model_right.loss_history))
@@ -374,7 +379,9 @@ def train_shift(
     lr=0.01,
     weight_decay=0.001,
     optimiser=None,
-    criterion=None
+    criterion=None,
+    dirichlet_regularization=0,
+    **kwargs,
 ):
 
     # shift mono
@@ -429,6 +436,7 @@ def train_shift(
         num_epochs=num_epochs,
         early_stopping=early_stopping,
         log_each=log_each,
+        dirichlet_regularization=dirichlet_regularization,
     )
 
     return model
