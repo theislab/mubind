@@ -75,6 +75,7 @@ def train_network(
     criterion,
     num_epochs=15,
     early_stopping=-1,
+    dirichlet_regularization=0,
     log_each=None,
 ):
     # global loss_history
@@ -107,7 +108,7 @@ def train_network(
             if not is_LBFGS:
                 optimiser.zero_grad()
                 outputs = model(inputs)  # Forward pass through the network.
-                loss = criterion(outputs, rounds)
+                loss = criterion(outputs, rounds) + dirichlet_regularization*model.dirichlet_regularization()
                 loss.backward()  # Calculate gradients.
                 optimiser.step()
 
@@ -116,7 +117,7 @@ def train_network(
                     optimiser.zero_grad()
                     # this statement here is mandatory to
                     outputs = model(inputs)
-                    loss = criterion(outputs, rounds)
+                    loss = criterion(outputs, rounds) + dirichlet_regularization*model.dirichlet_regularization()
                     loss.backward() # retain_graph=True)
                     return loss
                 loss = optimiser.step(closure)  # Step to minimise the loss according to the gradient.
