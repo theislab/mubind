@@ -36,23 +36,30 @@ def create_datasets(data_file):
     return train_loader, test_loader
 
 
-def test_network(net, test_dataloader, device):
-    all_targets, all_outputs = [], []
+def test_network(model, dataloader, device):
+    all_seqs = []
+    all_targets = np.zeros((len(dataloader.dataset), dataloader.dataset.n_rounds+1), dtype=np.float32)
+    all_preds = np.zeros((len(dataloader.dataset), dataloader.dataset.n_rounds+1), dtype=np.float32)
+    position = 0
     with torch.no_grad():  # we don't need gradients in the testing phase
-        for i, batch in enumerate(test_dataloader):
+        for i, batch in enumerate(dataloader):
             # Get a batch and potentially send it to GPU memory.
-            # inputs, target = batch["input"].to(device), batch["target"].to(device)
             mononuc = batch["mononuc"].to(device)
-            dinuc = batch["dinuc"].to(device) if "dinuc" in batch else None
-            b = batch["batch"].to(device)
-            target = batch["target"].to(device)
+            b = batch["batch"].to(device) if "batch" in batch else None
+            rounds = batch["rounds"].to(device) if "rounds" in batch else None
+            seqlen = batch["seqlen"] if "seqlen" in batch else None
+            countsum = batch["countsum"].to(device) if "countsum" in batch else None
+            seq = batch["seq"] if "seq" in batch else None
 
-            inputs = (mononuc, dinuc, b, target)
-            output = net(inputs)
+            inputs = (mononuc, b, seqlen, countsum)
+            output = model(inputs)
 
-            all_outputs.append(output.squeeze().cpu().detach().numpy())
-            all_targets.append(target)
-    return np.array(all_targets), np.array(all_outputs)
+            # print(output.squeeze().cpu().detach().numpy().shape, 'vs', len(seq))
+            all_preds[position:(position + len(seq)), :] = output.squeeze().cpu().detach().numpy()
+            all_targets[position:(position + len(seq)), :] = rounds.cpu().detach().numpy()
+            all_seqs.extend(seq)
+            position += len(seq)
+    return all_seqs, all_targets, all_preds
 
 
 # loss_history = []

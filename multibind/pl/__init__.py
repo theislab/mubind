@@ -6,4 +6,5 @@ from multibind.pl.plotting import (
     plot_activities,
     plot_loss,
     scatter,
+    kmer_enrichment,
 )
