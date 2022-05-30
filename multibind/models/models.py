@@ -210,6 +210,21 @@ class DinucSelex(tnn.Module):
                 seed_params[:, i + shift] = torch.tensor([min, min, min, max])
         self.conv_mono[index].weight = tnn.Parameter(torch.unsqueeze(torch.unsqueeze(seed_params, 0), 0))
 
+    def dirichlet_regularization(self):
+        out = 0
+        for m in self.conv_mono:
+            if m is None:
+                continue
+            elif m.weight.requires_grad:
+                out -= torch.sum(m.weight - torch.logsumexp(m.weight, dim=2))
+        if self.use_dinuc:
+            for d in self.conv_di:
+                if d is None:
+                    continue
+                elif d.weight.requires_grad:
+                    out -= torch.sum(d.weight - torch.logsumexp(d.weight, dim=2))
+        return out
+
 
 # Multiple datasets
 class DinucMulti(tnn.Module):
