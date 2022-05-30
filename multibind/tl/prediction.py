@@ -151,7 +151,7 @@ def train_iterative(
     optimize_motif_shift=True,
     show_logo=True,
     optimiser=None,
-    criterion=mb.tl.PoissonLoss(),
+    criterion=None,
     seed=None,
     lr=0.01,
     weight_decay=0.001,
@@ -169,6 +169,8 @@ def train_iterative(
     print('# batches', n_batches)
     print('# enr_series', enr_series)
 
+    if criterion is None:
+        criterion = mb.tl.PoissonLoss()
 
     # color for visualization of history
     colors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#ffff33", "#a65628"]
