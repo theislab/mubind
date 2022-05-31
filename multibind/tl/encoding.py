@@ -4,9 +4,36 @@ import numpy as np
 from numba import jit
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 
+
+dict_dna = ' ACGT'
+dict_prot = ' ACDEFGHIKLMNPQRSTVWY'
+
+def string2bin(s, mode='dna'):
+    code = None
+    if mode == 'dna':
+        code = dict_dna
+    elif mode == 'protein':
+        code = dict_prot
+
+    q = " %s" % code
+    return sum( 5 ** i * q.index(p) for i, p in enumerate(s))
+
+def bin2string(n, mode='dna'):
+    result = ""
+
+    code = None
+    if mode == 'dna':
+        code = dict_dna
+    elif mode == 'protein':
+        code = dict_prot
+
+    while n:
+        n, p = divmod(n, 5)
+        result += (" %s" % code)[p]
+    return result
+
+
 # models N as (0.25, 0.25, 0.25, 0.25)
-
-
 @jit
 def onehot_mononuc(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
     seq_arr = np.array(list(seq + "ACGNT"))
@@ -134,14 +161,3 @@ def onehot_dinuc_fast(seqs):
                     result[i, :, j] = [0.0625] * 16
     return result
 
-
-def string2bin(s):
-    return sum( 5 ** i * " ACGT".index(p) for i, p in enumerate(s))
-
-
-def bin2string(n):
-    result = ""
-    while n:
-        n, p = divmod(n, 5)
-        result += " ACGT"[p]
-    return result
