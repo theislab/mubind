@@ -137,3 +137,4 @@ def kmer_enrichment(model, train, k=8, base_round=0, enr_round=-1):
     plt.plot([0.1, 10], [0.1, 10], linewidth=2)
 
     print('R^2:', r2_score(counts['f_obs'], counts['f_pred']))
+    plt.show()

@@ -47,6 +47,7 @@ class DinucSelex(tnn.Module):
         n_batches,
         use_dinuc=False,
         kernels=[0, 14, 12],
+        ignore_kernel=None,
         rho=1,
         gamma=0,
         enr_series=True,
@@ -70,6 +71,7 @@ class DinucSelex(tnn.Module):
         self.enr_series = enr_series
         # self.log_activities = tnn.Parameter(torch.zeros([n_batches, len(kernels), n_rounds+1]))
         self.log_etas = tnn.Parameter(torch.zeros([n_batches, n_rounds + 1]))
+        self.ignore_kernel = ignore_kernel
 
         for k in self.kernels:
             if k == 0:
@@ -123,13 +125,17 @@ class DinucSelex(tnn.Module):
         # x = torch.zeros([mono.shape[0], len(self.kernels)], requires_grad=True)
         x_ = []
         # print(mono.device)
+        # print(self.ignore_kernel)
+        # assert False
         for i in range(len(self.kernels)):
             # print(i)
-            if self.kernels[i] == 0:
+            if self.ignore_kernel is not None and self.ignore_kernel[i]:
+                temp = torch.Tensor([0.0] * mono.shape[0]).to(device=mono.device)
+                x_.append(temp)
+            elif self.kernels[i] == 0:
                 temp = torch.Tensor([1.0] * mono.shape[0]).to(device=mono.device)
                 x_.append(temp)
             else:
-
                 # check devices match
                 if self.conv_mono[i].weight.device != mono.device:
                     self.conv_mono[i].weight.to(mono.device)
