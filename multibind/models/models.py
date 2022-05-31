@@ -47,6 +47,7 @@ class DinucSelex(tnn.Module):
         n_batches,
         use_dinuc=False,
         kernels=[0, 14, 12],
+        ignore_kernel=None,
         rho=1,
         gamma=0,
         enr_series=True,
@@ -123,8 +124,12 @@ class DinucSelex(tnn.Module):
         # x = torch.zeros([mono.shape[0], len(self.kernels)], requires_grad=True)
         x_ = []
         # print(mono.device)
+        # print(self.ignore_kernel)
+        # assert False
         for i in range(len(self.kernels)):
             # print(i)
+            # if self.ignore_kernel is not None and self.ignore_kernel[i]:
+            #     continue
             if self.kernels[i] == 0:
                 temp = torch.Tensor([1.0] * mono.shape[0]).to(device=mono.device)
                 x_.append(temp)

@@ -84,6 +84,11 @@ def train_network(
     best_epoch = -1
 
     print('optimizing using', str(type(optimiser)), 'and', str(type(criterion)))
+
+    for f in ['lr', 'weight_decay']:
+        if f in optimiser.param_groups[0]:
+            print('%s=' % f, optimiser.param_groups[0][f])
+
     print('dir weight', dirichlet_regularization)
     is_LBFGS = 'LBFGS' in str(optimiser)
 
@@ -210,8 +215,16 @@ def train_iterative(
                 print("before kernel optimization.")
                 mb.pl.conv_mono(model)
 
+            next_lr = lr if not isinstance(lr, list) else lr[i]
+            next_weight_decay = weight_decay if not isinstance(weight_decay, list) else weight_decay[i]
+
             next_optimiser = topti.Adam(model.parameters(),
-                                        lr=lr, weight_decay=weight_decay) if optimiser is None else optimiser(model.parameters(), lr=lr)
+                                        lr=next_lr, weight_decay=next_weight_decay) if optimiser is None else optimiser(model.parameters(), lr=next_lr)
+
+            # mask kernels to avoid using weights from further steps into early ones.
+            model.ignore_kernel = [0 for i in range(i + 1)] + [1 for i in range(i + 1, n_kernels)]
+            print('kernels mask', model.ignore_kernel)
+            # assert False
             mb.tl.train_network(
                 model,
                 train,
@@ -262,7 +275,7 @@ def train_iterative(
                     model_left.loss_color = []
 
                     next_optimiser = topti.Adam(model.parameters(),
-                                                lr=lr, weight_decay=weight_decay) if optimiser is None else optimiser(model.parameters(), lr=lr)
+                                                lr=next_lr, weight_decay=next_weight_decay) if optimiser is None else optimiser(model.parameters(), lr=next_lr)
                     model_left = mb.tl.train_shift(
                         model_left,
                         train,
@@ -287,7 +300,7 @@ def train_iterative(
                     model_right.loss_color = []
 
                     next_optimiser = topti.Adam(model.parameters(),
-                                                lr=lr, weight_decay=weight_decay) if optimiser is None else optimiser(model.parameters(), lr=lr)
+                                                lr=next_lr, weight_decay=next_weight_decay) if optimiser is None else optimiser(model.parameters(), lr=next_lr)
                     model_right = mb.tl.train_shift(
                         model_right,
                         train,
