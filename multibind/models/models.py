@@ -80,8 +80,13 @@ class DinucSelex(tnn.Module):
                 self.conv_di.append(None)
             else:
                 # self.padding.append(tnn.ConstantPad2d((k - 1, k - 1, 0, 0), 0.25))
-                self.conv_mono.append(tnn.Conv2d(1, 1, kernel_size=(4, k), padding=(0, 0), bias=False))
-                self.conv_di.append(tnn.Conv2d(1, 1, kernel_size=(16, k), padding=(0, 0), bias=False))
+                next_mono = tnn.Conv2d(1, 1, kernel_size=(4, k), padding=(0, 0), bias=False)
+                next_mono.weight.data.uniform_(0, 0)
+                self.conv_mono.append(next_mono)
+
+                next_di = tnn.Conv2d(1, 1, kernel_size=(16, k), padding=(0, 0), bias=False)
+                next_di.weight.data.uniform_(0, 0)
+                self.conv_di.append(next_di)
             self.log_activities.append(tnn.Parameter(torch.zeros([n_batches, n_rounds + 1], dtype=torch.float32)))
 
         # self.log_activity = tnn.Embedding(len(kernels), n_rounds+1)
@@ -129,10 +134,10 @@ class DinucSelex(tnn.Module):
         # assert False
         for i in range(len(self.kernels)):
             # print(i)
-            if self.ignore_kernel is not None and self.ignore_kernel[i]:
-                temp = torch.Tensor([0.0] * mono.shape[0]).to(device=mono.device)
-                x_.append(temp)
-            elif self.kernels[i] == 0:
+            # if self.ignore_kernel is not None and self.ignore_kernel[i]:
+            #     temp = torch.Tensor([0.0] * mono.shape[0]).to(device=mono.device)
+            #     x_.append(temp)
+            if self.kernels[i] == 0:
                 temp = torch.Tensor([1.0] * mono.shape[0]).to(device=mono.device)
                 x_.append(temp)
             else:
@@ -157,16 +162,32 @@ class DinucSelex(tnn.Module):
                 temp = torch.sum(temp, axis=1)
                 x_.append(temp)
                 # print(temp.shape, x_.shape)
+
+
         x = torch.stack(x_).T
 
         scores = torch.zeros([x.shape[0], self.n_rounds + 1]).to(device=mono.device)  #  + min_value# conversion for gpu
+        # print(scores)
         for i in range(self.n_batches):
             # a = torch.exp(self.log_activities[i, :, :])
             a = torch.exp(torch.stack(list(self.log_activities), dim=1)[i, :, :])
-            scores[batch == i] = torch.matmul(x[batch == i], a)
+            if self.ignore_kernel is not None:
+                mask_kernel = self.ignore_kernel # == False
+                # print(mask_kernel)
+                # print(x.shape, a.shape, x[batch == i][:,mask_kernel], a[mask_kernel,:].shape)
+                scores[batch == i] = torch.matmul(x[batch == i][:,~mask_kernel], a[~mask_kernel,:])
+            else:
+                scores[batch == i] = torch.matmul(x[batch == i], a)
+
+        # print()
+        # print(x)
+        # print(a)
+
+        # print('\n\nfinal scores')
+        # print(scores)
+        # assert False
         # a = torch.reshape(a, [a.shape[0], a.shape[2]])
         # x = torch.matmul(x, a)
-
         # sequential enrichment or independent samples
         if self.enr_series:
             # print('using enrichment series')
@@ -190,14 +211,6 @@ class DinucSelex(tnn.Module):
             results[batch == i] = (out[batch == i].T / torch.sum(out[batch == i], axis=1)).T
             results[batch == i] = (results[batch == i].T * countsum[batch == i].type(torch.float32)).T
 
-        # print(results[:5,:])
-        # assert False
-        # print(out.shape)
-        # print(out[:5,:])
-        # assert False
-        # print('final...')
-        # print(out[:10])
-        # assert False
 
         return results
 
