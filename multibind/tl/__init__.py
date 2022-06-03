@@ -27,3 +27,5 @@ from multibind.tl.kmers import (
     log2fc_vs_zero,
     get_seed
 )
+
+from multibind.tl.probound import load_probound
