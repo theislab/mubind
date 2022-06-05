@@ -28,7 +28,7 @@ def create_logo(net):
     crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5)
 
 
-def conv_mono(model, figsize=None):
+def conv_mono(model, figsize=None, flip=False):
 
     print('\n#activities')
     activities = np.exp(torch.stack(list(model.log_activities), dim=1).cpu().detach().numpy())
@@ -49,6 +49,13 @@ def conv_mono(model, figsize=None):
         weights = weights.squeeze().cpu().detach().numpy()
         weights = pd.DataFrame(weights)
         weights.index = "A", "C", "G", "T"
+
+        if flip:
+            weights = weights.loc[::-1, ::-1].copy()
+            weights.columns = range(weights.shape[1])
+            weights.index = "A", "C", "G", "T"
+        # print(weights)
+
         crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5, ax=ax)
     plt.show()
 
