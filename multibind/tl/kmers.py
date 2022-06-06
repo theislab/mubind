@@ -59,7 +59,7 @@ def fastq2kmers(fastq_path, k, kmc_tmp='kmc_tmp', log=False):
     # the maximum counter needs to be fixed
     n_lines = len(gzip.open(fastq_path).readlines())
 
-    cmd = ' '.join(['kmc', '-cs%i' % n_lines, '-k%i' % k,
+    cmd = ' '.join(['kmc', '-cs%i' % n_lines, '-k%i' % k, '-ci1',
                     '-m8', fastq_path, 'NA', kmc_tmp, '1>', 'in.txt', '2>', 'err.txt'])
     if log:
         print(cmd)
