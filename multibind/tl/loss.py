@@ -9,6 +9,13 @@ class PoissonLoss(tnn.Module):
     def forward(self, y_pred, y_true):
         return torch.mean(y_pred - y_true * torch.log(y_pred))
 
+class ProboundLoss(tnn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, y_pred, y_true):
+        return torch.mean(-y_true * torch.log((y_pred.T / torch.sum(y_pred, dim=1)).T))
+
 class MSELoss(tnn.Module):
     def __init__(self):
         super().__init__()
