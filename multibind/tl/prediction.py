@@ -272,9 +272,9 @@ def train_iterative(
         model.load_state_dict(model.best_model_state)
         k_parms = "%i" % w
         # store model parameters and fit for later visualization
-        model_by_k[k_parms] = copy.deepcopy(model)
+        model = copy.deepcopy(model)
         # optimizer for left / right flanks
-        best_loss = model_by_k[k_parms].best_loss
+        best_loss = model.best_loss
 
         if show_logo:
             print("\n##After kernel opt / before shift optim.")
