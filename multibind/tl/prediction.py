@@ -76,6 +76,7 @@ def train_network(
     num_epochs=15,
     early_stopping=-1,
     dirichlet_regularization=0,
+    exp_max=40,  # if this value is negative, the exponential barrier will not be used.
     log_each=None,
     verbose=0,
 ):
@@ -119,6 +120,8 @@ def train_network(
                 optimiser.zero_grad()
                 outputs = model(inputs)  # Forward pass through the network.
                 loss = criterion(outputs, rounds) + dirichlet_regularization*model.dirichlet_regularization()
+                if exp_max >= 0:
+                    loss += model.exp_barrier(exp_max)
                 loss.backward()  # Calculate gradients.
                 optimiser.step()
 
@@ -128,6 +131,8 @@ def train_network(
                     # this statement here is mandatory to
                     outputs = model(inputs)
                     loss = criterion(outputs, rounds) + dirichlet_regularization*model.dirichlet_regularization()
+                    if exp_max >= 0:
+                        loss += model.exp_barrier(exp_max)
                     loss.backward() # retain_graph=True)
                     return loss
                 loss = optimiser.step(closure)  # Step to minimise the loss according to the gradient.
@@ -181,6 +186,7 @@ def train_iterative(
     stop_at_kernel=None,
     dirichlet_regularization=0,
     verbose=2,
+    exp_max=40,
     **kwargs
 ):
 
@@ -246,6 +252,7 @@ def train_iterative(
 
         if verbose != 0:
             print('kernels mask', model.ignore_kernel)
+
         # assert False
         mb.tl.train_network(
             model,
@@ -257,6 +264,7 @@ def train_iterative(
             early_stopping=early_stopping,
             log_each=log_each,
             dirichlet_regularization=dirichlet_regularization,
+            exp_max=exp_max,
         )
         # print('next color', colors[i])
         model.loss_color += list(np.repeat(colors[i], len(model.loss_history)))
@@ -264,13 +272,12 @@ def train_iterative(
         model.load_state_dict(model.best_model_state)
         k_parms = "%i" % w
         # store model parameters and fit for later visualization
-        model = copy.deepcopy(model)
+        model_by_k[k_parms] = copy.deepcopy(model)
         # optimizer for left / right flanks
-        best_loss = model.best_loss
+        best_loss = model_by_k[k_parms].best_loss
 
         if show_logo:
-            if verbose != 0:
-                print("\n##After kernel opt / before shift optim.")
+            print("\n##After kernel opt / before shift optim.")
             mb.pl.plot_activities(model, train)
             mb.pl.conv_mono(model)
             mb.pl.conv_mono(model, flip=True, log=False)
@@ -320,13 +327,13 @@ def train_iterative(
                         lr=lr, weight_decay=weight_decay,
                         optimiser=next_optimiser,
                         dirichlet_regularization=dirichlet_regularization,
+                        exp_max=exp_max,
                         **kwargs,
                     )
                     model_shift.loss_color += list(np.repeat(next_color, len(model_shift.loss_history)))
                     # print('history left', len(model_left.loss_history))
                     all_shifts.append([shift, model_shift, model_shift.best_loss])
-                    if verbose != 0:
-                        print('\n')
+                    # print('\n')
 
                 # for shift, model_shift, loss in all_shifts:
                 #     print('shift=%i' % shift, 'loss=%.4f' % loss)
@@ -448,6 +455,7 @@ def train_shift(
     optimiser=None,
     criterion=None,
     dirichlet_regularization=0,
+    exp_max=40,
     **kwargs,
 ):
 
@@ -504,6 +512,7 @@ def train_shift(
         early_stopping=early_stopping,
         log_each=log_each,
         dirichlet_regularization=dirichlet_regularization,
+        exp_max=exp_max,
     )
 
     return model
