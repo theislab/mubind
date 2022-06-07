@@ -76,6 +76,7 @@ def train_network(
     num_epochs=15,
     early_stopping=-1,
     dirichlet_regularization=0,
+    exp_max=40,  # if this value is negative, the exponential barrier will not be used.
     log_each=None,
 ):
     # global loss_history
@@ -115,6 +116,8 @@ def train_network(
                 optimiser.zero_grad()
                 outputs = model(inputs)  # Forward pass through the network.
                 loss = criterion(outputs, rounds) + dirichlet_regularization*model.dirichlet_regularization()
+                if exp_max >= 0:
+                    loss += model.exp_barrier(exp_max)
                 loss.backward()  # Calculate gradients.
                 optimiser.step()
 
@@ -124,6 +127,8 @@ def train_network(
                     # this statement here is mandatory to
                     outputs = model(inputs)
                     loss = criterion(outputs, rounds) + dirichlet_regularization*model.dirichlet_regularization()
+                    if exp_max >= 0:
+                        loss += model.exp_barrier(exp_max)
                     loss.backward() # retain_graph=True)
                     return loss
                 loss = optimiser.step(closure)  # Step to minimise the loss according to the gradient.
@@ -172,6 +177,7 @@ def train_iterative(
     weight_decay=0.001,
     stop_at_kernel=None,
     dirichlet_regularization=0,
+    exp_max=40,
     **kwargs
 ):
 
@@ -239,6 +245,7 @@ def train_iterative(
                 early_stopping=early_stopping,
                 log_each=log_each,
                 dirichlet_regularization=dirichlet_regularization,
+                exp_max=exp_max,
             )
             # print('next color', colors[i])
             model.loss_color += list(np.repeat(colors[i], len(model.loss_history)))
@@ -297,6 +304,7 @@ def train_iterative(
                             lr=lr, weight_decay=weight_decay,
                             optimiser=next_optimiser,
                             dirichlet_regularization=dirichlet_regularization,
+                            exp_max=exp_max,
                             **kwargs,
                         )
                         model_shift.loss_color += list(np.repeat(next_color, len(model_shift.loss_history)))
@@ -385,6 +393,7 @@ def train_shift(
     optimiser=None,
     criterion=None,
     dirichlet_regularization=0,
+    exp_max=40,
     **kwargs,
 ):
 
@@ -441,6 +450,7 @@ def train_shift(
         early_stopping=early_stopping,
         log_each=log_each,
         dirichlet_regularization=dirichlet_regularization,
+        exp_max=exp_max,
     )
 
     return model
