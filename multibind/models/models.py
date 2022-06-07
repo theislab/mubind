@@ -244,6 +244,12 @@ class DinucSelex(tnn.Module):
                     out -= torch.sum(d.weight - torch.logsumexp(d.weight, dim=2))
         return out
 
+    def exp_barrier(self, exp_max=40):
+        out = 0
+        for p in self.parameters():
+            out += torch.sum(torch.exp(p - exp_max) + torch.exp(-p - exp_max))
+        return out
+
 
 # Multiple datasets
 class DinucMulti(tnn.Module):
