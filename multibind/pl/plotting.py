@@ -28,14 +28,16 @@ def create_logo(net):
     crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5)
 
 
-def conv_mono(model, figsize=None, flip=False):
+def conv_mono(model, figsize=None, flip=False, log=True):
 
-    print('\n#activities')
+
     activities = np.exp(torch.stack(list(model.log_activities), dim=1).cpu().detach().numpy())
-    print(activities)
 
-    print('\n#log_etas')
-    print(model.log_etas)
+    if log:
+        print('\n#activities')
+        print(activities)
+        print('\n#log_etas')
+        print(model.log_etas)
     n_cols = len(model.conv_mono)
     if figsize is not None:
         plt.figure(figsize=figsize)
