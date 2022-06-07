@@ -265,6 +265,7 @@ def train_iterative(
             log_each=log_each,
             dirichlet_regularization=dirichlet_regularization,
             exp_max=exp_max,
+            verbose=verbose
         )
         # print('next color', colors[i])
         model.loss_color += list(np.repeat(colors[i], len(model.loss_history)))
@@ -328,6 +329,7 @@ def train_iterative(
                         optimiser=next_optimiser,
                         dirichlet_regularization=dirichlet_regularization,
                         exp_max=exp_max,
+                        verbose=verbose,
                         **kwargs,
                     )
                     model_shift.loss_color += list(np.repeat(next_color, len(model_shift.loss_history)))
@@ -456,6 +458,7 @@ def train_shift(
     criterion=None,
     dirichlet_regularization=0,
     exp_max=40,
+    verbose=0,
     **kwargs,
 ):
 
@@ -513,6 +516,7 @@ def train_shift(
         log_each=log_each,
         dirichlet_regularization=dirichlet_regularization,
         exp_max=exp_max,
+        verbose=verbose
     )
 
     return model
