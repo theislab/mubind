@@ -119,7 +119,13 @@ def train_network(
             if not is_LBFGS:
                 optimiser.zero_grad()
                 outputs = model(inputs)  # Forward pass through the network.
-                loss = criterion(outputs, rounds) + dirichlet_regularization*model.dirichlet_regularization()
+
+                # weight_dist = model.weight_distances_min_k()
+                dir_weight = dirichlet_regularization*model.dirichlet_regularization()
+
+                # loss = criterion(outputs, rounds) + weight_dist + dir_weight
+                loss = criterion(outputs, rounds) + dir_weight
+
                 if exp_max >= 0:
                     loss += model.exp_barrier(exp_max)
                 loss.backward()  # Calculate gradients.
@@ -130,7 +136,13 @@ def train_network(
                     optimiser.zero_grad()
                     # this statement here is mandatory to
                     outputs = model(inputs)
-                    loss = criterion(outputs, rounds) + dirichlet_regularization*model.dirichlet_regularization()
+
+                    # weight_dist = model.weight_distances_min_k()
+                    dir_weight = dirichlet_regularization * model.dirichlet_regularization()
+
+                    # loss = criterion(outputs, rounds) + weight_dist + dir_weight
+                    loss = criterion(outputs, rounds) + dir_weight
+
                     if exp_max >= 0:
                         loss += model.exp_barrier(exp_max)
                     loss.backward() # retain_graph=True)
@@ -140,7 +152,7 @@ def train_network(
 
 
         loss_final = running_loss / len(train_dataloader)
-        if log_each != -1 and (epoch % log_each == 0):
+        if log_each != -1 and epoch > 0 and (epoch % log_each == 0):
             if verbose != 0:
                 print("Epoch: %2d, Loss: %.6f" % (epoch + 1, loss_final),
                       ', best epoch: %i' % best_epoch, 'secs per epoch: %.3f s' % ((time.time() - t0) / max(epoch, 1)))
@@ -162,6 +174,8 @@ def train_network(
                 print('early stop!')
             break
 
+    print('total time: %.3f s', ((time.time() - t0)))
+    print('secs per epoch: %.3f s' % ((time.time() - t0) / max(epoch, 1)))
     model.loss_history += loss_history
 
 
@@ -180,6 +194,7 @@ def train_iterative(
     optimiser=None,
     criterion=None,
     seed=None,
+    init_random=False,
     lr=0.01,
     ignore_kernel=False,
     weight_decay=0.001,
@@ -213,7 +228,7 @@ def train_iterative(
     if verbose != 0:
         print("next w", w, type(w))
     # assert False
-    model = mb.models.DinucSelex(kernels=[0] + [w] * (n_kernels - 1), n_rounds=n_rounds,
+    model = mb.models.DinucSelex(kernels=[0] + [w] * (n_kernels - 1), n_rounds=n_rounds, init_random=init_random,
                                  n_batches=n_batches, enr_series=enr_series, **kwargs).to(device)
 
     # this sets up the seed at the first positoin
@@ -468,19 +483,30 @@ def train_shift(
             continue
         if m is None:
             continue
+
+        # print('before shift')
+        before_w = m.weight.shape[-1]
+        # print(m.weight.shape)
         # update the weight
         if shift >= 1:
             m.weight = torch.nn.Parameter(torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 4, shift).to(device)], dim=3))
         elif shift <= -1:
+            # print(torch.zeros(1, 1, 4, -shift).to(device).shape)
+            # print(m.weight[:, :, :, :shift].shape)
             m.weight = torch.nn.Parameter(
                 torch.cat(
                     [
                         torch.zeros(1, 1, 4, -shift).to(device),
-                        m.weight[:, :, :, :-shift],
+                        m.weight[:, :, :, :shift],
                     ],
                     dim=3,
                 )
             )
+        after_w = m.weight.shape[-1]
+        if before_w != after_w:
+            # print(before_w, after_w)
+            assert before_w != after_w
+
     # shift di
     for i, m in enumerate(model.conv_di):
         if kernel_i is not None and kernel_i != i:
