@@ -104,7 +104,7 @@ class DinucSelex(tnn.Module):
 
     def forward(self, x, min_value=1e-15):
         # Create the forward pass through the network.
-        mono, batch, seqlen, countsum = x
+        mono, batch, countsum = x
 
         # convert mono to dinuc
         # print(mono.shape)
@@ -231,6 +231,8 @@ class DinucSelex(tnn.Module):
                 seed_params[:, i + shift] = torch.tensor([min, min, max, min])
             elif seed[i] == 'T':
                 seed_params[:, i + shift] = torch.tensor([min, min, min, max])
+            else:
+                seed_params[:, i + shift] = torch.tensor([0, 0, 0, 0])
         self.conv_mono[index].weight = tnn.Parameter(torch.unsqueeze(torch.unsqueeze(seed_params, 0), 0))
 
     def dirichlet_regularization(self):

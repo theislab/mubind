@@ -107,10 +107,10 @@ def train_network(
             batch["target"].to(device) if "target" in batch else None
             rounds = batch["rounds"].to(device) if "rounds" in batch else None
             batch["is_count_data"] if "is_count_data" in batch else None
-            seqlen = batch["seqlen"] if "seqlen" in batch else None
+            # seqlen = batch["seqlen"] if "seqlen" in batch else None
             countsum = batch["countsum"].to(device) if "countsum" in batch else None
 
-            inputs = (mononuc, b, seqlen, countsum)
+            inputs = (mononuc, b, countsum)
             # PyTorch calculates gradients by accumulating contributions to them (useful for
             # RNNs).  Hence we must manully set them to zero before calculating them.
             # print('outputs', rounds)
@@ -174,7 +174,7 @@ def train_network(
                 print('early stop!')
             break
 
-    print('total time: %.3f s', ((time.time() - t0)))
+    print('total time: %.3f s' % ((time.time() - t0)))
     print('secs per epoch: %.3f s' % ((time.time() - t0) / max(epoch, 1)))
     model.loss_history += loss_history
 
@@ -189,7 +189,10 @@ def train_iterative(
     num_epochs=100,
     early_stopping=15,
     log_each=10,
-    optimize_motif_shift=True,
+    opt_kernel_shift=True,
+    opt_kernel_length=True,
+    expand_length_max=3,
+    expand_length_step=1,
     show_logo=True,
     optimiser=None,
     criterion=None,
@@ -202,6 +205,8 @@ def train_iterative(
     dirichlet_regularization=0,
     verbose=2,
     exp_max=40,
+    shift_max=3,
+    shift_step=2,
     **kwargs
 ):
 
@@ -233,7 +238,11 @@ def train_iterative(
 
     # this sets up the seed at the first positoin
     if seed is not None:
-        model.set_seed(seed, 1)
+        # this sets up the seed at the first positoin
+        for i, s, min_w, max_w, in seed:
+            if s is not None:
+                print(i, s)
+                model.set_seed(s, i, min=min_w, max=max_w)
         model = model.to(device)
 
 
@@ -305,7 +314,7 @@ def train_iterative(
         #######
         n_attempts = 0
 
-        if optimize_motif_shift and i != 0:
+        if (opt_kernel_shift or opt_kernel_length) and i != 0:
             next_loss = None
             while next_loss is None or next_loss < best_loss:
                 n_attempts += 1
@@ -320,21 +329,30 @@ def train_iterative(
                 next_color = colors[-(1 if n_attempts % 2 == 0 else -2)]
 
 
-                all_shifts = []
-                for shift in [-3, -2, -1, 1, 2, 3]:
+                all_options = []
+
+                options = [[expand_left, expand_right, shift]
+                           for expand_left in range(0, expand_length_max, expand_length_step)
+                           for expand_right in range(0, expand_length_max, expand_length_step)
+                           for shift in range(-shift_max, shift_max + 1, shift_step)]
+
+                for expand_left, expand_right, shift in options:
                     if verbose != 0:
-                        print('next shift:', shift)
+                        print('next expand left: %i, next expand right: %i, shift: %i' % (expand_left, expand_right, shift))
+
                     model_shift = copy.deepcopy(model)
                     model_shift.loss_history = []
                     model_shift.loss_color = []
 
                     next_optimiser = topti.Adam(model.parameters(),
                                                 lr=next_lr, weight_decay=next_weight_decay) if optimiser is None else optimiser(model.parameters(), lr=next_lr)
-                    model_left = mb.tl.train_shift(
+                    model_left = mb.tl.train_modified_kernel(
                         model_shift,
                         train,
                         kernel_i=i,
                         shift=shift,
+                        expand_left=expand_left,
+                        expand_right=expand_right,
                         device=device,
                         num_epochs=num_epochs,
                         early_stopping=early_stopping,
@@ -349,33 +367,36 @@ def train_iterative(
                     )
                     model_shift.loss_color += list(np.repeat(next_color, len(model_shift.loss_history)))
                     # print('history left', len(model_left.loss_history))
-                    all_shifts.append([shift, model_shift, model_shift.best_loss])
+                    all_options.append([expand_left, expand_right, shift, model_shift, model_shift.best_loss])
                     # print('\n')
 
                 # for shift, model_shift, loss in all_shifts:
                 #     print('shift=%i' % shift, 'loss=%.4f' % loss)
-                best = sorted(all_shifts + [[0, model, best_loss]],
+                best = sorted(all_options + [[0, 0, 0, model, best_loss]],
                     key=lambda x: x[-1],
                 )
                 if verbose != 0:
                     print('sorted')
-                best_df = pd.DataFrame([[shift, loss] for shift, model_shift, loss in best],
-                                       columns=['shift', 'loss'])
+                best_df = pd.DataFrame([[expand_left, expand_right, shift, loss]
+                                        for expand_left, expand_right, shift, model_shift, loss in best],
+                                       columns=['expand.left', 'expand.right', 'shift', 'loss'])
                 if verbose != 0:
                     print(best_df.sort_values('loss'))
                 # for shift, model_shift, loss in best:
                 #     print('shift=%i' % shift, 'loss=%.4f' % loss)
 
                 # print('\n history len')
-                next_position, next_model, next_loss = best[0]
+                next_expand_left, next_expand_right, next_position, next_model, next_loss = best[0]
                 if verbose != 0:
-                    print('action: %s\n' % next_position)
+                    print('action: %s\n' % str((next_expand_left, next_expand_right, next_position)))
 
                 if next_position != 0:
                     next_model.loss_history = model.loss_history + next_model.loss_history
                     next_model.loss_color = model.loss_color + next_model.loss_color
 
                 model = copy.deepcopy(next_model)
+
+                # assert False
 
         # model = model_by_k[k_parms]
 
@@ -396,12 +417,17 @@ def train_iterative(
             mb.pl.plot_loss(model)
             print("")
 
+        # the first kernel does not require an additional fit.
+        if i == 0:
+            continue
+
         if verbose != 0:
             print('\n\nfinal refinement step (after shift)...')
             print('\nunfreezing all layers for final refinement')
+
         for ki in range(n_kernels):
             if verbose != 0:
-                print("kernel grad (%i) = %i" % (ki, True), sep=', ', end='')
+                print("kernel grad (%i) = %i" % (ki, True), end=' ')
             mb.tl.update_grad(model, ki, ki == i)
         if verbose != 0:
             print('')
@@ -430,6 +456,9 @@ def train_iterative(
         if stop_at_kernel is not None and stop_at_kernel == i:
             break
 
+        # if i == 1:
+        #     assert False
+
     # r = [k_parms, w, n_feat, l_best]
     # # print(r)
     # res.append(r)
@@ -457,10 +486,12 @@ def update_grad(model, position, value):
     # model.padding[position].weight.requires_grad = valueassert False
 
 
-def train_shift(
+def train_modified_kernel(
     model,
     train,
     shift=0,
+    expand_left=0,
+    expand_right=0,
     device=None,
     num_epochs=500,
     early_stopping=15,
@@ -476,6 +507,8 @@ def train_shift(
     verbose=0,
     **kwargs,
 ):
+
+    assert expand_left >= 0 and expand_right >= 0
 
     # shift mono
     for i, m in enumerate(model.conv_mono):
@@ -502,10 +535,17 @@ def train_shift(
                     dim=3,
                 )
             )
+
+        # adding more positions left and right
+        if expand_left > 0:
+            m.weight = torch.nn.Parameter(torch.cat([m.weight[:, :, :, :], torch.zeros(1, 1, 4, expand_right).to(device)], dim=3))
+        if expand_right > 0:
+            m.weight = torch.nn.Parameter(torch.cat([torch.zeros(1, 1, 4, expand_left).to(device), m.weight[:, :, :, :]], dim=3))
+
         after_w = m.weight.shape[-1]
-        if before_w != after_w:
+        if after_w != (before_w + expand_left + expand_right):
             # print(before_w, after_w)
-            assert before_w != after_w
+            assert after_w != (before_w + expand_left + expand_right)
 
     # shift di
     for i, m in enumerate(model.conv_di):
