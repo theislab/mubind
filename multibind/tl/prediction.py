@@ -85,7 +85,8 @@ def train_network(
     best_loss = None
     best_epoch = -1
     if verbose != 0:
-        print('optimizing using', str(type(optimiser)), 'and', str(type(criterion)))
+        print('optimizing using', str(type(optimiser)), 'and', str(type(criterion)),
+              'n_epochs', num_epochs, 'early_stopping', early_stopping)
 
     for f in ['lr', 'weight_decay']:
         if f in optimiser.param_groups[0]:
@@ -334,9 +335,16 @@ def train_iterative(
                 options = [[expand_left, expand_right, shift]
                            for expand_left in range(0, expand_length_max, expand_length_step)
                            for expand_right in range(0, expand_length_max, expand_length_step)
-                           for shift in range(-shift_max, shift_max + 1, shift_step)]
+                           for shift in [0] + list(range(-shift_max, shift_max + 1, shift_step))]
+
 
                 for expand_left, expand_right, shift in options:
+
+                    if abs(expand_left) + abs(expand_right) + abs(shift) == 0:
+                        continue
+                    if abs(shift) > 0:  # skip shift for now.
+                        continue
+
                     if verbose != 0:
                         print('next expand left: %i, next expand right: %i, shift: %i' % (expand_left, expand_right, shift))
 
@@ -370,6 +378,11 @@ def train_iterative(
                     all_options.append([expand_left, expand_right, shift, model_shift, model_shift.best_loss])
                     # print('\n')
 
+                    if verbose != 0:
+                        print('after opt.')
+                        mb.pl.conv_mono(model_shift)
+
+
                 # for shift, model_shift, loss in all_shifts:
                 #     print('shift=%i' % shift, 'loss=%.4f' % loss)
                 best = sorted(all_options + [[0, 0, 0, model, best_loss]],
@@ -395,6 +408,7 @@ def train_iterative(
                     next_model.loss_color = model.loss_color + next_model.loss_color
 
                 model = copy.deepcopy(next_model)
+                assert False
 
                 # assert False
 
@@ -538,14 +552,21 @@ def train_modified_kernel(
 
         # adding more positions left and right
         if expand_left > 0:
-            m.weight = torch.nn.Parameter(torch.cat([m.weight[:, :, :, :], torch.zeros(1, 1, 4, expand_right).to(device)], dim=3))
-        if expand_right > 0:
             m.weight = torch.nn.Parameter(torch.cat([torch.zeros(1, 1, 4, expand_left).to(device), m.weight[:, :, :, :]], dim=3))
+        if expand_right > 0:
+            m.weight = torch.nn.Parameter(torch.cat([m.weight[:, :, :, :], torch.zeros(1, 1, 4, expand_right).to(device)], dim=3))
 
         after_w = m.weight.shape[-1]
+        # print(before_w, after_w)
         if after_w != (before_w + expand_left + expand_right):
             # print(before_w, after_w)
             assert after_w != (before_w + expand_left + expand_right)
+
+
+        # the grad has to be modified in order for the weights to be updated.
+        if verbose != 0:
+            print("setting grad status of kernel at %i to %i" % (kernel_i, True))
+        mb.tl.update_grad(model, kernel_i, True)
 
     # shift di
     for i, m in enumerate(model.conv_di):
