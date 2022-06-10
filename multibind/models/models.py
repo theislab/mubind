@@ -285,6 +285,7 @@ class DinucSelex(tnn.Module):
         if len(d) == 0:
             print(self.conv_mono)
             assert False
+
         return torch.exp(exp_delta - min(d))
 
 def _weight_distances(mono, min_k=5):
