@@ -17,7 +17,7 @@ from multibind.tl.prediction import (  # SelexDataset,; ChipSeqDataset,; create_
     test_network,
     train_iterative,
     train_network,
-    train_shift,
+    train_modified_kernel,
     update_grad,
 )
 

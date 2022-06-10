@@ -85,7 +85,8 @@ def train_network(
     best_loss = None
     best_epoch = -1
     if verbose != 0:
-        print('optimizing using', str(type(optimiser)), 'and', str(type(criterion)))
+        print('optimizing using', str(type(optimiser)), 'and', str(type(criterion)),
+              'n_epochs', num_epochs, 'early_stopping', early_stopping)
 
     for f in ['lr', 'weight_decay']:
         if f in optimiser.param_groups[0]:
@@ -107,10 +108,10 @@ def train_network(
             batch["target"].to(device) if "target" in batch else None
             rounds = batch["rounds"].to(device) if "rounds" in batch else None
             batch["is_count_data"] if "is_count_data" in batch else None
-            seqlen = batch["seqlen"] if "seqlen" in batch else None
+            # seqlen = batch["seqlen"] if "seqlen" in batch else None
             countsum = batch["countsum"].to(device) if "countsum" in batch else None
 
-            inputs = (mononuc, b, seqlen, countsum)
+            inputs = (mononuc, b, countsum)
             # PyTorch calculates gradients by accumulating contributions to them (useful for
             # RNNs).  Hence we must manully set them to zero before calculating them.
             # print('outputs', rounds)
@@ -119,7 +120,13 @@ def train_network(
             if not is_LBFGS:
                 optimiser.zero_grad()
                 outputs = model(inputs)  # Forward pass through the network.
-                loss = criterion(outputs, rounds) + dirichlet_regularization*model.dirichlet_regularization()
+
+                # weight_dist = model.weight_distances_min_k()
+                dir_weight = dirichlet_regularization*model.dirichlet_regularization()
+
+                # loss = criterion(outputs, rounds) + weight_dist + dir_weight
+                loss = criterion(outputs, rounds) + dir_weight
+
                 if exp_max >= 0:
                     loss += model.exp_barrier(exp_max)
                 loss.backward()  # Calculate gradients.
@@ -130,7 +137,13 @@ def train_network(
                     optimiser.zero_grad()
                     # this statement here is mandatory to
                     outputs = model(inputs)
-                    loss = criterion(outputs, rounds) + dirichlet_regularization*model.dirichlet_regularization()
+
+                    # weight_dist = model.weight_distances_min_k()
+                    dir_weight = dirichlet_regularization * model.dirichlet_regularization()
+
+                    # loss = criterion(outputs, rounds) + weight_dist + dir_weight
+                    loss = criterion(outputs, rounds) + dir_weight
+
                     if exp_max >= 0:
                         loss += model.exp_barrier(exp_max)
                     loss.backward() # retain_graph=True)
@@ -140,7 +153,7 @@ def train_network(
 
 
         loss_final = running_loss / len(train_dataloader)
-        if log_each != -1 and (epoch % log_each == 0):
+        if log_each != -1 and epoch > 0 and (epoch % log_each == 0):
             if verbose != 0:
                 print("Epoch: %2d, Loss: %.6f" % (epoch + 1, loss_final),
                       ', best epoch: %i' % best_epoch, 'secs per epoch: %.3f s' % ((time.time() - t0) / max(epoch, 1)))
@@ -162,6 +175,8 @@ def train_network(
                 print('early stop!')
             break
 
+    print('total time: %.3f s' % ((time.time() - t0)))
+    print('secs per epoch: %.3f s' % ((time.time() - t0) / max(epoch, 1)))
     model.loss_history += loss_history
 
 
@@ -171,15 +186,19 @@ def train_iterative(
     n_kernels=4,
     w=15,
     # min_w=10,
-    # max_w=20,
+    max_w=20,
     num_epochs=100,
     early_stopping=15,
     log_each=10,
-    optimize_motif_shift=True,
+    opt_kernel_shift=True,
+    opt_kernel_length=True,
+    expand_length_max=3,
+    expand_length_step=1,
     show_logo=True,
     optimiser=None,
     criterion=None,
     seed=None,
+    init_random=False,
     lr=0.01,
     ignore_kernel=False,
     weight_decay=0.001,
@@ -187,6 +206,8 @@ def train_iterative(
     dirichlet_regularization=0,
     verbose=2,
     exp_max=40,
+    shift_max=3,
+    shift_step=2,
     **kwargs
 ):
 
@@ -213,12 +234,16 @@ def train_iterative(
     if verbose != 0:
         print("next w", w, type(w))
     # assert False
-    model = mb.models.DinucSelex(kernels=[0] + [w] * (n_kernels - 1), n_rounds=n_rounds,
+    model = mb.models.DinucSelex(kernels=[0] + [w] * (n_kernels - 1), n_rounds=n_rounds, init_random=init_random,
                                  n_batches=n_batches, enr_series=enr_series, **kwargs).to(device)
 
     # this sets up the seed at the first positoin
     if seed is not None:
-        model.set_seed(seed, 1)
+        # this sets up the seed at the first positoin
+        for i, s, min_w, max_w, in seed:
+            if s is not None:
+                print(i, s)
+                model.set_seed(s, i, min=min_w, max=max_w)
         model = model.to(device)
 
 
@@ -290,79 +315,122 @@ def train_iterative(
         #######
         n_attempts = 0
 
-        if optimize_motif_shift and i != 0:
-            next_loss = None
-            while next_loss is None or next_loss < best_loss:
-                n_attempts += 1
+        if (opt_kernel_shift or opt_kernel_length) and i != 0:
 
-                if verbose != 0:
-                    print(
-                        "\noptimize_motif_shift (%s)..." % ("first" if next_loss is None else "again"),
-                        end="",
-                    )
-                model = copy.deepcopy(model)
-                best_loss = model.best_loss
-                next_color = colors[-(1 if n_attempts % 2 == 0 else -2)]
+            opt_expand_left = range(1, expand_length_max, expand_length_step)
+            opt_expand_right = range(1, expand_length_max, expand_length_step)
+            opt_shift = [0] + list(range(-shift_max, shift_max + 1, shift_step))
 
+            for opt_option_text, opt_option_next in zip(['FLANKS', 'SHIFT'],
+                                                        [[opt_expand_left, opt_expand_right, [0]],
+                                                         [[0], [0], opt_shift]]):
 
-                all_shifts = []
-                for shift in [-3, -2, -1, 1, 2, 3]:
+                # print(opt_option_text, opt_option_next)
+                # assert False
+
+                next_loss = None
+                while next_loss is None or next_loss < best_loss:
+                    n_attempts += 1
+
+                    curr_w = model.conv_mono[i].weight.shape[-1]
+                    if curr_w >= max_w:
+                        print('stop. Reached maximum w...')
+                        break
+
                     if verbose != 0:
-                        print('next shift:', shift)
-                    model_shift = copy.deepcopy(model)
-                    model_shift.loss_history = []
-                    model_shift.loss_color = []
+                        print(
+                            "\noptimize_motif_shift (%s)..." % ("first" if next_loss is None else "again"),
+                            end="",
+                        )
+                        print('')
+                    model = copy.deepcopy(model)
+                    best_loss = model.best_loss
+                    next_color = colors[-(1 if n_attempts % 2 == 0 else -2)]
 
-                    next_optimiser = topti.Adam(model.parameters(),
-                                                lr=next_lr, weight_decay=next_weight_decay) if optimiser is None else optimiser(model.parameters(), lr=next_lr)
-                    model_left = mb.tl.train_shift(
-                        model_shift,
-                        train,
-                        kernel_i=i,
-                        shift=shift,
-                        device=device,
-                        num_epochs=num_epochs,
-                        early_stopping=early_stopping,
-                        log_each=log_each,
-                        update_grad_i=i,
-                        lr=lr, weight_decay=weight_decay,
-                        optimiser=next_optimiser,
-                        dirichlet_regularization=dirichlet_regularization,
-                        exp_max=exp_max,
-                        verbose=verbose,
-                        **kwargs,
+
+                    all_options = []
+
+                    options = [[expand_left, expand_right, shift]
+                               for expand_left in opt_option_next[0]
+                               for expand_right in opt_option_next[1]
+                               for shift in opt_option_next[2]]
+
+
+                    # print(options)
+
+                    for expand_left, expand_right, shift in options:
+
+                        if abs(expand_left) + abs(expand_right) + abs(shift) == 0:
+                            continue
+                        if abs(shift) > 0:  # skip shift for now.
+                            continue
+                        if curr_w + expand_left + expand_right > max_w:
+                            continue
+
+                        # print(expand_left, expand_right, shift)
+                        # assert False
+
+                        if verbose != 0:
+                            print('next expand left: %i, next expand right: %i, shift: %i' % (expand_left, expand_right, shift))
+
+                        model_shift = copy.deepcopy(model)
+                        model_shift.loss_history = []
+                        model_shift.loss_color = []
+
+                        model_left = mb.tl.train_modified_kernel(
+                            model_shift,
+                            train,
+                            kernel_i=i,
+                            shift=shift,
+                            expand_left=expand_left,
+                            expand_right=expand_right,
+                            device=device,
+                            num_epochs=num_epochs,
+                            early_stopping=early_stopping,
+                            log_each=log_each,
+                            update_grad_i=i,
+                            lr=next_lr, weight_decay=next_weight_decay,
+                            optimiser=optimiser,
+                            dirichlet_regularization=dirichlet_regularization,
+                            exp_max=exp_max,
+                            verbose=verbose,
+                            **kwargs,
+                        )
+                        model_shift.loss_color += list(np.repeat(next_color, len(model_shift.loss_history)))
+                        # print('history left', len(model_left.loss_history))
+                        all_options.append([expand_left, expand_right, shift, model_shift, model_shift.best_loss])
+                        # print('\n')
+
+                        if verbose != 0:
+                            print('after opt.')
+                            mb.pl.conv_mono(model_shift)
+
+
+                    # for shift, model_shift, loss in all_shifts:
+                    #     print('shift=%i' % shift, 'loss=%.4f' % loss)
+                    best = sorted(all_options + [[0, 0, 0, model, best_loss]],
+                        key=lambda x: x[-1],
                     )
-                    model_shift.loss_color += list(np.repeat(next_color, len(model_shift.loss_history)))
-                    # print('history left', len(model_left.loss_history))
-                    all_shifts.append([shift, model_shift, model_shift.best_loss])
-                    # print('\n')
+                    if verbose != 0:
+                        print('sorted')
+                    best_df = pd.DataFrame([[expand_left, expand_right, shift, loss]
+                                            for expand_left, expand_right, shift, model_shift, loss in best],
+                                           columns=['expand.left', 'expand.right', 'shift', 'loss'])
+                    if verbose != 0:
+                        print(best_df.sort_values('loss'))
+                    # for shift, model_shift, loss in best:
+                    #     print('shift=%i' % shift, 'loss=%.4f' % loss)
 
-                # for shift, model_shift, loss in all_shifts:
-                #     print('shift=%i' % shift, 'loss=%.4f' % loss)
-                best = sorted(all_shifts + [[0, model, best_loss]],
-                    key=lambda x: x[-1],
-                )
-                if verbose != 0:
-                    print('sorted')
-                best_df = pd.DataFrame([[shift, loss] for shift, model_shift, loss in best],
-                                       columns=['shift', 'loss'])
-                if verbose != 0:
-                    print(best_df.sort_values('loss'))
-                # for shift, model_shift, loss in best:
-                #     print('shift=%i' % shift, 'loss=%.4f' % loss)
+                    # print('\n history len')
+                    next_expand_left, next_expand_right, next_position, next_model, next_loss = best[0]
+                    if verbose != 0:
+                        print('action: %s\n' % str((next_expand_left, next_expand_right, next_position)))
 
-                # print('\n history len')
-                next_position, next_model, next_loss = best[0]
-                if verbose != 0:
-                    print('action: %s\n' % next_position)
+                    if next_position != 0:
+                        next_model.loss_history = model.loss_history + next_model.loss_history
+                        next_model.loss_color = model.loss_color + next_model.loss_color
 
-                if next_position != 0:
-                    next_model.loss_history = model.loss_history + next_model.loss_history
-                    next_model.loss_color = model.loss_color + next_model.loss_color
-
-                model = copy.deepcopy(next_model)
-
-        # model = model_by_k[k_parms]
+                    model = copy.deepcopy(next_model)
 
         n_feat = sum(
             np.prod(layer.kernel_size)
@@ -381,9 +449,14 @@ def train_iterative(
             mb.pl.plot_loss(model)
             print("")
 
+        # the first kernel does not require an additional fit.
+        if i == 0:
+            continue
+
         if verbose != 0:
             print('\n\nfinal refinement step (after shift)...')
             print('\nunfreezing all layers for final refinement')
+
         for ki in range(n_kernels):
             if verbose != 0:
                 print("kernel grad (%i) = %i \n" % (ki, True), sep=', ', end='')
@@ -420,6 +493,16 @@ def train_iterative(
         if stop_at_kernel is not None and stop_at_kernel == i:
             break
 
+        if show_logo:
+            print("\n##final motif signal (after final refinement)")
+            mb.pl.plot_activities(model, train)
+            mb.pl.conv_mono(model)
+            mb.pl.conv_mono(model, flip=True, log=False)
+            # mb.pl.plot_loss(model)
+
+        # if i == 1:
+        #     assert False
+
     # r = [k_parms, w, n_feat, l_best]
     # # print(r)
     # res.append(r)
@@ -447,10 +530,12 @@ def update_grad(model, position, value):
     # model.padding[position].weight.requires_grad = valueassert False
 
 
-def train_shift(
+def train_modified_kernel(
     model,
     train,
     shift=0,
+    expand_left=0,
+    expand_right=0,
     device=None,
     num_epochs=500,
     early_stopping=15,
@@ -467,17 +552,25 @@ def train_shift(
     **kwargs,
 ):
 
+    assert expand_left >= 0 and expand_right >= 0
+
     # shift mono
     for i, m in enumerate(model.conv_mono):
         if kernel_i is not None and kernel_i != i:
             continue
         if m is None:
             continue
+
+        # print('before shift')
+        before_w = m.weight.shape[-1]
+        # print(m.weight.shape)
         # update the weight
         if shift >= 1:
-            m.weight = torch.nn.Parameter(torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 4, shift).to(device)], dim=3))
+            model.conv_mono[i].weight = torch.nn.Parameter(torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 4, shift).to(device)], dim=3))
         elif shift <= -1:
-            m.weight = torch.nn.Parameter(
+            # print(torch.zeros(1, 1, 4, -shift).to(device).shape)
+            # print(m.weight[:, :, :, :shift].shape)
+            model.conv_mono[i].weight = torch.nn.Parameter(
                 torch.cat(
                     [
                         torch.zeros(1, 1, 4, -shift).to(device),
@@ -486,6 +579,30 @@ def train_shift(
                     dim=3,
                 )
             )
+
+        # adding more positions left and right
+        if expand_left > 0:
+            model.conv_mono[i].weight = torch.nn.Parameter(torch.cat([torch.zeros(1, 1, 4, expand_left).to(device), m.weight[:, :, :, :]], dim=3))
+        if expand_right > 0:
+            model.conv_mono[i].weight = torch.nn.Parameter(torch.cat([m.weight[:, :, :, :], torch.zeros(1, 1, 4, expand_right).to(device)], dim=3))
+
+        after_w = m.weight.shape[-1]
+        # print(before_w, after_w)
+        if after_w != (before_w + expand_left + expand_right):
+            # print(before_w, after_w)
+            assert after_w != (before_w + expand_left + expand_right)
+
+
+        # the grad has to be modified in order for the weights to be updated.
+        # if verbose != 0:
+        #     print("setting grad status of kernel at %i to %i" % (kernel_i, True))
+        # mb.tl.update_grad(model, kernel_i, True)
+        # make a copy of the model
+        # model = copy.deepcopy(model)
+
+        # finally the optimiser has to be initialized again.
+        optimiser = topti.Adam(model.parameters(), lr=lr,
+                               weight_decay=weight_decay) if optimiser is None else optimiser(model.parameters(), lr=lr)
     # shift di
     for i, m in enumerate(model.conv_di):
         if kernel_i is not None and kernel_i != i:

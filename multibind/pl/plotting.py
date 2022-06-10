@@ -59,6 +59,7 @@ def conv_mono(model, figsize=None, flip=False, log=True):
         # print(weights)
 
         crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5, ax=ax)
+        plt.title(i)
     plt.show()
 
 

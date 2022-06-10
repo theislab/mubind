@@ -1,5 +1,6 @@
 import torch
 import torch.nn as tnn
+import itertools
 
 
 def _mono2revmono(x):
@@ -50,6 +51,7 @@ class DinucSelex(tnn.Module):
         ignore_kernel=None,
         rho=1,
         gamma=0,
+        init_random=True,
         enr_series=True,
         padding_const=0.25,
     ):
@@ -81,11 +83,13 @@ class DinucSelex(tnn.Module):
             else:
                 # self.padding.append(tnn.ConstantPad2d((k - 1, k - 1, 0, 0), 0.25))
                 next_mono = tnn.Conv2d(1, 1, kernel_size=(4, k), padding=(0, 0), bias=False)
-                next_mono.weight.data.uniform_(0, 0)
+                if not init_random:
+                    next_mono.weight.data.uniform_(0, 0)
                 self.conv_mono.append(next_mono)
 
                 next_di = tnn.Conv2d(1, 1, kernel_size=(16, k), padding=(0, 0), bias=False)
-                next_di.weight.data.uniform_(0, 0)
+                if not init_random:
+                    next_di.weight.data.uniform_(0, 0)
                 self.conv_di.append(next_di)
             self.log_activities.append(tnn.Parameter(torch.zeros([n_batches, n_rounds + 1], dtype=torch.float32)))
 
@@ -100,7 +104,7 @@ class DinucSelex(tnn.Module):
 
     def forward(self, x, min_value=1e-15):
         # Create the forward pass through the network.
-        mono, batch, seqlen, countsum = x
+        mono, batch, countsum = x
 
         # convert mono to dinuc
         # print(mono.shape)
@@ -227,6 +231,8 @@ class DinucSelex(tnn.Module):
                 seed_params[:, i + shift] = torch.tensor([min, min, max, min])
             elif seed[i] == 'T':
                 seed_params[:, i + shift] = torch.tensor([min, min, min, max])
+            else:
+                seed_params[:, i + shift] = torch.tensor([0, 0, 0, 0])
         self.conv_mono[index].weight = tnn.Parameter(torch.unsqueeze(torch.unsqueeze(seed_params, 0), 0))
 
     def dirichlet_regularization(self):
@@ -249,6 +255,63 @@ class DinucSelex(tnn.Module):
         for p in self.parameters():
             out += torch.sum(torch.exp(p - exp_max) + torch.exp(-p - exp_max))
         return out
+
+
+    def weight_distances_min_k(self, min_k=5, exp_delta=4):
+        d = []
+        for a, b in itertools.combinations(self.conv_mono[1:], r=2):
+            a = a.weight
+            b = b.weight
+            min_w = min(a.shape[-1], b.shape[-1])
+
+            # print(min_w)
+
+            lowest_d = -1
+            for k in range(5, min_w):
+                # print(k)
+                for i in range(0, a.shape[-1] - k + 1):
+                    ai = a[:, :, :, i:i + k]
+                    for j in range(0, b.shape[-1] - k + 1):
+                        bi = b[:, :, :, j:j + k]
+                        bi_rev = torch.flip(bi, [3])[:, :, [3, 2, 1, 0], :]
+                        d.append(((bi - ai) ** 2).sum().cpu().detach() / bi.shape[-1])
+                        d.append(((bi_rev - ai) ** 2).sum().cpu().detach() / bi.shape[-1])
+
+                        if lowest_d == -1 or d[-1] < lowest_d or d[-2] < lowest_d:
+                            next_d = min(d[-2], d[-1])
+                            # print(i, i + k, j, j + k, d[-2], d[-1])
+                            lowest_d = next_d
+
+        if len(d) == 0:
+            print(self.conv_mono)
+            assert False
+
+        return torch.exp(exp_delta - min(d))
+
+def _weight_distances(mono, min_k=5):
+    d = []
+    for a, b in itertools.combinations(mono, r=2):
+        a = a.weight
+        b = b.weight
+        min_w = min(a.shape[-1], b.shape[-1])
+        # print(min_w)
+
+        lowest_d = -1
+        for k in range(5, min_w):
+            # print(k)
+            for i in range(0, a.shape[-1] - k + 1):
+                ai = a[:, :, :, i:i + k]
+                for j in range(0, b.shape[-1] - k + 1):
+                    bi = b[:, :, :, j:j + k]
+                    bi_rev = torch.flip(bi, [3])[:, :, [3, 2, 1, 0], :]
+                    d.append(((bi - ai) ** 2).sum() / bi.shape[-1])
+                    d.append(((bi_rev - ai) ** 2).sum() / bi.shape[-1])
+
+                    if lowest_d == -1 or d[-1] < lowest_d or d[-2] < lowest_d:
+                        next_d = min(d[-2], d[-1])
+                        # print(i, i + k, j, j + k, d[-2], d[-1])
+                        lowest_d = next_d
+    return min(d)
 
 
 # Multiple datasets
