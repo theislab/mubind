@@ -172,10 +172,10 @@ class DinucSelex(tnn.Module):
             # a = torch.exp(self.log_activities[i, :, :])
             a = torch.exp(torch.stack(list(self.log_activities), dim=1)[i, :, :])
             if self.ignore_kernel is not None:
-                mask_kernel = self.ignore_kernel # == False
+                mask = self.ignore_kernel != 1  # == False
                 # print(mask_kernel)
                 # print(x.shape, a.shape, x[batch == i][:,mask_kernel], a[mask_kernel,:].shape)
-                scores[batch == i] = torch.matmul(x[batch == i][:,~mask_kernel], a[~mask_kernel,:])
+                scores[batch == i] = torch.matmul(x[batch == i][:, mask], a[mask, :])
             else:
                 scores[batch == i] = torch.matmul(x[batch == i], a)
 
