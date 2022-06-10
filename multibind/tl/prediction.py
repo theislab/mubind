@@ -293,7 +293,7 @@ def train_iterative(
             verbose=verbose
         )
         # print('next color', colors[i])
-        model.loss_color += list(np.repeat(colors[i], len(model.loss_history)))
+        model.loss_color += list(np.repeat(colors[i], len(model.loss_history) - len(model.loss_color)))
         # probably here load the state of the best epoch and save
         model.load_state_dict(model.best_model_state)
         k_parms = "%i" % w
@@ -459,8 +459,8 @@ def train_iterative(
 
         for ki in range(n_kernels):
             if verbose != 0:
-                print("kernel grad (%i) = %i" % (ki, True), end=' ')
-            mb.tl.update_grad(model, ki, True)
+                print("kernel grad (%i) = %i \n" % (ki, True), sep=', ', end='')
+            mb.tl.update_grad(model, ki, ki == i)
         if verbose != 0:
             print('')
 
@@ -483,7 +483,12 @@ def train_iterative(
             early_stopping=early_stopping,
             log_each=log_each,
             dirichlet_regularization=dirichlet_regularization,
+            verbose=verbose
         )
+
+        # load the best model after the final refinement
+        model.loss_color += list(np.repeat(colors[i], len(model.loss_history) - len(model.loss_color)))
+        model.load_state_dict(model.best_model_state)
 
         if stop_at_kernel is not None and stop_at_kernel == i:
             break
