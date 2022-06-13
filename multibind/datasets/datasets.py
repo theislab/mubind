@@ -16,7 +16,7 @@ class SelexDataset(tdata.Dataset):
         labels = [i for i in range(n_rounds + 1)]
         self.rounds = np.array(df[labels])
         self.n_rounds = n_rounds
-        self.countsum = np.sum(self.rounds, axis=1)
+        self.countsum = np.sum(self.rounds, axis=1).astype(np.float32)
         self.seq = np.array(df["seq"])
         self.length = len(df)
         self.seq = np.array(df["seq"])
