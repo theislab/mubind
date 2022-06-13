@@ -4,7 +4,7 @@ import itertools
 
 
 def _mono2revmono(x):
-    return torch.flip(x, [1, 2])
+    return torch.flip(x, [2])[:, [3, 2, 1, 0], :]
 
 
 def _mono2dinuc(mono):
