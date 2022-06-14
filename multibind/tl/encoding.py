@@ -1,30 +1,69 @@
 import itertools
 
 import numpy as np
+import torch
 from numba import jit
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 
 
-dict_dna = ' ACGT'
-dict_prot = ' ACDEFGHIKLMNPQRSTVWY'
+def mono2revmono(x):
+    return torch.flip(x, [2])[:, [3, 2, 1, 0], :]
 
-def string2bin(s, mode='dna'):
+
+def mono2dinuc(mono):
+    # this is a concatenation of columns (i : i - 1) and (i + 1 : i)
+    n_mono = mono.shape[1]
+    x = torch.cat([mono[:, :, :-1], mono[:, :, 1:]], dim=1)
+    # print(x.shape)
+    dinuc = torch.cat(
+        [  # AX
+            (x[:, 0, :] * x[:, 4, :]),
+            (x[:, 0, :] * x[:, 5, :]),
+            (x[:, 0, :] * x[:, 6, :]),
+            (x[:, 0, :] * x[:, 7, :]),
+            # CX
+            (x[:, 1, :] * x[:, 4, :]),
+            (x[:, 1, :] * x[:, 5, :]),
+            (x[:, 1, :] * x[:, 6, :]),
+            (x[:, 1, :] * x[:, 7, :]),
+            # GX
+            (x[:, 2, :] * x[:, 4, :]),
+            (x[:, 2, :] * x[:, 5, :]),
+            (x[:, 2, :] * x[:, 6, :]),
+            (x[:, 2, :] * x[:, 7, :]),
+            # TX
+            (x[:, 3, :] * x[:, 4, :]),
+            (x[:, 3, :] * x[:, 5, :]),
+            (x[:, 3, :] * x[:, 6, :]),
+            (x[:, 3, :] * x[:, 7, :]),
+        ],
+        dim=1,
+    ).reshape(x.shape[0], n_mono**2, x.shape[2])
+    return dinuc
+
+
+dict_dna = " ACGT"
+dict_prot = " ACDEFGHIKLMNPQRSTVWY"
+
+
+def string2bin(s, mode="dna"):
     code = None
-    if mode == 'dna':
+    if mode == "dna":
         code = dict_dna
-    elif mode == 'protein':
+    elif mode == "protein":
         code = dict_prot
 
     q = " %s" % code
-    return sum( 5 ** i * q.index(p) for i, p in enumerate(s))
+    return sum(5**i * q.index(p) for i, p in enumerate(s))
 
-def bin2string(n, mode='dna'):
+
+def bin2string(n, mode="dna"):
     result = ""
 
     code = None
-    if mode == 'dna':
+    if mode == "dna":
         code = dict_dna
-    elif mode == 'protein':
+    elif mode == "protein":
         code = dict_prot
 
     while n:
@@ -164,4 +203,3 @@ def onehot_dinuc_fast(seqs):
                 else:
                     result[i, :, j] = [0.0625] * 16
     return result
-

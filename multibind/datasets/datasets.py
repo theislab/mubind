@@ -21,11 +21,11 @@ class SelexDataset(tdata.Dataset):
         if "batch" not in df.columns:
             df["batch"] = np.repeat(0, df.shape[0])
         self.batch_names = {}
-        for i, name in enumerate(set(df['batch'])):
+        for i, name in enumerate(set(df["batch"])):
             self.batch_names[i] = name
-            mask = df['batch'] == name
-            df.loc[mask, 'batch'] = i
-        self.n_batches = len(set(df['batch']))
+            mask = df["batch"] == name
+            df.loc[mask, "batch"] = i
+        self.n_batches = len(set(df["batch"]))
 
         self.seq = np.array(df["seq"])
         labels = [i for i in range(n_rounds + 1)]

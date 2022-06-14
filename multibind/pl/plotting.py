@@ -4,8 +4,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import torch
-import multibind as mb
 from sklearn.metrics import r2_score
+
+import multibind as mb
 
 
 def scatter(x, y):
@@ -30,13 +31,12 @@ def create_logo(net):
 
 def conv_mono(model, figsize=None, flip=False, log=True):
 
-
     activities = np.exp(torch.stack(list(model.log_activities), dim=1).cpu().detach().numpy())
 
     if log:
-        print('\n#activities')
+        print("\n#activities")
         print(activities)
-        print('\n#log_etas')
+        print("\n#log_etas")
         print(model.log_etas)
     n_cols = len(model.conv_mono)
     if figsize is not None:
@@ -113,12 +113,13 @@ def plot_activities(model, dataloader, figsize=None):
         plt.xlabel("binding mode rel activity")
     plt.show()
 
+
 def plot_loss(model):
     h, c = model.loss_history, model.loss_color
     for i in range(len(h) - 2):
-        plt.plot([i, i + 1], h[i: i + 2], c=c[i])
-    plt.xlabel('# epochs')
-    plt.ylabel('loss')
+        plt.plot([i, i + 1], h[i : i + 2], c=c[i])
+    plt.xlabel("# epochs")
+    plt.ylabel("loss")
     plt.show()
 
 
@@ -128,25 +129,29 @@ def kmer_enrichment(model, train, k=8, base_round=0, enr_round=-1):
     seqs, targets, pred = mb.tl.test_network(model, train, next(model.parameters()).device)
 
     target_kmers = mb.tl.seqs2kmers(seqs, k=k, counts=targets)
-    target_labels = ['t'+str(i) for i in range(train.dataset.n_rounds + 1)]
-    target_kmers[target_labels] = np.stack(target_kmers['counts'].to_numpy())
+    target_labels = ["t" + str(i) for i in range(train.dataset.n_rounds + 1)]
+    target_kmers[target_labels] = np.stack(target_kmers["counts"].to_numpy())
 
     pred_kmers = mb.tl.seqs2kmers(seqs, k=k, counts=pred)
-    pred_labels = ['p'+str(i) for i in range(train.dataset.n_rounds + 1)]
-    pred_kmers[pred_labels] = np.stack(pred_kmers['counts'].to_numpy())
+    pred_labels = ["p" + str(i) for i in range(train.dataset.n_rounds + 1)]
+    pred_kmers[pred_labels] = np.stack(pred_kmers["counts"].to_numpy())
 
-    counts = target_kmers[target_labels].merge(pred_kmers[pred_labels], left_index=True, right_index=True, how='outer').fillna(0)
+    counts = (
+        target_kmers[target_labels]
+        .merge(pred_kmers[pred_labels], left_index=True, right_index=True, how="outer")
+        .fillna(0)
+    )
     if enr_round == -1:
         enr_round = train.dataset.n_rounds
-    counts['enr_pred'] = (1 + counts[pred_labels[enr_round]]) / (1 + counts[pred_labels[base_round]])
-    counts['enr_obs'] = (1 + counts[target_labels[enr_round]]) / (1 + counts[target_labels[base_round]])
-    counts['f_pred'] = (1 / (enr_round - base_round)) * np.log10(counts['enr_pred'])
-    counts['f_obs'] = (1 / (enr_round - base_round)) * np.log10(counts['enr_obs'])
+    counts["enr_pred"] = (1 + counts[pred_labels[enr_round]]) / (1 + counts[pred_labels[base_round]])
+    counts["enr_obs"] = (1 + counts[target_labels[enr_round]]) / (1 + counts[target_labels[base_round]])
+    counts["f_pred"] = (1 / (enr_round - base_round)) * np.log10(counts["enr_pred"])
+    counts["f_obs"] = (1 / (enr_round - base_round)) * np.log10(counts["enr_obs"])
 
     # plotting
-    p = sns.displot(counts, x='enr_pred', y='enr_obs', cbar=True)
-    p.set(xscale='log', yscale='log')
+    p = sns.displot(counts, x="enr_pred", y="enr_obs", cbar=True)
+    p.set(xscale="log", yscale="log")
     plt.plot([0.1, 10], [0.1, 10], linewidth=2)
 
-    print('R^2:', r2_score(counts['f_obs'], counts['f_pred']))
+    print("R^2:", r2_score(counts["f_obs"], counts["f_pred"]))
     plt.show()

@@ -1,42 +1,9 @@
-import torch
-import torch.nn as tnn
 import itertools
 
+import torch
+import torch.nn as tnn
 
-def _mono2revmono(x):
-    return torch.flip(x, [2])[:, [3, 2, 1, 0], :]
-
-
-def _mono2dinuc(mono):
-    # this is a concatenation of columns (i : i - 1) and (i + 1 : i)
-    n_mono = mono.shape[1]
-    x = torch.cat([mono[:, :, :-1], mono[:, :, 1:]], dim=1)
-    # print(x.shape)
-    dinuc = torch.cat(
-        [  # AX
-            (x[:, 0, :] * x[:, 4, :]),
-            (x[:, 0, :] * x[:, 5, :]),
-            (x[:, 0, :] * x[:, 6, :]),
-            (x[:, 0, :] * x[:, 7, :]),
-            # CX
-            (x[:, 1, :] * x[:, 4, :]),
-            (x[:, 1, :] * x[:, 5, :]),
-            (x[:, 1, :] * x[:, 6, :]),
-            (x[:, 1, :] * x[:, 7, :]),
-            # GX
-            (x[:, 2, :] * x[:, 4, :]),
-            (x[:, 2, :] * x[:, 5, :]),
-            (x[:, 2, :] * x[:, 6, :]),
-            (x[:, 2, :] * x[:, 7, :]),
-            # TX
-            (x[:, 3, :] * x[:, 4, :]),
-            (x[:, 3, :] * x[:, 5, :]),
-            (x[:, 3, :] * x[:, 6, :]),
-            (x[:, 3, :] * x[:, 7, :]),
-        ],
-        dim=1,
-    ).reshape(x.shape[0], n_mono**2, x.shape[2])
-    return dinuc
+import multibind as mb
 
 
 # One selex datasets with multiple rounds of counts
@@ -108,7 +75,7 @@ class DinucSelex(tnn.Module):
             mono, batch, countsum = x
             # padding of sequences
             mono = self.padding(mono)
-            mono_rev = _mono2revmono(mono)
+            mono_rev = mb.tl.mono2revmono(mono)
         elif len(x) == 4:
             mono, mono_rev, batch, countsum = x
             # padding of sequences
@@ -119,8 +86,8 @@ class DinucSelex(tnn.Module):
 
         # prepare the dinucleotide objects if we need them
         if self.use_dinuc:
-            di = _mono2dinuc(mono)
-            di_rev = _mono2dinuc(mono_rev)
+            di = mb.tl.mono2dinuc(mono)
+            di_rev = mb.tl.mono2dinuc(mono_rev)
             di = torch.unsqueeze(di, 1)
             di_rev = torch.unsqueeze(di_rev, 1)
 
@@ -163,7 +130,6 @@ class DinucSelex(tnn.Module):
                 temp = torch.sum(temp, axis=1)
                 x_.append(temp)
                 # print(temp.shape, x_.shape)
-
 
         x = torch.stack(x_).T
 
@@ -215,13 +181,13 @@ class DinucSelex(tnn.Module):
         shift = int((self.conv_mono[index].kernel_size[1] - len(seed)) / 2)
         seed_params = torch.full(self.conv_mono[index].kernel_size, max, dtype=torch.float32)
         for i in range(len(seed)):
-            if seed[i] == 'A':
-                seed_params[:, i+shift] = torch.tensor([max, min, min, min])
-            elif seed[i] == 'C':
+            if seed[i] == "A":
+                seed_params[:, i + shift] = torch.tensor([max, min, min, min])
+            elif seed[i] == "C":
                 seed_params[:, i + shift] = torch.tensor([min, max, min, min])
-            elif seed[i] == 'G':
+            elif seed[i] == "G":
                 seed_params[:, i + shift] = torch.tensor([min, min, max, min])
-            elif seed[i] == 'T':
+            elif seed[i] == "T":
                 seed_params[:, i + shift] = torch.tensor([min, min, min, max])
             else:
                 seed_params[:, i + shift] = torch.tensor([0, 0, 0, 0])
@@ -248,7 +214,6 @@ class DinucSelex(tnn.Module):
             out += torch.sum(torch.exp(p - exp_max) + torch.exp(-p - exp_max))
         return out
 
-
     def weight_distances_min_k(self, min_k=5, exp_delta=4):
         d = []
         for a, b in itertools.combinations(self.conv_mono[1:], r=2):
@@ -262,9 +227,9 @@ class DinucSelex(tnn.Module):
             for k in range(5, min_w):
                 # print(k)
                 for i in range(0, a.shape[-1] - k + 1):
-                    ai = a[:, :, :, i:i + k]
+                    ai = a[:, :, :, i : i + k]
                     for j in range(0, b.shape[-1] - k + 1):
-                        bi = b[:, :, :, j:j + k]
+                        bi = b[:, :, :, j : j + k]
                         bi_rev = torch.flip(bi, [3])[:, :, [3, 2, 1, 0], :]
                         d.append(((bi - ai) ** 2).sum().cpu().detach() / bi.shape[-1])
                         d.append(((bi_rev - ai) ** 2).sum().cpu().detach() / bi.shape[-1])
@@ -280,6 +245,7 @@ class DinucSelex(tnn.Module):
 
         return torch.exp(exp_delta - min(d))
 
+
 def _weight_distances(mono, min_k=5):
     d = []
     for a, b in itertools.combinations(mono, r=2):
@@ -292,9 +258,9 @@ def _weight_distances(mono, min_k=5):
         for k in range(5, min_w):
             # print(k)
             for i in range(0, a.shape[-1] - k + 1):
-                ai = a[:, :, :, i:i + k]
+                ai = a[:, :, :, i : i + k]
                 for j in range(0, b.shape[-1] - k + 1):
-                    bi = b[:, :, :, j:j + k]
+                    bi = b[:, :, :, j : j + k]
                     bi_rev = torch.flip(bi, [3])[:, :, [3, 2, 1, 0], :]
                     d.append(((bi - ai) ** 2).sum() / bi.shape[-1])
                     d.append(((bi_rev - ai) ** 2).sum() / bi.shape[-1])
