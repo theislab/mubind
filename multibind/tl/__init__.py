@@ -6,6 +6,7 @@ from multibind.tl.encoding import (
     onehot_mononuc,
     onehot_mononuc_multi,
     onehot_mononuc_with_gaps,
+    revert_onehot_mononuc,
     string2bin,
     bin2string
 )

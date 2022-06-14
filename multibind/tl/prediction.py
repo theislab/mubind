@@ -41,20 +41,22 @@ def test_network(model, dataloader, device):
     all_targets = np.zeros((len(dataloader.dataset), dataloader.dataset.n_rounds+1), dtype=np.float32)
     all_preds = np.zeros((len(dataloader.dataset), dataloader.dataset.n_rounds+1), dtype=np.float32)
     position = 0
+    store_rev = dataloader.dataset.store_rev
     with torch.no_grad():  # we don't need gradients in the testing phase
         for i, batch in enumerate(dataloader):
             # Get a batch and potentially send it to GPU memory.
             mononuc = batch["mononuc"].to(device)
             b = batch["batch"].to(device) if "batch" in batch else None
             rounds = batch["rounds"].to(device) if "rounds" in batch else None
-            seqlen = batch["seqlen"] if "seqlen" in batch else None
             countsum = batch["countsum"].to(device) if "countsum" in batch else None
             seq = batch["seq"] if "seq" in batch else None
+            if store_rev:
+                mononuc_rev = batch["mononuc_rev"].to(device)
+                inputs = (mononuc, mononuc_rev, b, countsum)
+            else:
+                inputs = (mononuc, b, countsum)
 
-            inputs = (mononuc, b, seqlen, countsum)
             output = model(inputs)
-
-            # print(output.squeeze().cpu().detach().numpy().shape, 'vs', len(seq))
             all_preds[position:(position + len(seq)), :] = output.squeeze().cpu().detach().numpy()
             all_targets[position:(position + len(seq)), :] = rounds.cpu().detach().numpy()
             all_seqs.extend(seq)
@@ -97,6 +99,7 @@ def train_network(
         print('dir weight=', dirichlet_regularization)
 
     is_LBFGS = 'LBFGS' in str(optimiser)
+    store_rev = train_dataloader.dataset.store_rev
 
     t0 = time.time()
     for epoch in range(num_epochs):
@@ -105,19 +108,18 @@ def train_network(
             # Get a batch and potentially send it to GPU memory.
             mononuc = batch["mononuc"].to(device)
             b = batch["batch"].to(device) if "batch" in batch else None
-            batch["target"].to(device) if "target" in batch else None
             rounds = batch["rounds"].to(device) if "rounds" in batch else None
-            batch["is_count_data"] if "is_count_data" in batch else None
-            # seqlen = batch["seqlen"] if "seqlen" in batch else None
             countsum = batch["countsum"].to(device) if "countsum" in batch else None
+            if store_rev:
+                mononuc_rev = batch["mononuc_rev"].to(device)
+                inputs = (mononuc, mononuc_rev, b, countsum)
+            else:
+                inputs = (mononuc, b, countsum)
 
-            inputs = (mononuc, b, countsum)
-            # PyTorch calculates gradients by accumulating contributions to them (useful for
-            # RNNs).  Hence we must manully set them to zero before calculating them.
-            # print('outputs', rounds)
-            # print('rounds', rounds)
             loss = None
             if not is_LBFGS:
+                # PyTorch calculates gradients by accumulating contributions to them (useful for
+                # RNNs).  Hence we must manully set them to zero before calculating them.
                 optimiser.zero_grad()
                 outputs = model(inputs)  # Forward pass through the network.
 

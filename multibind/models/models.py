@@ -104,32 +104,29 @@ class DinucSelex(tnn.Module):
 
     def forward(self, x, min_value=1e-15):
         # Create the forward pass through the network.
-        mono, batch, countsum = x
+        if len(x) == 3:
+            mono, batch, countsum = x
+            # padding of sequences
+            mono = self.padding(mono)
+            mono_rev = _mono2revmono(mono)
+        elif len(x) == 4:
+            mono, mono_rev, batch, countsum = x
+            # padding of sequences
+            mono = self.padding(mono)
+            mono_rev = self.padding(mono_rev)
+        else:
+            assert False
 
-        # convert mono to dinuc
-        # print(mono.shape)
-
-        # print(mono.shape, di.shape)
-        # assert False
-
-        # print(mono.shape)
-
-        # padding of sequences
-        mono = self.padding(mono)
-        # print(mono.shape)
-        # assert False
-
-        # prepare the other three objects that we need
-        mono_rev = _mono2revmono(mono)
-
-        di = _mono2dinuc(mono)
-        di_rev = _mono2dinuc(mono_rev)
+        # prepare the dinucleotide objects if we need them
+        if self.use_dinuc:
+            di = _mono2dinuc(mono)
+            di_rev = _mono2dinuc(mono_rev)
+            di = torch.unsqueeze(di, 1)
+            di_rev = torch.unsqueeze(di_rev, 1)
 
         # unsqueeze mono after preparing di and unsqueezing mono
         mono_rev = torch.unsqueeze(mono_rev, 1)
         mono = torch.unsqueeze(mono, 1)
-        di = torch.unsqueeze(di, 1)
-        di_rev = torch.unsqueeze(di_rev, 1)
 
         # x = torch.zeros([mono.shape[0], len(self.kernels)], requires_grad=True)
         x_ = []
