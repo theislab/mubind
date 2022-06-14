@@ -143,6 +143,7 @@ def kmer_enrichment(model, train, k=8, base_round=0, enr_round=-1):
     counts['f_pred'] = (1 / (enr_round - base_round)) * np.log10(counts['enr_pred'])
     counts['f_obs'] = (1 / (enr_round - base_round)) * np.log10(counts['enr_obs'])
 
+
     # plotting
     p = sns.displot(counts, x='enr_pred', y='enr_obs', cbar=True)
     p.set(xscale='log', yscale='log')
