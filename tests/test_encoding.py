@@ -29,15 +29,23 @@ def test_simdata_train():
 
     # divide in train and test data -- copied from above, organize differently!
     train_dataframe = data.copy()
-    data.shape[0]
     train_dataframe = train_dataframe  # .sample(n=n_sample)
     train_dataframe.index = range(len(train_dataframe))
 
     # create datasets and dataloaders
     train_data = mb.datasets.SelexDataset(train_dataframe, single_encoding_step=False)
     train_loader = tdata.DataLoader(dataset=train_data, batch_size=256, shuffle=True)
+
     model = mb.models.DinucSelex(1, 1, kernels=[0, 12]).to(device)
-    optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.01)
-    criterion = mb.tl.PoissonLoss()
-    l2 = mb.tl.train_network(model, train_loader, device, optimiser, criterion, num_epochs=10, log_each=1)
-    # mb.pl.conv_mono(model)
+
+    # make sure that the reverse is different than the original, and also rev(rev(s)) == s
+    for i, batch in enumerate(train_loader):
+        # Get a batch and potentially send it to GPU memory.
+        mono = batch["mononuc"].to(device)
+        mono_rev = mb.tl.mono2revmono(mono)
+
+        check1 = bool(torch.all(mono.eq(mono)).cpu().detach().numpy())
+        check2 = bool(torch.all(mono.eq(mono_rev)).cpu().detach().numpy())
+
+        assert check1 and not check2
+

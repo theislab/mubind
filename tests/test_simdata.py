@@ -36,7 +36,7 @@ def test_simdata_train():
     # create datasets and dataloaders
     train_data = mb.datasets.SelexDataset(train_dataframe, single_encoding_step=False)
     train_loader = tdata.DataLoader(dataset=train_data, batch_size=256, shuffle=True)
-    model = mb.models.DinucSelex(kernels=[0, 12]).to(device)
+    model = mb.models.DinucSelex(1, 1, kernels=[0, 12]).to(device)
     optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.01)
     criterion = mb.tl.PoissonLoss()
     l2 = mb.tl.train_network(model, train_loader, device, optimiser, criterion, num_epochs=10, log_each=1)

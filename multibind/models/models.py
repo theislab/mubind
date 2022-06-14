@@ -1,43 +1,7 @@
 import torch
 import torch.nn as tnn
 import itertools
-
-
-def _mono2revmono(x):
-    return torch.flip(x, [2])[:, [3, 2, 1, 0], :]
-
-
-def _mono2dinuc(mono):
-    # this is a concatenation of columns (i : i - 1) and (i + 1 : i)
-    n_mono = mono.shape[1]
-    x = torch.cat([mono[:, :, :-1], mono[:, :, 1:]], dim=1)
-    # print(x.shape)
-    dinuc = torch.cat(
-        [  # AX
-            (x[:, 0, :] * x[:, 4, :]),
-            (x[:, 0, :] * x[:, 5, :]),
-            (x[:, 0, :] * x[:, 6, :]),
-            (x[:, 0, :] * x[:, 7, :]),
-            # CX
-            (x[:, 1, :] * x[:, 4, :]),
-            (x[:, 1, :] * x[:, 5, :]),
-            (x[:, 1, :] * x[:, 6, :]),
-            (x[:, 1, :] * x[:, 7, :]),
-            # GX
-            (x[:, 2, :] * x[:, 4, :]),
-            (x[:, 2, :] * x[:, 5, :]),
-            (x[:, 2, :] * x[:, 6, :]),
-            (x[:, 2, :] * x[:, 7, :]),
-            # TX
-            (x[:, 3, :] * x[:, 4, :]),
-            (x[:, 3, :] * x[:, 5, :]),
-            (x[:, 3, :] * x[:, 6, :]),
-            (x[:, 3, :] * x[:, 7, :]),
-        ],
-        dim=1,
-    ).reshape(x.shape[0], n_mono**2, x.shape[2])
-    return dinuc
-
+import multibind as mb
 
 # One selex datasets with multiple rounds of counts
 class DinucSelex(tnn.Module):
@@ -120,10 +84,10 @@ class DinucSelex(tnn.Module):
         # assert False
 
         # prepare the other three objects that we need
-        mono_rev = _mono2revmono(mono)
+        mono_rev = mb.tl.mono2revmono(mono)
 
-        di = _mono2dinuc(mono)
-        di_rev = _mono2dinuc(mono_rev)
+        di = mb.tl.mono2dinuc(mono)
+        di_rev = mb.tl.mono2dinuc(mono_rev)
 
         # unsqueeze mono after preparing di and unsqueezing mono
         mono_rev = torch.unsqueeze(mono_rev, 1)
