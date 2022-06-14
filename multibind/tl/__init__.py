@@ -9,6 +9,7 @@ from multibind.tl.encoding import (
     onehot_mononuc,
     onehot_mononuc_multi,
     onehot_mononuc_with_gaps,
+    revert_onehot_mononuc,
     string2bin,
 )
 from multibind.tl.kmers import fastq2kmers, get_seed, log2fc_vs_zero, seqs2kmers

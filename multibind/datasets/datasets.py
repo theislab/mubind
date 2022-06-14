@@ -11,25 +11,27 @@ import multibind as mb
 
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
-    def __init__(self, df, n_rounds=1, enr_series=True, single_encoding_step=False):
-        df = df.reset_index(drop=True)
-        labels = [i for i in range(n_rounds + 1)]
-        self.rounds = np.array(df[labels])
+    def __init__(self, df, n_rounds=1, enr_series=True, single_encoding_step=False, store_rev=False):
         self.n_rounds = n_rounds
-        self.countsum = np.sum(self.rounds, axis=1).astype(np.float32)
-        self.seq = np.array(df["seq"])
+        self.enr_series = enr_series
+        self.store_rev = store_rev
         self.length = len(df)
-        self.seq = np.array(df["seq"])
+
+        df = df.reset_index(drop=True)
         if "batch" not in df.columns:
             df["batch"] = np.repeat(0, df.shape[0])
-        self.n_batches = len(set(df["batch"]))
         self.batch_names = {}
         for i, name in enumerate(set(df["batch"])):
             self.batch_names[i] = name
             mask = df["batch"] == name
             df.loc[mask, "batch"] = i
+        self.n_batches = len(set(df["batch"]))
+
+        self.seq = np.array(df["seq"])
+        labels = [i for i in range(n_rounds + 1)]
+        self.rounds = np.array(df[labels])
+        self.countsum = np.sum(self.rounds, axis=1).astype(np.float32)
         self.batch = np.array(df["batch"])
-        self.enr_series = enr_series
 
         if single_encoding_step:
             assert len(set(df["seq"].str.len())) == 1
@@ -37,40 +39,32 @@ class SelexDataset(tdata.Dataset):
             single_seq = "".join(df["seq"].head(n_entries))
             df_single_entry = df.head(1).copy()
             df_single_entry["seq"] = [single_seq]
-            self.le = LabelEncoder()
-            self.oe = OneHotEncoder(sparse=False)
+            le = LabelEncoder()
+            oe = OneHotEncoder(sparse=False)
             # single encoding step
             self.mononuc = np.array(
-                [mb.tl.onehot_mononuc(row["seq"], self.le, self.oe) for index, row in df_single_entry.iterrows()]
+                [mb.tl.onehot_mononuc(row["seq"], le, oe) for index, row in df_single_entry.iterrows()]
             )
             # splitting step
             self.mononuc = np.array(np.split(self.mononuc, n_entries, axis=2)).squeeze(1)
         else:
-            self.length = len(df)
             max_length = max(set(df["seq"].str.len()))
             self.mononuc = mb.tl.onehot_mononuc_multi(df["seq"], max_length=max_length)
 
-        # self.mononuc_rev = np.array([mb.tl.onehot_mononuc(str(Seq(row['seq']).reverse_complement()), self.le, self.oe)
-        #                             for index, row in data_frame.iterrows()])
-        # self.dinuc = np.array([mb.tl.onehot_dinuc_with_gaps(row['seq']) for index, row in data_frame.iterrows()])
-        # self.dinuc_rev = np.array([mb.tl.onehot_dinuc_with_gaps(str(Seq(row['seq']).reverse_complement()))
-        #                           for index, row in data_frame.iterrows()])
+        if store_rev:
+            self.mononuc_rev = mb.tl.revert_onehot_mononuc(self.mononuc)
 
     def __getitem__(self, index):
         # Return a single input/label pair from the dataset.
-        # mononuc_rev = self.mononuc_rev[index]
-        # dinuc_sample = self.dinuc[index]
-        # dinuc_rev = self.dinuc_rev[index]
         sample = {
             "mononuc": self.mononuc[index],
-            # "mononuc_rev": mononuc_rev,
-            # "dinuc": dinuc_sample,
-            # "dinuc_rev": dinuc_rev,
             "batch": self.batch[index],
             "rounds": self.rounds[index],
             "seq": self.seq[index],
             "countsum": self.countsum[index],
         }
+        if self.store_rev:
+            sample["mononuc_rev"] = self.mononuc_rev[index]
         return sample
 
     def __len__(self):

@@ -100,6 +100,10 @@ def onehot_mononuc_multi(seqs, max_length):
     return result
 
 
+def revert_onehot_mononuc(mononuc):
+    return np.flip(mononuc, (1, 2)).copy()
+
+
 def onehot_covar(covar, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
     covar_arr = np.array(list(covar))
     covar_int = label_encoder.fit_transform(covar_arr)
