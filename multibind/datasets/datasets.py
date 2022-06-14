@@ -11,7 +11,7 @@ import multibind as mb
 
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
-    def __init__(self, df, n_rounds=1, enr_series=True, single_encoding_step=False, store_rev=True):
+    def __init__(self, df, n_rounds=1, enr_series=True, single_encoding_step=False, store_rev=False):
         self.n_rounds = n_rounds
         self.enr_series = enr_series
         self.store_rev = store_rev
@@ -64,7 +64,7 @@ class SelexDataset(tdata.Dataset):
             "countsum": self.countsum[index],
         }
         if self.store_rev:
-            sample["mononuc_rev"] = self.mononuc[index]
+            sample["mononuc_rev"] = self.mononuc_rev[index]
         return sample
 
     def __len__(self):

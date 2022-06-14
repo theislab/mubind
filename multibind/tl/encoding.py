@@ -62,7 +62,7 @@ def onehot_mononuc_multi(seqs, max_length):
 
 
 def revert_onehot_mononuc(mononuc):
-    return np.flip(mononuc, (1, 2))
+    return np.flip(mononuc, (1, 2)).copy()
 
 
 def onehot_covar(covar, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
