@@ -4,7 +4,7 @@ import itertools
 
 
 def _mono2revmono(x):
-    return torch.flip(x, [1])[:, [3, 2, 1, 0], :]
+    return torch.flip(x, [2])[:, [3, 2, 1, 0], :]
 
 
 def _mono2dinuc(mono):
@@ -205,17 +205,12 @@ class DinucSelex(tnn.Module):
         else:
             out = scores
 
-        results = torch.zeros([mono.shape[0], self.n_rounds + 1]).to(
-            device=mono.device
-        )  #  + min_value # conversion for gpu
-
         for i in range(self.n_batches):
             eta = torch.exp(self.log_etas[i, :])
             out[batch == i] = out[batch == i] * eta
-            results[batch == i] = (out[batch == i].T / torch.sum(out[batch == i], axis=1)).T
-            results[batch == i] = (results[batch == i].T * countsum[batch == i].type(torch.float32)).T
 
-
+        results = out.T / torch.sum(out, dim=1)
+        results = (results * countsum).T
         return results
 
     def set_seed(self, seed, index, max=0, min=-1):
