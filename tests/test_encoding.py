@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import torch
-import torch.optim as topti
 import torch.utils.data as tdata
 
 
@@ -48,4 +47,3 @@ def test_simdata_train():
         check2 = bool(torch.all(mono.eq(mono_rev)).cpu().detach().numpy())
 
         assert check1 and not check2
-

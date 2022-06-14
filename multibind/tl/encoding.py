@@ -1,13 +1,14 @@
 import itertools
+
 import numpy as np
 import torch
-
 from numba import jit
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 
 
 def mono2revmono(x):
     return torch.flip(x, [2])[:, [3, 2, 1, 0], :]
+
 
 def mono2dinuc(mono):
     # this is a concatenation of columns (i : i - 1) and (i + 1 : i)
@@ -40,26 +41,29 @@ def mono2dinuc(mono):
     ).reshape(x.shape[0], n_mono**2, x.shape[2])
     return dinuc
 
-dict_dna = ' ACGT'
-dict_prot = ' ACDEFGHIKLMNPQRSTVWY'
 
-def string2bin(s, mode='dna'):
+dict_dna = " ACGT"
+dict_prot = " ACDEFGHIKLMNPQRSTVWY"
+
+
+def string2bin(s, mode="dna"):
     code = None
-    if mode == 'dna':
+    if mode == "dna":
         code = dict_dna
-    elif mode == 'protein':
+    elif mode == "protein":
         code = dict_prot
 
     q = " %s" % code
-    return sum( 5 ** i * q.index(p) for i, p in enumerate(s))
+    return sum(5**i * q.index(p) for i, p in enumerate(s))
 
-def bin2string(n, mode='dna'):
+
+def bin2string(n, mode="dna"):
     result = ""
 
     code = None
-    if mode == 'dna':
+    if mode == "dna":
         code = dict_dna
-    elif mode == 'protein':
+    elif mode == "protein":
         code = dict_prot
 
     while n:
@@ -195,4 +199,3 @@ def onehot_dinuc_fast(seqs):
                 else:
                     result[i, :, j] = [0.0625] * 16
     return result
-

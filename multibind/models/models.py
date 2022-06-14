@@ -1,7 +1,10 @@
+import itertools
+
 import torch
 import torch.nn as tnn
-import itertools
+
 import multibind as mb
+
 
 # One selex datasets with multiple rounds of counts
 class DinucSelex(tnn.Module):
@@ -131,7 +134,6 @@ class DinucSelex(tnn.Module):
                 x_.append(temp)
                 # print(temp.shape, x_.shape)
 
-
         x = torch.stack(x_).T
 
         scores = torch.zeros([x.shape[0], self.n_rounds + 1]).to(device=mono.device)  #  + min_value# conversion for gpu
@@ -182,13 +184,13 @@ class DinucSelex(tnn.Module):
         shift = int((self.conv_mono[index].kernel_size[1] - len(seed)) / 2)
         seed_params = torch.full(self.conv_mono[index].kernel_size, max, dtype=torch.float32)
         for i in range(len(seed)):
-            if seed[i] == 'A':
-                seed_params[:, i+shift] = torch.tensor([max, min, min, min])
-            elif seed[i] == 'C':
+            if seed[i] == "A":
+                seed_params[:, i + shift] = torch.tensor([max, min, min, min])
+            elif seed[i] == "C":
                 seed_params[:, i + shift] = torch.tensor([min, max, min, min])
-            elif seed[i] == 'G':
+            elif seed[i] == "G":
                 seed_params[:, i + shift] = torch.tensor([min, min, max, min])
-            elif seed[i] == 'T':
+            elif seed[i] == "T":
                 seed_params[:, i + shift] = torch.tensor([min, min, min, max])
             else:
                 seed_params[:, i + shift] = torch.tensor([0, 0, 0, 0])
@@ -215,7 +217,6 @@ class DinucSelex(tnn.Module):
             out += torch.sum(torch.exp(p - exp_max) + torch.exp(-p - exp_max))
         return out
 
-
     def weight_distances_min_k(self, min_k=5, exp_delta=4):
         d = []
         for a, b in itertools.combinations(self.conv_mono[1:], r=2):
@@ -229,9 +230,9 @@ class DinucSelex(tnn.Module):
             for k in range(5, min_w):
                 # print(k)
                 for i in range(0, a.shape[-1] - k + 1):
-                    ai = a[:, :, :, i:i + k]
+                    ai = a[:, :, :, i : i + k]
                     for j in range(0, b.shape[-1] - k + 1):
-                        bi = b[:, :, :, j:j + k]
+                        bi = b[:, :, :, j : j + k]
                         bi_rev = torch.flip(bi, [3])[:, :, [3, 2, 1, 0], :]
                         d.append(((bi - ai) ** 2).sum().cpu().detach() / bi.shape[-1])
                         d.append(((bi_rev - ai) ** 2).sum().cpu().detach() / bi.shape[-1])
@@ -247,6 +248,7 @@ class DinucSelex(tnn.Module):
 
         return torch.exp(exp_delta - min(d))
 
+
 def _weight_distances(mono, min_k=5):
     d = []
     for a, b in itertools.combinations(mono, r=2):
@@ -259,9 +261,9 @@ def _weight_distances(mono, min_k=5):
         for k in range(5, min_w):
             # print(k)
             for i in range(0, a.shape[-1] - k + 1):
-                ai = a[:, :, :, i:i + k]
+                ai = a[:, :, :, i : i + k]
                 for j in range(0, b.shape[-1] - k + 1):
-                    bi = b[:, :, :, j:j + k]
+                    bi = b[:, :, :, j : j + k]
                     bi_rev = torch.flip(bi, [3])[:, :, [3, 2, 1, 0], :]
                     d.append(((bi - ai) ** 2).sum() / bi.shape[-1])
                     d.append(((bi_rev - ai) ** 2).sum() / bi.shape[-1])
