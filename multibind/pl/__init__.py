@@ -3,8 +3,8 @@ from multibind.pl.plotting import (
     conv_mono,
     create_heatmap,
     create_logo,
+    kmer_enrichment,
     plot_activities,
     plot_loss,
     scatter,
-    kmer_enrichment,
 )

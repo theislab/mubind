@@ -22,12 +22,12 @@ class SelexDataset(tdata.Dataset):
         self.seq = np.array(df["seq"])
         if "batch" not in df.columns:
             df["batch"] = np.repeat(0, df.shape[0])
-        self.n_batches = len(set(df['batch']))
+        self.n_batches = len(set(df["batch"]))
         self.batch_names = {}
-        for i, name in enumerate(set(df['batch'])):
+        for i, name in enumerate(set(df["batch"])):
             self.batch_names[i] = name
-            mask = df['batch'] == name
-            df.loc[mask, 'batch'] = i
+            mask = df["batch"] == name
+            df.loc[mask, "batch"] = i
         self.batch = np.array(df["batch"])
         self.enr_series = enr_series
 
