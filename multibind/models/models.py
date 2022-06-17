@@ -7,7 +7,7 @@ import multibind as mb
 
 
 # One selex datasets with multiple rounds of counts
-class DinucSelex(tnn.Module):
+class Multibind(tnn.Module):
     # n_rounds indicates the number of experimental rounds
     def __init__(
         self,
@@ -21,8 +21,11 @@ class DinucSelex(tnn.Module):
         init_random=True,
         enr_series=True,
         padding_const=0.25,
+        datatype='selex',  # must be 'selex' ot 'pbm' (case-insensitive)
     ):
         super().__init__()
+        self.datatype = datatype.lower()
+        assert self.datatype in ['selex', 'pbm']
         self.use_dinuc = use_dinuc
         self.n_rounds = n_rounds
         self.n_batches = n_batches
@@ -146,13 +149,10 @@ class DinucSelex(tnn.Module):
             else:
                 scores[batch == i] = torch.matmul(x[batch == i], a)
 
-        # print()
-        # print(x)
-        # print(a)
+        if self.datatype == "pbm":
+            return scores
+            # return torch.log(scores)
 
-        # print('\n\nfinal scores')
-        # print(scores)
-        # assert False
         # a = torch.reshape(a, [a.shape[0], a.shape[2]])
         # x = torch.matmul(x, a)
         # sequential enrichment or independent samples
@@ -162,9 +162,6 @@ class DinucSelex(tnn.Module):
             for i in range(1, self.n_rounds + 1):
                 predictions_.append(predictions_[-1] * scores[:, i])
             out = torch.stack(predictions_).T
-
-            # print('here...')
-            # print(out[:10])
         else:
             out = scores
 
