@@ -141,17 +141,26 @@ def kmer_enrichment(model, train, k=8, base_round=0, enr_round=-1):
         .merge(pred_kmers[pred_labels], left_index=True, right_index=True, how="outer")
         .fillna(0)
     )
-    if enr_round == -1:
-        enr_round = train.dataset.n_rounds
-    counts["enr_pred"] = (1 + counts[pred_labels[enr_round]]) / (1 + counts[pred_labels[base_round]])
-    counts["enr_obs"] = (1 + counts[target_labels[enr_round]]) / (1 + counts[target_labels[base_round]])
-    counts["f_pred"] = (1 / (enr_round - base_round)) * np.log10(counts["enr_pred"])
-    counts["f_obs"] = (1 / (enr_round - base_round)) * np.log10(counts["enr_obs"])
+
+    if model.datatype == 'selex':
+        if enr_round == -1:
+            enr_round = train.dataset.n_rounds
+        counts["enr_pred"] = (1 + counts[pred_labels[enr_round]]) / (1 + counts[pred_labels[base_round]])
+        counts["enr_obs"] = (1 + counts[target_labels[enr_round]]) / (1 + counts[target_labels[base_round]])
+        counts["f_pred"] = (1 / (enr_round - base_round)) * np.log10(counts["enr_pred"])
+        counts["f_obs"] = (1 / (enr_round - base_round)) * np.log10(counts["enr_obs"])
+    elif model.datatype == 'pbm':  # assuming only one column of numbers to be modeled
+        counts["enr_pred"] = counts['p0']
+        counts["enr_obs"] = counts['t0']
+        counts["f_pred"] = counts['p0']
+        counts["f_obs"] = counts['t0']
+    else:
+        assert False
 
     # plotting
     p = sns.displot(counts, x="enr_pred", y="enr_obs", cbar=True)
     p.set(xscale="log", yscale="log")
-    plt.plot([0.1, 10], [0.1, 10], linewidth=2)
+    # plt.plot([0.1, 10], [0.1, 10], linewidth=2)
 
     print("R^2:", r2_score(counts["f_obs"], counts["f_pred"]))
     plt.show()
