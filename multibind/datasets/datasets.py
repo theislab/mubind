@@ -8,6 +8,8 @@ from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 
 import multibind as mb
 
+import pandas as pd
+
 
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
@@ -17,7 +19,14 @@ class SelexDataset(tdata.Dataset):
         self.store_rev = store_rev
         self.length = len(df)
 
-        df = df.reset_index(drop=True)
+        # df = df.reset_index(drop=True)
+
+        # this only works if the columns are equal to the round names (partly obsolete)
+        # labels = [i for i in range(n_rounds + 1)]
+        # self.rounds = np.array(df[labels])
+        self.rounds = np.array(df)
+        # print(self.rounds.shape)
+
         if "batch" not in df.columns:
             df["batch"] = np.repeat(0, df.shape[0])
         self.batch_names = {}
@@ -27,16 +36,17 @@ class SelexDataset(tdata.Dataset):
             df.loc[mask, "batch"] = i
         self.n_batches = len(set(df["batch"]))
 
-        self.seq = np.array(df["seq"])
-        labels = [i for i in range(n_rounds + 1)]
-        self.rounds = np.array(df[labels])
+        seq = df["seq"] if "seq" in df else df.index
+        self.seq = np.array(seq)
+
+
         self.countsum = np.sum(self.rounds, axis=1).astype(np.float32)
         self.batch = np.array(df["batch"])
 
         if single_encoding_step:
-            assert len(set(df["seq"].str.len())) == 1
+            assert len(set(seq.str.len())) == 1
             n_entries = df.shape[0]
-            single_seq = "".join(df["seq"].head(n_entries))
+            single_seq = "".join(seq.head(n_entries))
             df_single_entry = df.head(1).copy()
             df_single_entry["seq"] = [single_seq]
             le = LabelEncoder()
@@ -48,8 +58,8 @@ class SelexDataset(tdata.Dataset):
             # splitting step
             self.mononuc = np.array(np.split(self.mononuc, n_entries, axis=2)).squeeze(1)
         else:
-            max_length = max(set(df["seq"].str.len()))
-            self.mononuc = mb.tl.onehot_mononuc_multi(df["seq"], max_length=max_length)
+            max_length = max(set(seq.str.len()))
+            self.mononuc = mb.tl.onehot_mononuc_multi(pd.Series(seq), max_length=max_length)
 
         if store_rev:
             self.mononuc_rev = mb.tl.revert_onehot_mononuc(self.mononuc)
