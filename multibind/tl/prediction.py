@@ -58,7 +58,7 @@ def test_network(model, dataloader, device):
                 inputs = (mononuc, b, countsum)
 
             output = model(inputs)
-            all_preds[position:(position + len(seq)), :] = output.squeeze().cpu().detach().numpy()
+            all_preds[position:(position + len(seq)), :] = output.cpu().detach().numpy()
             all_targets[position:(position + len(seq)), :] = rounds.cpu().detach().numpy()
             all_seqs.extend(seq)
             position += len(seq)
@@ -250,7 +250,7 @@ def train_iterative(
     if verbose != 0:
         print("next w", w, type(w))
     # assert False
-    model = mb.models.DinucSelex(
+    model = mb.models.Multibind(
         kernels=[0] + [w] * (n_kernels - 1),
         n_rounds=n_rounds,
         init_random=init_random,
@@ -418,6 +418,7 @@ def train_iterative(
                             lr=next_lr,
                             weight_decay=next_weight_decay,
                             optimiser=optimiser,
+                            criterion=criterion,
                             dirichlet_regularization=dirichlet_regularization,
                             exp_max=exp_max,
                             verbose=verbose,
