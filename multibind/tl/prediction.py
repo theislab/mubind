@@ -80,7 +80,7 @@ def train_network(
     early_stopping=-1,
     dirichlet_regularization=0,
     exp_max=40,  # if this value is negative, the exponential barrier will not be used.
-    log_each=None,
+    log_each=-1,
     verbose=0,
 ):
     # global loss_history
@@ -119,7 +119,13 @@ def train_network(
             b = batch["batch"].to(device) if "batch" in batch else None
             rounds = batch["rounds"].to(device) if "rounds" in batch else None
             countsum = batch["countsum"].to(device) if "countsum" in batch else None
-            if store_rev:
+            residues = batch["residues"].to(device) if "residues" in batch else None
+            if residues is not None and store_rev:
+                mononuc_rev = batch["mononuc_rev"].to(device)
+                inputs = (mononuc, mononuc_rev, b, countsum, residues)
+            elif residues is not None:
+                inputs = (mononuc, b, countsum, residues)
+            elif store_rev:
                 mononuc_rev = batch["mononuc_rev"].to(device)
                 inputs = (mononuc, mononuc_rev, b, countsum)
             else:
@@ -133,7 +139,10 @@ def train_network(
                 outputs = model(inputs)  # Forward pass through the network.
 
                 # weight_dist = model.weight_distances_min_k()
-                dir_weight = dirichlet_regularization * model.dirichlet_regularization()
+                if dirichlet_regularization == 0:
+                    dir_weight = 0
+                else:
+                    dir_weight = dirichlet_regularization * model.dirichlet_regularization()
 
                 # loss = criterion(outputs, rounds) + weight_dist + dir_weight
                 loss = criterion(outputs, rounds) + dir_weight
@@ -151,7 +160,10 @@ def train_network(
                     outputs = model(inputs)
 
                     # weight_dist = model.weight_distances_min_k()
-                    dir_weight = dirichlet_regularization * model.dirichlet_regularization()
+                    if dirichlet_regularization == 0:
+                        dir_weight = 0
+                    else:
+                        dir_weight = dirichlet_regularization * model.dirichlet_regularization()
 
                     # loss = criterion(outputs, rounds) + weight_dist + dir_weight
                     loss = criterion(outputs, rounds) + dir_weight
