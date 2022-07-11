@@ -51,15 +51,27 @@ def test_network(model, dataloader, device):
             rounds = batch["rounds"].to(device) if "rounds" in batch else None
             countsum = batch["countsum"].to(device) if "countsum" in batch else None
             seq = batch["seq"] if "seq" in batch else None
-            if store_rev:
+            residues = batch["residues"].to(device) if "residues" in batch else None
+            if residues is not None and store_rev:
+                mononuc_rev = batch["mononuc_rev"].to(device)
+                inputs = (mononuc, mononuc_rev, b, countsum, residues)
+            elif residues is not None:
+                inputs = (mononuc, b, countsum, residues)
+            elif store_rev:
                 mononuc_rev = batch["mononuc_rev"].to(device)
                 inputs = (mononuc, mononuc_rev, b, countsum)
             else:
                 inputs = (mononuc, b, countsum)
 
             output = model(inputs)
-            all_preds[position:(position + len(seq)), :] = output.cpu().detach().numpy()
-            all_targets[position:(position + len(seq)), :] = rounds.cpu().detach().numpy()
+            output = output.cpu().detach().numpy()
+            if len(output.shape) == 1:
+                output = output.reshape(output.shape[0], 1)
+            target = rounds.cpu().detach().numpy()
+            if len(target.shape) == 1:
+                target = target.reshape(output.shape[0], 1)
+            all_preds[position:(position + len(seq)), :] = output
+            all_targets[position:(position + len(seq)), :] = target
             all_seqs.extend(seq)
             position += len(seq)
     return all_seqs, all_targets, all_preds

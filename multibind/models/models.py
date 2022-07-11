@@ -413,10 +413,12 @@ class BMPrediction(tnn.Module):
 
 
 class ProteinDNABinding(tnn.Module):
-    def __init__(self, n_rounds, n_batches, num_classes=1, input_size=21, hidden_size=2, num_layers=1, seq_length=88):
+    def __init__(self, n_rounds, n_batches, num_classes=1, input_size=21, hidden_size=2, num_layers=1, seq_length=88, datatype="pbm"):
         super().__init__()
+        self.datatype = datatype
+
         self.bm_prediction = BMPrediction(num_classes, input_size, hidden_size, num_layers, seq_length)
-        self.multibind = MultibindFlexibleWeights(n_rounds, n_batches, datatype="pbm")
+        self.multibind = MultibindFlexibleWeights(n_rounds, n_batches, datatype=datatype)
 
         self.best_model_state = None
         self.best_loss = None

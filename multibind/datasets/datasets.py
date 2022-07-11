@@ -84,6 +84,7 @@ class SelexDataset(tdata.Dataset):
 # Class for reading training/testing PBM data with residue sequences.
 class ResiduePBMDataset(tdata.Dataset):
     def __init__(self, df, msa_onehot, single_encoding_step=False, store_rev=False):
+        self.n_rounds = 0
         self.store_rev = store_rev
         self.length = df.shape[0] * df.shape[1]
         self.signal = np.array(df).astype(np.float32)
