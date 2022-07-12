@@ -81,6 +81,69 @@ class SelexDataset(tdata.Dataset):
         return self.length
 
 
+# Class for reading training/testing PBM data with residue sequences.
+class ResiduePBMDataset(tdata.Dataset):
+    def __init__(self, df, msa_onehot, single_encoding_step=False, store_rev=False):
+        self.n_rounds = 0
+        self.store_rev = store_rev
+        self.length = df.shape[0] * df.shape[1]
+        self.signal = np.array(df).astype(np.float32)
+        self.msa_onehot = np.stack(msa_onehot).transpose((0, 2, 1)).astype(np.float32)
+
+        if "batch" not in df.columns:
+            df["batch"] = np.repeat(0, df.shape[0])
+        self.batch_names = {}
+        for i, name in enumerate(set(df["batch"])):
+            self.batch_names[i] = name
+            mask = df["batch"] == name
+            df.loc[mask, "batch"] = i
+        self.batch = np.array(df["batch"])
+        self.n_batches = len(set(df["batch"]))
+
+        seq = df["seq"] if "seq" in df else df.index
+        self.seq = np.array(seq)
+
+        if single_encoding_step:
+            assert len(set(seq.str.len())) == 1
+            n_entries = df.shape[0]
+            single_seq = "".join(seq.head(n_entries))
+            df_single_entry = df.head(1).copy()
+            df_single_entry["seq"] = [single_seq]
+            le = LabelEncoder()
+            oe = OneHotEncoder(sparse=False)
+            # single encoding step
+            self.mononuc = np.array(
+                [mb.tl.onehot_mononuc(row["seq"], le, oe) for index, row in df_single_entry.iterrows()]
+            )
+            # splitting step
+            self.mononuc = np.array(np.split(self.mononuc, n_entries, axis=2)).squeeze(1)
+        else:
+            max_length = max(set(seq.str.len()))
+            self.mononuc = mb.tl.onehot_mononuc_multi(pd.Series(seq), max_length=max_length)
+
+        if store_rev:
+            self.mononuc_rev = mb.tl.revert_onehot_mononuc(self.mononuc)
+
+    def __getitem__(self, index):
+        # split up the index to one position in the signal matrix
+        x = index % self.signal.shape[0]
+        y = int((index - x) / self.signal.shape[0])
+        # Return a single input/label pair from the dataset.
+        sample = {
+            "mononuc": self.mononuc[x],
+            "batch": self.batch[x],
+            "rounds": self.signal[x, y],
+            "seq": self.seq[x],
+            "residues": self.msa_onehot[y],
+        }
+        if self.store_rev:
+            sample["mononuc_rev"] = self.mononuc_rev[index]
+        return sample
+
+    def __len__(self):
+        return self.length
+
+
 # Class for reading training/testing ChIPSeq dataset files.
 class ChipSeqDataset(tdata.Dataset):
     def __init__(self, data_frame, use_dinuc=False, batch=None):
