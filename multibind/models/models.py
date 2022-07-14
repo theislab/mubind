@@ -412,6 +412,29 @@ class BMPrediction(tnn.Module):
         return out.reshape(x.shape[0], 4, 15)
 
 
+class Decoder(tnn.Module):
+    def __init__(self, input_size=60, enc_size=21, seq_length=88):
+        super().__init__()
+        self.input_size = input_size  # input size
+        self.enc_size = enc_size
+        self.seq_length = seq_length
+        self.output_size = enc_size*seq_length  # output size
+        self.decoder = tnn.Sequential(
+            tnn.Linear(input_size, 200),
+            tnn.ReLU(),
+            tnn.Linear(200, 1000),
+            tnn.ReLU(),
+            tnn.Linear(1000, self.output_size)
+        )
+
+    def forward(self, x):
+        x = x.reshape(x.shape[0], -1)
+        x = self.decoder(x)
+        x = torch.reshape(x, (x.shape[0], self.enc_size, -1))
+        return x
+        # return tnn.functional.softmax(x, dim=1)
+
+
 class ProteinDNABinding(tnn.Module):
     def __init__(self, n_rounds, n_batches, num_classes=1, input_size=21, hidden_size=2, num_layers=1, seq_length=88, datatype="pbm"):
         super().__init__()
