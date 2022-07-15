@@ -422,7 +422,9 @@ class Decoder(tnn.Module):
         self.decoder = tnn.Sequential(
             tnn.Linear(input_size, 200),
             tnn.ReLU(),
-            tnn.Linear(200, 1000),
+            tnn.Linear(200, 500),
+            tnn.ReLU(),
+            tnn.Linear(500, 1000),
             tnn.ReLU(),
             tnn.Linear(1000, self.output_size)
         )
@@ -441,11 +443,14 @@ class ProteinDNABinding(tnn.Module):
         self.datatype = datatype
 
         self.bm_prediction = BMPrediction(num_classes, input_size, hidden_size, num_layers, seq_length)
+        self.decoder = mb.models.Decoder(enc_size=input_size, seq_length=seq_length)
         self.multibind = MultibindFlexibleWeights(n_rounds, n_batches, datatype=datatype)
 
         self.best_model_state = None
         self.best_loss = None
         self.loss_history = []
+        self.crit_history = []
+        self.rec_history = []
         self.loss_color = []
 
     def forward(self, x):
@@ -458,10 +463,12 @@ class ProteinDNABinding(tnn.Module):
             assert False
 
         weights = self.bm_prediction(residues)
+        reconstruction = torch.transpose(self.decoder(weights), 1, 2)
+
         weights = tnn.Parameter(weights)
         weights = torch.unsqueeze(weights, 1)
         pred = self.multibind((mono, mono_rev, batch, countsum, weights))
-        return pred.view(-1)
+        return pred.view(-1), reconstruction
 
     # expects msa as tensor with dims (n_seq, 21, n_residues)
     def get_predicted_bm(self, msa):
