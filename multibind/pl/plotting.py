@@ -157,10 +157,10 @@ def kmer_enrichment(model, train, k=8, base_round=0, enr_round=-1):
     else:
         assert False
 
+    print("R^2:", r2_score(counts["f_obs"], counts["f_pred"]))
+
     # plotting
     p = sns.displot(counts, x="enr_pred", y="enr_obs", cbar=True)
     p.set(xscale="log", yscale="log")
     # plt.plot([0.1, 10], [0.1, 10], linewidth=2)
-
-    print("R^2:", r2_score(counts["f_obs"], counts["f_pred"]))
     plt.show()

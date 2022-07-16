@@ -2,6 +2,9 @@ import itertools
 
 import torch
 import torch.nn as tnn
+import torch.nn.functional as F
+
+from torch.autograd import Variable
 
 import multibind as mb
 
@@ -81,6 +84,11 @@ class Multibind(tnn.Module):
             mono_rev = mb.tl.mono2revmono(mono)
         elif len(x) == 4:
             mono, mono_rev, batch, countsum = x
+            # padding of sequences
+            mono = self.padding(mono)
+            mono_rev = self.padding(mono_rev)
+        elif len(x) == 5:
+            mono, mono_rev, batch, countsum, weight = x
             # padding of sequences
             mono = self.padding(mono)
             mono_rev = self.padding(mono_rev)
@@ -190,6 +198,10 @@ class Multibind(tnn.Module):
                 seed_params[:, i + shift] = torch.tensor([0, 0, 0, 0])
         self.conv_mono[index].weight = tnn.Parameter(torch.unsqueeze(torch.unsqueeze(seed_params, 0), 0))
 
+    def set_kernel_weights(self, weight, index):
+        assert weight.shape == self.conv_mono[index].weight.shape
+        self.conv_mono[index].weight = weight
+
     def dirichlet_regularization(self):
         out = 0
         for m in self.conv_mono:
@@ -268,6 +280,202 @@ def _weight_distances(mono, min_k=5):
                         lowest_d = next_d
     return min(d)
 
+
+class MultibindFlexibleWeights(tnn.Module):
+    def __init__(
+        self,
+        n_rounds,
+        n_batches,
+        use_dinuc=False,
+        max_w=15,
+        ignore_kernel=None,
+        rho=1,
+        gamma=0,
+        init_random=True,
+        enr_series=True,
+        padding_const=0.25,
+        datatype='selex',  # must be 'selex' ot 'pbm' (case-insensitive)
+    ):
+        super().__init__()
+        self.datatype = datatype.lower()
+        assert self.datatype in ['selex', 'pbm']
+        self.use_dinuc = use_dinuc
+        self.n_rounds = n_rounds
+        self.n_batches = n_batches
+        self.rho = rho
+        self.gamma = gamma
+
+        # self.padding = tnn.ModuleList()
+        # only keep one padding equals to the length of the max kernel
+        self.padding = tnn.ConstantPad2d((max_w - 1, max_w - 1, 0, 0), padding_const)
+
+        self.log_activities = tnn.ParameterList()
+        self.enr_series = enr_series
+        # self.log_activities = tnn.Parameter(torch.zeros([n_batches, len(kernels), n_rounds+1]))
+        self.log_etas = tnn.Parameter(torch.zeros([n_batches, n_rounds + 1]))
+        self.ignore_kernel = ignore_kernel
+
+        for _ in range(1, 3):
+            self.log_activities.append(tnn.Parameter(torch.zeros([n_batches, n_rounds + 1], dtype=torch.float32)))
+
+    def forward(self, x):
+        # Create the forward pass through the network.
+        mono, mono_rev, batch, countsum, weight = x
+        # padding of sequences
+        mono = self.padding(mono)
+        mono_rev = self.padding(mono_rev)
+        mono = torch.unsqueeze(mono, 1)
+        mono_rev = torch.unsqueeze(mono_rev, 1)
+
+        x_ = []
+        temp = torch.Tensor([1.0] * mono.shape[0]).to(device=mono.device)
+        x_.append(temp)
+
+        # Transposing batch dim and channels
+        mono = torch.transpose(mono, 0, 1)
+        mono_rev = torch.transpose(mono_rev, 0, 1)
+        temp = torch.cat(
+            (
+                F.conv2d(mono, weight, groups=weight.shape[0]),
+                F.conv2d(mono_rev, weight, groups=weight.shape[0]),
+            ),
+            dim=3,
+        )
+        temp = torch.transpose(temp, 0, 1)  # Transposing back
+        temp = torch.exp(temp)
+        temp = temp.view(temp.shape[0], -1)
+        temp = torch.sum(temp, dim=1)
+        x_.append(temp)
+        x = torch.stack(x_).T
+
+        scores = torch.zeros([x.shape[0], self.n_rounds + 1]).to(device=mono.device)
+        for i in range(self.n_batches):
+            # a = torch.exp(self.log_activities[i, :, :])
+            a = torch.exp(torch.stack(list(self.log_activities), dim=1)[i, :, :])
+            if self.ignore_kernel is not None:
+                mask = self.ignore_kernel != 1  # == False
+                # print(mask_kernel)
+                # print(x.shape, a.shape, x[batch == i][:,mask_kernel], a[mask_kernel,:].shape)
+                scores[batch == i] = torch.matmul(x[batch == i][:, mask], a[mask, :])
+            else:
+                scores[batch == i] = torch.matmul(x[batch == i], a)
+
+        if self.datatype == "pbm":
+            return scores
+            # return torch.log(scores)
+
+        # a = torch.reshape(a, [a.shape[0], a.shape[2]])
+        # x = torch.matmul(x, a)
+        # sequential enrichment or independent samples
+        if self.enr_series:
+            # print('using enrichment series')
+            predictions_ = [scores[:, 0]]
+            for i in range(1, self.n_rounds + 1):
+                predictions_.append(predictions_[-1] * scores[:, i])
+            out = torch.stack(predictions_).T
+        else:
+            out = scores
+
+        for i in range(self.n_batches):
+            eta = torch.exp(self.log_etas[i, :])
+            out[batch == i] = out[batch == i] * eta
+
+        results = out.T / torch.sum(out, dim=1)
+        results = (results * countsum).T
+        return results
+
+
+class BMPrediction(tnn.Module):
+    def __init__(self, num_classes, input_size, hidden_size, num_layers, seq_length):
+        super().__init__()
+        self.num_classes = num_classes  # number of classes
+        self.num_layers = num_layers  # number of layers
+        self.input_size = input_size  # input size
+        self.hidden_size = hidden_size  # hidden state
+        self.seq_length = seq_length  # sequence length
+
+        self.lstm = tnn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers, batch_first=True)
+        self.linear = tnn.Linear(hidden_size, 253)  # fully connected 1
+        self.conv_mono = tnn.Linear(253, 60)  # fully connected last layer
+        self.relu = tnn.ReLU()
+
+    def forward(self, x):
+        h_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size))  # hidden state
+        c_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size))  # internal state
+        # Propagate input through LSTM
+        output, (hn, cn) = self.lstm(x, (h_0, c_0))  # lstm with input, hidden, and internal state
+        hn = hn.view(-1, self.hidden_size)  # reshaping the data for Dense layer next
+        out = self.relu(hn)
+        out = self.linear(out)  # first Dense
+        out = self.relu(out)  # relu
+        out = self.conv_mono(out)  # Final Output
+        return out.reshape(x.shape[0], 4, 15)
+
+
+class Decoder(tnn.Module):
+    def __init__(self, input_size=60, enc_size=21, seq_length=88):
+        super().__init__()
+        self.input_size = input_size  # input size
+        self.enc_size = enc_size
+        self.seq_length = seq_length
+        self.output_size = enc_size*seq_length  # output size
+        self.decoder = tnn.Sequential(
+            tnn.Linear(input_size, 200),
+            tnn.ReLU(),
+            tnn.Linear(200, 500),
+            tnn.ReLU(),
+            tnn.Linear(500, 1000),
+            tnn.ReLU(),
+            tnn.Linear(1000, self.output_size)
+        )
+
+    def forward(self, x):
+        x = x.reshape(x.shape[0], -1)
+        x = self.decoder(x)
+        x = torch.reshape(x, (x.shape[0], self.enc_size, -1))
+        return x
+        # return tnn.functional.softmax(x, dim=1)
+
+
+class ProteinDNABinding(tnn.Module):
+    def __init__(self, n_rounds, n_batches, num_classes=1, input_size=21, hidden_size=2, num_layers=1, seq_length=88, datatype="pbm"):
+        super().__init__()
+        self.datatype = datatype
+
+        self.bm_prediction = BMPrediction(num_classes, input_size, hidden_size, num_layers, seq_length)
+        self.decoder = mb.models.Decoder(enc_size=input_size, seq_length=seq_length)
+        self.multibind = MultibindFlexibleWeights(n_rounds, n_batches, datatype=datatype)
+
+        self.best_model_state = None
+        self.best_loss = None
+        self.loss_history = []
+        self.crit_history = []
+        self.rec_history = []
+        self.loss_color = []
+
+    def forward(self, x):
+        if len(x) == 4:
+            mono, batch, countsum, residues = x
+            mono_rev = mb.tl.mono2revmono(mono)
+        elif len(x) == 5:
+            mono, mono_rev, batch, countsum, residues = x
+        else:
+            assert False
+
+        weights = self.bm_prediction(residues)
+        reconstruction = torch.transpose(self.decoder(weights), 1, 2)
+
+        weights = tnn.Parameter(weights)
+        weights = torch.unsqueeze(weights, 1)
+        pred = self.multibind((mono, mono_rev, batch, countsum, weights))
+        return pred.view(-1), reconstruction
+
+    # expects msa as tensor with dims (n_seq, 21, n_residues)
+    def get_predicted_bm(self, msa):
+        msa = torch.transpose(msa, 1, 2)
+        with torch.no_grad():
+            weights = self.bm_prediction(msa)
+        return weights
 
 # Multiple datasets
 class DinucMulti(tnn.Module):
