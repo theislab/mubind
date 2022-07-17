@@ -1,1 +1,1 @@
-from multibind.models.models import DinucMulti, Multibind, BMPrediction, ProteinDNABinding
+from multibind.models.models import DinucMulti, Multibind, BMPrediction, ProteinDNABinding, Decoder
