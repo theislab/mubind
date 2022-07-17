@@ -386,7 +386,7 @@ class MultibindFlexibleWeights(tnn.Module):
 
 
 class BMPrediction(tnn.Module):
-    def __init__(self, num_classes, input_size, hidden_size, num_layers, seq_length):
+    def __init__(self, num_classes, input_size, hidden_size, num_layers, seq_length): #  state_size_buff=512):
         super().__init__()
         self.num_classes = num_classes  # number of classes
         self.num_layers = num_layers  # number of layers
@@ -399,9 +399,18 @@ class BMPrediction(tnn.Module):
         self.conv_mono = tnn.Linear(253, 60)  # fully connected last layer
         self.relu = tnn.ReLU()
 
+        # self.state_size_buff = state_size_buff
+        # self.h_0 = Variable(torch.zeros(self.num_layers, state_size_buff, self.hidden_size)) # .to(x.device)
+        # self.c_0 = Variable(torch.zeros(self.num_layers, state_size_buff, self.hidden_size)) # .to(x.device)
+
     def forward(self, x):
-        h_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size)).to(x.device)  # hidden state
-        c_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size)).to(x.device)  # internal state
+
+        # assert x.size(0) <= self.state_size_buff
+        #h_0 = self.h_0[:,:x.size(0),:]
+        # c_0 = self.c_0[:,:x.size(0),:]
+
+        h_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size, device=x.device))  # hidden state
+        c_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size, device=x.device))  # internal state
         # Propagate input through LSTM
         output, (hn, cn) = self.lstm(x, (h_0, c_0))  # lstm with input, hidden, and internal state
         hn = hn.view(-1, self.hidden_size)  # reshaping the data for Dense layer next
