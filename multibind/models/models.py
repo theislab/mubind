@@ -422,21 +422,23 @@ class BMPrediction(tnn.Module):
 
 
 class Decoder(tnn.Module):
-    def __init__(self, input_size=60, enc_size=21, seq_length=88):
+    def __init__(self, input_size=60, enc_size=21, seq_length=88, **kwargs):
         super().__init__()
+        if "layers" in kwargs and kwargs["layers"] is not None:
+            layers = kwargs["layers"]
+        else:
+            layers = [200, 500, 1000]
         self.input_size = input_size  # input size
         self.enc_size = enc_size
         self.seq_length = seq_length
         self.output_size = enc_size*seq_length  # output size
-        self.decoder = tnn.Sequential(
-            tnn.Linear(input_size, 200),
-            tnn.ReLU(),
-            tnn.Linear(200, 500),
-            tnn.ReLU(),
-            tnn.Linear(500, 1000),
-            tnn.ReLU(),
-            tnn.Linear(1000, self.output_size)
-        )
+        modules = [tnn.Linear(input_size, layers[0])]
+        for i in range(len(layers)-1):
+            modules.append(tnn.ReLU())
+            modules.append(tnn.Linear(layers[i], layers[i+1]))
+        modules.append(tnn.ReLU())
+        modules.append(tnn.Linear(layers[len(layers)-1], self.output_size))
+        self.decoder = tnn.Sequential(*modules)
 
     def forward(self, x):
         x = x.reshape(x.shape[0], -1)
@@ -447,12 +449,12 @@ class Decoder(tnn.Module):
 
 
 class ProteinDNABinding(tnn.Module):
-    def __init__(self, n_rounds, n_batches, num_classes=1, input_size=21, hidden_size=2, num_layers=1, seq_length=88, datatype="pbm"):
+    def __init__(self, n_rounds, n_batches, num_classes=1, input_size=21, hidden_size=2, num_layers=1, seq_length=88, datatype="pbm", **kwargs):
         super().__init__()
         self.datatype = datatype
 
         self.bm_prediction = BMPrediction(num_classes, input_size, hidden_size, num_layers, seq_length)
-        self.decoder = mb.models.Decoder(enc_size=input_size, seq_length=seq_length)
+        self.decoder = mb.models.Decoder(enc_size=input_size, seq_length=seq_length, **kwargs)
         self.multibind = MultibindFlexibleWeights(n_rounds, n_batches, datatype=datatype)
 
         self.best_model_state = None
