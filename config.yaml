@@ -1,0 +1,20 @@
+ROOT: 'output/snakemake'
+ANNOTATIONS: 'annotations'
+py_env : multibind
+timing: false
+
+HYPERPARAM:
+    n_kernels: 5
+
+GENE_NAMES:
+    ELK1:
+        file: ../data/ELK1.h5ad
+
+DATA_SCENARIOS:
+
+  SELEX:
+    count_data: True # ../data/selex.h5ad
+
+  PBM:
+    count_data: False # ../data/pbm.h5ad
+
