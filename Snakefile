@@ -66,6 +66,8 @@ rule data_prepare:
         parameters: {params}
         output: {output}
         """
+    log:
+        str(cfg.ROOT) + '/{experiment}/{gene_names}/data_prepare.out.txt'
     params:
         cmd       = f"conda run -n {cfg.py_env} python",
         # tf_name = expand('{gene_names}', gene_names=cfg.GENE_NAMES),
@@ -76,6 +78,6 @@ rule data_prepare:
     shell:
         """
         {params.cmd} {input.script} --annot {params.annot} --tf_name {params.tf_name} -o {output.queries} \
-            --n_sample {params.n_sample}
+            --n_sample {params.n_sample} 1> {log}
         """
 
