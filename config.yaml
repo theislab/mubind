@@ -4,17 +4,16 @@ py_env : multibind
 timing: false
 
 HYPERPARAM:
-    n_kernels: 5
+    n_kernels: [1, 2, 3, 4, 5]
+    w: 15
+    n_epochs: 1000
+    early_stopping: 100
+    n_sample: 25000
 
-GENE_NAMES:
-    ELK1:
-        file: ../data/ELK1.h5ad
-
-DATA_SCENARIOS:
-
+EXPERIMENT:
   SELEX:
-    count_data: True # ../data/selex.h5ad
+    count_data: True
 
-  PBM:
-    count_data: False # ../data/pbm.h5ad
+#  PBM:
+#    count_data: False
 
