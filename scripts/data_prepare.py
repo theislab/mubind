@@ -4,8 +4,9 @@ import multibind as mb
 import numpy as np
 import pandas as pd
 import bindome as bd
-import sys                
-                
+import sys          
+from pathlib import Path
+
 if __name__ == '__main__':
     """
     read fastq files, prepare input files for modeling
@@ -17,17 +18,24 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Precompute diffusion connectivities for knn data integration methods.')
 
-    parser.add_argument('--annotations', '--input', help='annotations directory')
+    parser.add_argument('--annot', help='annotations directory')
     parser.add_argument('-o', '--output', required=True, help='output directory for counts and queries metadata file')
-    parser.add_argument('--tf-name', required=True)
+    parser.add_argument('--tf_name', required=True)
+    parser.add_argument('--n_sample', default=None, type=int)
     
     args = parser.parse_args()
     
-    bd.constants.ANNOTATIONS_DIRECTORY = args.annotations
+    bd.constants.ANNOTATIONS_DIRECTORY = args.annot
     data = bd.bindome.datasets.SELEX.get_data()
     tf_query = args.tf_name
     tf_queries = {tf_query}
     model_by_k = {}
+
+    queries_tsv_outpath = args.output
+    queries_directory = Path(queries_tsv_outpath).parent.absolute()
+    if not os.path.exists(queries_directory):
+        print(queries_directory)
+        os.makedirs(queries_directory)
 
     queries = []
     for tf in tf_queries: # set(data['tf.name']):
@@ -69,10 +77,12 @@ if __name__ == '__main__':
                     # next_data[i] = next_data[k].astype(int)
 
                 # next_data = next_data.head(10000)
-                next_data = next_data.sample(n=10000)
-                print(next_data.shape)
+                if args.n_sample is not None and args.n_sample != -1:
+                    next_data = next_data.sample(n=args.n_sample)
+                
+                # print(next_data.shape)
                 next_data = next_data.set_index('seq')
-                print(next_data.head())
+                # print(next_data.head())
 
                 # not needed for the current model, because the enrichment is not predicted
                 # next_data = mb.tl.calculate_enrichment(next_data, cols=next_data.columns[1:])
@@ -81,13 +91,13 @@ if __name__ == '__main__':
                 next_data['batch'] = 1
                 next_data['is_count_data'] = 1
 
-                next_outpath = args.output + '/' + k_model + '.tsv.gz'
+                next_outpath = str(queries_directory) + '/' + k_model + '.tsv.gz'                
                 next_data.to_csv(next_outpath, sep='\t')
 
-                queries.append([tf_query, k_r0, library, next_outpath])
+                queries.append([tf_query, k_r0, library, next_outpath, next_data.shape[0]])
                     
-    queries = pd.DataFrame(queries, columns=['tf_name', 'r0', 'library', 'counts_path'])
-    queries.to_csv(args.output + '/queries.tsv', sep='\t')
+    queries = pd.DataFrame(queries, columns=['tf_name', 'r0', 'library', 'counts_path', 'n_sample'])
+    queries.to_csv(queries_tsv_outpath, sep='\t')
     sys.exit()
     #                 dataset = mb.datasets.SelexDataset(next_data) # n_rounds=n_rounds)
     #                 train = tdata.DataLoader(dataset=dataset, batch_size=256, shuffle=True)
