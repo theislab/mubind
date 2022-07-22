@@ -62,7 +62,10 @@ class Multibind(tnn.Module):
 
         # only keep one padding equals to the length of the max kernel
         self.padding = tnn.ConstantPad2d((max(self.kernels) - 1, max(self.kernels) - 1, 0, 0), self.padding_const)
-        self.binding_modes = BindingModesSimple(**kwargs)
+        if "bm_generator" in kwargs and kwargs["bm_generator"] is not None:
+            self.binding_modes = BindingModesPerProtein(**kwargs)
+        else:
+            self.binding_modes = BindingModesSimple(**kwargs)
         self.activities = ActivitiesSimple(**kwargs)
         if self.datatype == "selex":
             self.selex_module = SelexModule(**kwargs)
@@ -262,11 +265,12 @@ class BindingModesPerProtein(tnn.Module):
         self.use_intercept = kwargs.get("intercept", True)
 
     def forward(self, mono, mono_rev, di=None, di_rev=None, **kwargs):
-        weights = self.generator(kwargs)
+        weights = self.generator(**kwargs)  # weights needs to be a list
         bm_pred = []
         if self.use_intercept:
             bm_pred.append(torch.Tensor([1.0] * mono.shape[0]).to(device=mono.device))
         for w in weights:
+            w = torch.unsqueeze(w, 1)
             # Transposing batch dim and channels
             mono = torch.transpose(mono, 0, 1)
             mono_rev = torch.transpose(mono_rev, 0, 1)
@@ -511,22 +515,22 @@ class BMPrediction(tnn.Module):
         # self.h_0 = Variable(torch.zeros(self.num_layers, state_size_buff, self.hidden_size)) # .to(x.device)
         # self.c_0 = Variable(torch.zeros(self.num_layers, state_size_buff, self.hidden_size)) # .to(x.device)
 
-    def forward(self, x):
+    def forward(self, residues, **kwargs):
 
         # assert x.size(0) <= self.state_size_buff
         #h_0 = self.h_0[:,:x.size(0),:]
         # c_0 = self.c_0[:,:x.size(0),:]
 
-        h_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size, device=x.device))  # hidden state
-        c_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size, device=x.device))  # internal state
+        h_0 = Variable(torch.zeros(self.num_layers, residues.size(0), self.hidden_size, device=residues.device))  # hidden state
+        c_0 = Variable(torch.zeros(self.num_layers, residues.size(0), self.hidden_size, device=residues.device))  # internal state
         # Propagate input through LSTM
-        output, (hn, cn) = self.lstm(x, (h_0, c_0))  # lstm with input, hidden, and internal state
+        output, (hn, cn) = self.lstm(residues, (h_0, c_0))  # lstm with input, hidden, and internal state
         hn = hn.view(-1, self.hidden_size)  # reshaping the data for Dense layer next
         out = self.relu(hn)
         out = self.linear(out)  # first Dense
         out = self.relu(out)  # relu
         out = self.conv_mono(out)  # Final Output
-        return out.reshape(x.shape[0], 4, 15)
+        return [out.reshape(residues.shape[0], 4, 15)]
 
 
 class Decoder(tnn.Module):
