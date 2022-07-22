@@ -7,5 +7,6 @@ from multibind.pl.plotting import (
     plot_activities,
     plot_loss,
     scatter,
-    alignment_protein
+    alignment_protein,
+    R2_per_protein,
 )

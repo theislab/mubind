@@ -141,6 +141,7 @@ class ResiduePBMDataset(tdata.Dataset):
             "rounds": self.signal[x, y:(y+1)],
             "seq": self.seq[x],
             "residues": self.msa_onehot[y],
+            "protein_id": y,
         }
         if self.store_rev:
             sample["mononuc_rev"] = self.mononuc_rev[index]
