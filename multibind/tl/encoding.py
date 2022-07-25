@@ -89,10 +89,10 @@ def get_protein_aa_index():
 @jit
 def onehot_protein(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
     keys_aa = get_protein_aa_index()
-    seq_arr = seq + keys_aa
+    # print(seq + keys_aa)
+    seq_arr = np.array(list(seq + keys_aa))
     seq_int = label_encoder.fit_transform(seq_arr)
     pre_onehot = onehot_encoder.fit_transform(seq_int.reshape(-1, 1))
-    print('here')
     return (pre_onehot.T[:, :len(seq)]).astype(np.float32)
 
 
