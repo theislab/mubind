@@ -43,7 +43,7 @@ def mono2dinuc(mono):
 
 
 dict_dna = " ACGT"
-dict_prot = " ACDEFGHIKLMNPQRSTVWY"
+dict_prot = "ACDEFGHIKLMNPQRSTVWY"
 
 
 def string2bin(s, mode="dna"):
@@ -81,6 +81,19 @@ def onehot_mononuc(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncod
     return (
         pre_onehot.T[[0, 1, 2, 4], :-5] + 0.25 * np.repeat(np.reshape(pre_onehot.T[3, :-5], [1, -1]), 4, axis=0)
     ).astype(np.float32)
+
+def get_protein_aa_index():
+    keys_aa = dict_prot + '-'
+    return keys_aa
+
+@jit
+def onehot_protein(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
+    keys_aa = get_protein_aa_index()
+    seq_arr = seq + keys_aa
+    seq_int = label_encoder.fit_transform(seq_arr)
+    pre_onehot = onehot_encoder.fit_transform(seq_int.reshape(-1, 1))
+    print('here')
+    return (pre_onehot.T[:, :len(seq)]).astype(np.float32)
 
 
 def onehot_mononuc_multi(seqs, max_length):
