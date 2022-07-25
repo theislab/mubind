@@ -59,7 +59,7 @@ If you found a bug, please use the [issue tracker][issue-tracker].
 
 # multibind
 
-PyTorch learning of molecular binding modes using multiple genomics data sources
+Inference of binding specificities from protein sequence and multiple genomics experiments.
 
 ### SELEX data for testing [5 examples]
 
