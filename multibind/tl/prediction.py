@@ -137,21 +137,23 @@ def train_network(
             residues = batch["residues"].to(device) if "residues" in batch else None
             if residues is not None and store_rev:
                 mononuc_rev = batch["mononuc_rev"].to(device)
-                inputs = (mononuc, mononuc_rev, b, countsum, residues)
+                inputs = {"mono": mononuc, "mono_rev": mononuc_rev, "batch": b, "countsum": countsum,
+                          "residues": residues}
             elif residues is not None:
-                inputs = (mononuc, b, countsum, residues)
+                inputs = {"mono": mononuc, "batch": b, "countsum": countsum, "residues": residues}
             elif store_rev:
                 mononuc_rev = batch["mononuc_rev"].to(device)
-                inputs = (mononuc, mononuc_rev, b, countsum)
+                inputs = {"mono": mononuc, "mono_rev": mononuc_rev, "batch": b, "countsum": countsum}
             else:
-                inputs = (mononuc, b, countsum)
+                inputs = {"mono": mononuc, "batch": b, "countsum": countsum}
 
             loss = None
             if not is_LBFGS:
                 # PyTorch calculates gradients by accumulating contributions to them (useful for
                 # RNNs).  Hence we must manully set them to zero before calculating them.
                 optimiser.zero_grad()
-                outputs, reconstruction = model(inputs)  # Forward pass through the network.
+                # outputs, reconstruction = model(inputs)  # Forward pass through the network.
+                outputs = model(**inputs)  # Forward pass through the network.
 
                 # weight_dist = model.weight_distances_min_k()
                 if dirichlet_regularization == 0:
@@ -159,8 +161,8 @@ def train_network(
                 else:
                     dir_weight = dirichlet_regularization * model.dirichlet_regularization()
 
-                # loss = criterion(outputs, rounds) + weight_dist + dir_weight
-                loss = criterion(outputs, rounds) + 0.01*reconstruction_crit(reconstruction, residues) + dir_weight
+                loss = criterion(outputs, rounds) + dir_weight
+                # loss = criterion(outputs, rounds) + 0.01*reconstruction_crit(reconstruction, residues) + dir_weight
 
                 if exp_max >= 0:
                     loss += model.exp_barrier(exp_max)
@@ -172,7 +174,7 @@ def train_network(
                 def closure():
                     optimiser.zero_grad()
                     # this statement here is mandatory to
-                    outputs = model(inputs)
+                    outputs = model(**inputs)
 
                     # weight_dist = model.weight_distances_min_k()
                     if dirichlet_regularization == 0:
@@ -191,7 +193,7 @@ def train_network(
                 loss = optimiser.step(closure)  # Step to minimise the loss according to the gradient.
             running_loss += loss.item()
             running_crit += criterion(outputs, rounds).item()
-            running_rec += reconstruction_crit(reconstruction, residues).item()
+            # running_rec += reconstruction_crit(reconstruction, residues).item()
 
         loss_final = running_loss / len(train_dataloader)
         crit_final = running_crit / len(train_dataloader)
@@ -212,8 +214,8 @@ def train_network(
 
         # print("Epoch: %2d, Loss: %.3f" % (epoch + 1, running_loss / len(train_dataloader)))
         loss_history.append(loss_final)
-        model.crit_history.append(crit_final)
-        model.rec_history.append(rec_final)
+        # model.crit_history.append(crit_final)
+        # model.rec_history.append(rec_final)
 
         if early_stopping > 0 and epoch >= best_epoch + early_stopping:
             if verbose != 0:

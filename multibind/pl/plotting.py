@@ -218,3 +218,39 @@ def alignment_protein(seqs, out_basename=None, cluster=False, figsize=[10, 5], n
     g.ax_heatmap.tick_params(left=False, bottom=False)
 
 
+def R2_per_protein(model, dataloader, device, show_plot=True):
+    target_signal = dataloader.dataset.signal
+    pred_signal = pd.DataFrame(data=np.zeros(target_signal.shape), index=dataloader.dataset.seq)
+    store_rev = dataloader.dataset.store_rev
+    with torch.no_grad():  # we don't need gradients in the testing phase
+        for i, batch in enumerate(dataloader):
+            # Get a batch and potentially send it to GPU memory.
+            mononuc = batch["mononuc"].to(device)
+            b = batch["batch"].to(device) if "batch" in batch else None
+            countsum = batch["countsum"].to(device) if "countsum" in batch else None
+            seq = batch["seq"] if "seq" in batch else None
+            residues = batch["residues"].to(device) if "residues" in batch else None
+            y = batch["protein_id"] if "protein_id" in batch else None
+            if residues is not None and store_rev:
+                mononuc_rev = batch["mononuc_rev"].to(device)
+                inputs = {"mono": mononuc, "mono_rev": mononuc_rev, "batch": b, "countsum": countsum,
+                          "residues": residues}
+            elif residues is not None:
+                inputs = {"mono": mononuc, "batch": b, "countsum": countsum, "residues": residues}
+            else:
+                assert False
+
+            output = model(**inputs)
+            output = output.cpu().detach().numpy()
+            y = y.cpu().detach().numpy()
+
+            for i in range(len(output)):
+                pred_signal.loc[seq[i], y[i]] = output[i]
+    pred_signal = np.array(pred_signal)
+    R2_values = np.zeros(target_signal.shape[1])
+    for i in range(len(R2_values)):
+        R2_values[i] = r2_score(target_signal[:, i], pred_signal[:, i])
+    if show_plot:
+        plt.hist(R2_values)
+        plt.show()
+    return R2_values
