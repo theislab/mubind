@@ -13,7 +13,8 @@ import pandas as pd
 
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
-    def __init__(self, df, n_rounds=1, enr_series=True, single_encoding_step=False, store_rev=False):
+    def __init__(self, df, n_rounds=1, enr_series=True, single_encoding_step=False, store_rev=False,
+                 labels=None):
         self.n_rounds = n_rounds
         self.enr_series = enr_series
         self.store_rev = store_rev
@@ -24,7 +25,7 @@ class SelexDataset(tdata.Dataset):
         # this only works if the columns are equal to the round names (partly obsolete)
         # labels = [i for i in range(n_rounds + 1)]
         # self.rounds = np.array(df[labels])
-        self.rounds = np.array(df)  # Rounds and batch labels could get confused here.
+        self.rounds = np.array(df) if labels is None else np.array(df[labels])
         # print(self.rounds.shape)
 
         delete_batch_col = False

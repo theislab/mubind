@@ -247,7 +247,7 @@ def train_iterative(
     opt_kernel_length=True,
     expand_length_max=3,
     expand_length_step=1,
-    show_logo=True,
+    show_logo=False,
     optimiser=None,
     criterion=None,
     seed=None,
@@ -505,7 +505,6 @@ def train_iterative(
             for layer in conv
             if layer is not None
         )
-        model.best_loss
 
         if show_logo:
             if verbose != 0:
@@ -570,6 +569,7 @@ def train_iterative(
             mb.pl.conv_mono(model, flip=True, log=False)
             # mb.pl.plot_loss(model)
 
+        print('best loss', model.best_loss)
         # if i == 1:
         #     assert False
 
