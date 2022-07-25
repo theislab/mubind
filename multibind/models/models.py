@@ -9,177 +9,108 @@ from torch.autograd import Variable
 import multibind as mb
 
 
-# One selex datasets with multiple rounds of counts
 class Multibind(tnn.Module):
-    # n_rounds indicates the number of experimental rounds
-    def __init__(
-        self,
-        n_rounds,
-        n_batches,
-        use_dinuc=False,
-        kernels=[0, 14, 12],
-        ignore_kernel=None,
-        rho=1,
-        gamma=0,
-        init_random=True,
-        enr_series=True,
-        padding_const=0.25,
-        datatype='selex',  # must be 'selex' ot 'pbm' (case-insensitive)
-    ):
+    # TODO: Add getter and setter methods to make train_iterative work.
+    """
+    Implements the Multibind model as flexible as possible.
+
+    Args:
+        datatype (String): Type of the experimental data. "selex" and "pbm" are supported.
+        n_batches (Optional[str]): The second parameter. Defaults to None.
+            Second line of description should be indented.
+
+    Keyword Args:
+        init_random (bool): Use a random initialization for all parameters. Default: True
+        padding_const (double): Value for padding DNA-seqs. Default: 0.25
+        use_dinuc (bool): Use dinucleotide contributions (not fully implemented for all kind of models). Default: False
+        enr_series (bool): Whether the data should be handled as enrichment series. Default: True
+        n_batches (int): Number of batches that will occur in the data. Default: 1
+        ignore_kernel (list[bool]): Whether a kernel should be ignored. Default: None.
+        kernels (List[int]): Size of the binding modes (0 indicates non-specific binding). Default: [0, 15]
+        init_random (bool): Use a random initialization for all parameters. Default: True
+        use_dinuc (bool): Use dinucleotide contributions (not fully implemented for all kind of models). Default: False
+
+        bm_generator (torch.nn.Module): PyTorch module which has a weight matrix as output.
+        add_intercept (bool): Whether an intercept is used in addition to the predicted binding modes. Default: True
+    """
+    def __init__(self, datatype, **kwargs):
         super().__init__()
         self.datatype = datatype.lower()
-        assert self.datatype in ['selex', 'pbm']
-        self.use_dinuc = use_dinuc
-        self.n_rounds = n_rounds
-        self.n_batches = n_batches
-        self.rho = rho
-        self.gamma = gamma
-
-        # self.padding = tnn.ModuleList()
-        # only keep one padding equals to the length of the max kernel
-        self.padding = tnn.ConstantPad2d((max(kernels) - 1, max(kernels) - 1, 0, 0), padding_const)
-
-        self.conv_mono = tnn.ModuleList()
-        self.conv_di = tnn.ModuleList()
-        self.log_activities = tnn.ParameterList()
-        self.kernels = kernels
-        self.enr_series = enr_series
-        # self.log_activities = tnn.Parameter(torch.zeros([n_batches, len(kernels), n_rounds+1]))
-        self.log_etas = tnn.Parameter(torch.zeros([n_batches, n_rounds + 1]))
-        self.ignore_kernel = ignore_kernel
-
-        for k in self.kernels:
-            if k == 0:
-                # self.padding.append(None)
-                self.conv_mono.append(None)
-                self.conv_di.append(None)
+        assert self.datatype in ["selex", "pbm"]
+        self.padding_const = kwargs.get("padding_const", 0.25)
+        self.use_dinuc = kwargs.get("use_dinuc", False)
+        if "kernels" not in kwargs and "n_kernels" not in kwargs:
+            kwargs["kernels"] = [0, 15]
+            kwargs["n_kernels"] = len(kwargs["kernels"])
+        elif "n_kernels" not in kwargs:
+            kwargs["n_kernels"] = len(kwargs["kernels"])
+        elif "kernels" not in kwargs:
+            kwargs["kernels"] = [0] + [15]*(kwargs["kernels"]-1)
+        else:
+            assert len(kwargs["kernels"]) == kwargs["n_kernels"]
+        self.kernels = kwargs.get("kernels")
+        if self.datatype == "pbm":
+            kwargs["target_dim"] = 1
+        elif self.datatype == "selex":
+            if "n_rounds" in kwargs:
+                kwargs["target_dim"] = kwargs["n_rounds"] + 1
+            elif "target_dim" in kwargs:
+                kwargs["n_rounds"] = kwargs["target_dim"] - 1
             else:
-                # self.padding.append(tnn.ConstantPad2d((k - 1, k - 1, 0, 0), 0.25))
-                next_mono = tnn.Conv2d(1, 1, kernel_size=(4, k), padding=(0, 0), bias=False)
-                if not init_random:
-                    next_mono.weight.data.uniform_(0, 0)
-                self.conv_mono.append(next_mono)
+                print("n_rounds (or the length of the output) must be provided.")
+                assert False
 
-                next_di = tnn.Conv2d(1, 1, kernel_size=(16, k), padding=(0, 0), bias=False)
-                if not init_random:
-                    next_di.weight.data.uniform_(0, 0)
-                self.conv_di.append(next_di)
-            self.log_activities.append(tnn.Parameter(torch.zeros([n_batches, n_rounds + 1], dtype=torch.float32)))
+        # only keep one padding equals to the length of the max kernel
+        self.padding = tnn.ConstantPad2d((max(self.kernels) - 1, max(self.kernels) - 1, 0, 0), self.padding_const)
+        if "bm_generator" in kwargs and kwargs["bm_generator"] is not None:
+            self.binding_modes = BindingModesPerProtein(**kwargs)
+        else:
+            self.binding_modes = BindingModesSimple(**kwargs)
+        self.activities = ActivitiesSimple(**kwargs)
+        if self.datatype == "selex":
+            self.selex_module = SelexModule(**kwargs)
 
-        # self.log_activity = tnn.Embedding(len(kernels), n_rounds+1)
-        # self.log_activity.weight.data.uniform_(0, 0)  # initialize log_activity as zeros.
-        # self.log_eta = tnn.Embedding(n_rounds+1, 1)
-        # self.log_eta.weight.data.uniform_(0, 0)
         self.best_model_state = None
         self.best_loss = None
         self.loss_history = []
         self.loss_color = []
 
-    def forward(self, x, min_value=1e-15):
-        # Create the forward pass through the network.
-        if len(x) == 3:
-            mono, batch, countsum = x
-            # padding of sequences
-            mono = self.padding(mono)
+    def forward(self, mono, **kwargs):
+        # mono_rev=None, di=None, di_rev=None, batch=None, countsum=None, residues=None, protein_id=None):
+        mono_rev = kwargs.get("mono_rev", None)
+        di = kwargs.get("di", None)
+        di_rev = kwargs.get("di_rev", None)
+        mono = self.padding(mono)
+        if mono_rev is None:
             mono_rev = mb.tl.mono2revmono(mono)
-        elif len(x) == 4:
-            mono, mono_rev, batch, countsum = x
-            # padding of sequences
-            mono = self.padding(mono)
-            mono_rev = self.padding(mono_rev)
-        elif len(x) == 5:
-            mono, mono_rev, batch, countsum, weight = x
-            # padding of sequences
-            mono = self.padding(mono)
-            mono_rev = self.padding(mono_rev)
         else:
-            assert False
+            mono_rev = self.padding(mono_rev)
 
         # prepare the dinucleotide objects if we need them
         if self.use_dinuc:
-            di = mb.tl.mono2dinuc(mono)
-            di_rev = mb.tl.mono2dinuc(mono_rev)
+            if di is None:
+                di = mb.tl.mono2dinuc(mono)
+            if di_rev is None:
+                di_rev = mb.tl.mono2dinuc(mono_rev)
             di = torch.unsqueeze(di, 1)
             di_rev = torch.unsqueeze(di_rev, 1)
+            kwargs["di"] = di
+            kwargs["di_rev"] = di_rev
 
         # unsqueeze mono after preparing di and unsqueezing mono
         mono_rev = torch.unsqueeze(mono_rev, 1)
         mono = torch.unsqueeze(mono, 1)
 
-        # x = torch.zeros([mono.shape[0], len(self.kernels)], requires_grad=True)
-        x_ = []
-        # print(mono.device)
-        # print(self.ignore_kernel)
-        # assert False
-        for i in range(len(self.kernels)):
-            # print(i)
-            # if self.ignore_kernel is not None and self.ignore_kernel[i]:
-            #     temp = torch.Tensor([0.0] * mono.shape[0]).to(device=mono.device)
-            #     x_.append(temp)
-            if self.kernels[i] == 0:
-                temp = torch.Tensor([1.0] * mono.shape[0]).to(device=mono.device)
-                x_.append(temp)
-            else:
-                # check devices match
-                if self.conv_mono[i].weight.device != mono.device:
-                    self.conv_mono[i].weight.to(mono.device)
-
-                if self.use_dinuc:
-                    temp = torch.cat(
-                        (
-                            self.conv_mono[i](mono),
-                            self.conv_mono[i](mono_rev),
-                            self.conv_di[i](di),
-                            self.conv_di[i](di_rev),
-                        ),
-                        dim=3,
-                    )
-                else:
-                    temp = torch.cat((self.conv_mono[i](mono), self.conv_mono[i](mono_rev)), dim=3)
-                temp = torch.exp(temp)
-                temp = temp.view(temp.shape[0], -1)
-                temp = torch.sum(temp, axis=1)
-                x_.append(temp)
-                # print(temp.shape, x_.shape)
-
-        x = torch.stack(x_).T
-
-        scores = torch.zeros([x.shape[0], self.n_rounds + 1]).to(device=mono.device)  #  + min_value# conversion for gpu
-        # print(scores)
-        for i in range(self.n_batches):
-            # a = torch.exp(self.log_activities[i, :, :])
-            a = torch.exp(torch.stack(list(self.log_activities), dim=1)[i, :, :])
-            if self.ignore_kernel is not None:
-                mask = self.ignore_kernel != 1  # == False
-                # print(mask_kernel)
-                # print(x.shape, a.shape, x[batch == i][:,mask_kernel], a[mask_kernel,:].shape)
-                scores[batch == i] = torch.matmul(x[batch == i][:, mask], a[mask, :])
-            else:
-                scores[batch == i] = torch.matmul(x[batch == i], a)
+        # binding_per_mode: matrix of size [batchsize, number of binding modes]
+        binding_per_mode = self.binding_modes(mono=mono, mono_rev=mono_rev, **kwargs)
+        binding_scores = self.activities(binding_per_mode, **kwargs)
 
         if self.datatype == "pbm":
-            return scores
-            # return torch.log(scores)
-
-        # a = torch.reshape(a, [a.shape[0], a.shape[2]])
-        # x = torch.matmul(x, a)
-        # sequential enrichment or independent samples
-        if self.enr_series:
-            # print('using enrichment series')
-            predictions_ = [scores[:, 0]]
-            for i in range(1, self.n_rounds + 1):
-                predictions_.append(predictions_[-1] * scores[:, i])
-            out = torch.stack(predictions_).T
+            return binding_scores
+        elif self.datatype == "selex":
+            return self.selex_module(binding_scores, **kwargs)
         else:
-            out = scores
-
-        for i in range(self.n_batches):
-            eta = torch.exp(self.log_etas[i, :])
-            out[batch == i] = out[batch == i] * eta
-
-        results = out.T / torch.sum(out, dim=1)
-        results = (results * countsum).T
-        return results
+            return None  # this line should never be called
 
     def set_seed(self, seed, index, max=0, min=-1):
         assert len(seed) <= self.conv_mono[index].kernel_size[1]
@@ -255,6 +186,186 @@ class Multibind(tnn.Module):
         return torch.exp(exp_delta - min(d))
 
 
+class BindingModesSimple(tnn.Module):
+    """
+    Implements binding modes (also non-specific binding) for one protein.
+
+    Keyword Args:
+        kernels (List[int]): Size of the binding modes (0 indicates non-specific binding). Default: [0, 15]
+        init_random (bool): Use a random initialization for all parameters. Default: True
+        use_dinuc (bool): Use dinucleotide contributions (not fully implemented for all kind of models). Default: False
+    """
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.kernels = kwargs.get("kernels", [0, 15])
+        self.init_random = kwargs.get("init_random", True)
+        self.use_dinuc = kwargs.get("use_dinuc", False)
+
+        self.conv_mono = tnn.ModuleList()
+        self.conv_di = tnn.ModuleList()
+        for k in self.kernels:
+            if k == 0:
+                self.conv_mono.append(None)
+                self.conv_di.append(None)
+            else:
+                next_mono = tnn.Conv2d(1, 1, kernel_size=(4, k), padding=(0, 0), bias=False)
+                if not self.init_random:
+                    next_mono.weight.data.uniform_(0, 0)
+                self.conv_mono.append(next_mono)
+
+                next_di = tnn.Conv2d(1, 1, kernel_size=(16, k), padding=(0, 0), bias=False)
+                if not self.init_random:
+                    next_di.weight.data.uniform_(0, 0)
+                self.conv_di.append(next_di)
+
+    def forward(self, mono, mono_rev, di=None, di_rev=None, **kwargs):
+        bm_pred = []
+        for i in range(len(self.kernels)):
+            if self.kernels[i] == 0:
+                # intercept (will be scaled by the activity of the non-specific binding)
+                temp = torch.Tensor([1.0] * mono.shape[0]).to(device=mono.device)
+                bm_pred.append(temp)
+            else:
+                # check devices match
+                if self.conv_mono[i].weight.device != mono.device:
+                    self.conv_mono[i].weight.to(mono.device)
+
+                if self.use_dinuc:
+                    temp = torch.cat(
+                        (
+                            self.conv_mono[i](mono),
+                            self.conv_mono[i](mono_rev),
+                            self.conv_di[i](di),
+                            self.conv_di[i](di_rev),
+                        ),
+                        dim=3,
+                    )
+                else:
+                    temp = torch.cat((self.conv_mono[i](mono), self.conv_mono[i](mono_rev)), dim=3)
+                temp = torch.exp(temp)
+                temp = temp.view(temp.shape[0], -1)
+                temp = torch.sum(temp, dim=1)
+                bm_pred.append(temp)
+        return torch.stack(bm_pred).T
+
+
+class BindingModesPerProtein(tnn.Module):
+    """
+    Implements binding modes (also non-specific binding) for multiple proteins in the same batch.
+
+    Args:
+        bm_generator (torch.nn.Module): PyTorch module which has a weight matrix as output
+
+    Keyword Args:
+        add_intercept (bool): Whether an intercept is used in addition to the predicted binding modes. Default: True
+    """
+    def __init__(self, bm_generator, **kwargs):
+        super().__init__()
+        self.generator = bm_generator
+        self.use_intercept = kwargs.get("intercept", True)
+
+    def forward(self, mono, mono_rev, di=None, di_rev=None, **kwargs):
+        weights = self.generator(**kwargs)  # weights needs to be a list
+        bm_pred = []
+        if self.use_intercept:
+            bm_pred.append(torch.Tensor([1.0] * mono.shape[0]).to(device=mono.device))
+        for w in weights:
+            w = torch.unsqueeze(w, 1)
+            # Transposing batch dim and channels
+            mono = torch.transpose(mono, 0, 1)
+            mono_rev = torch.transpose(mono_rev, 0, 1)
+            temp = torch.cat(
+                (
+                    F.conv2d(mono, w, groups=w.shape[0]),
+                    F.conv2d(mono_rev, w, groups=w.shape[0]),
+                ),
+                dim=3,
+            )
+            temp = torch.transpose(temp, 0, 1)  # Transposing back
+            temp = torch.exp(temp)
+            temp = temp.view(temp.shape[0], -1)
+            temp = torch.sum(temp, dim=1)
+            bm_pred.append(temp)
+        return torch.stack(bm_pred).T
+
+
+class ActivitiesSimple(tnn.Module):
+    """
+    Implements activities with batch effects.
+
+    Args:
+        target_dim: Second dimension of the output of forward
+
+    Keyword Args:
+        n_batches (int): Number of batches that will occur in the data. Default: 1
+        ignore_kernel (list[bool]): Whether a kernel should be ignored. Default: None.
+                May not work properly with train_iterative since changes need to be made in this class!
+                #TODO: add a method to propagate those changes from Multibind to this class.
+    """
+    def __init__(self, n_kernels, target_dim, **kwargs):
+        super().__init__()
+        self.n_kernels = n_kernels
+        self.target_dim = target_dim
+        self.n_batches = kwargs.get("n_batches", 1)
+        self.ignore_kernel = kwargs.get("ignore_kernel", None)
+        self.log_activities = tnn.ParameterList()
+        for i in range(n_kernels):
+            self.log_activities.append(
+                tnn.Parameter(torch.zeros([self.n_batches, self.target_dim], dtype=torch.float32))
+            )
+
+    def forward(self, binding_per_mode, **kwargs):
+        batch = kwargs.get("batch", None)
+        if batch is None:
+            batch = torch.zeros([binding_per_mode.shape[0]]).to(device=binding_per_mode.device)
+        scores = torch.zeros([binding_per_mode.shape[0], self.target_dim]).to(device=binding_per_mode.device)
+        for i in range(self.n_batches):
+            a = torch.exp(torch.stack(list(self.log_activities), dim=1)[i, :, :])
+            if self.ignore_kernel is not None:
+                mask = self.ignore_kernel != 1  # == False
+                scores[batch == i] = torch.matmul(binding_per_mode[batch == i][:, mask], a[mask, :])
+            else:
+                scores[batch == i] = torch.matmul(binding_per_mode[batch == i], a)
+        return scores
+
+
+class SelexModule(tnn.Module):
+    """
+    Implements the final calculations for the prediction of selex data.
+
+    Args:
+        target_dim: Second dimension of the output of forward
+
+    Keyword Args:
+        enr_series (bool): Whether the data should be handled as enrichment series. Default: True
+    """
+    def __init__(self, n_rounds, **kwargs):
+        super().__init__()
+        self.n_rounds = n_rounds
+        self.enr_series = kwargs.get("enr_series", True)
+        self.n_batches = kwargs.get("n_batches", 1)
+        self.log_etas = tnn.Parameter(torch.zeros([self.n_batches, self.n_rounds + 1]))
+
+    def forward(self, binding_scores, countsum, **kwargs):
+        batch = kwargs.get("batch", None)
+        if batch is None:
+            batch = torch.zeros([binding_scores.shape[0]]).to(device=binding_scores.device)
+        if self.enr_series:
+            predictions_ = [binding_scores[:, 0]]
+            for i in range(1, self.n_rounds + 1):
+                predictions_.append(predictions_[-1] * binding_scores[:, i])
+            out = torch.stack(predictions_).T
+        else:
+            out = binding_scores
+
+        for i in range(self.n_batches):
+            eta = torch.exp(self.log_etas[i, :])
+            out[batch == i] = out[batch == i] * eta
+
+        results = out.T / torch.sum(out, dim=1)
+        return (results * countsum).T
+
+
 def _weight_distances(mono, min_k=5):
     d = []
     for a, b in itertools.combinations(mono, r=2):
@@ -280,7 +391,7 @@ def _weight_distances(mono, min_k=5):
                         lowest_d = next_d
     return min(d)
 
-
+# This class should be deleted in the future
 class MultibindFlexibleWeights(tnn.Module):
     def __init__(
         self,
@@ -385,8 +496,9 @@ class MultibindFlexibleWeights(tnn.Module):
         return results
 
 
+# This class could be used as a bm_generator
 class BMPrediction(tnn.Module):
-    def __init__(self, num_classes, input_size, hidden_size, num_layers, seq_length):
+    def __init__(self, num_classes, input_size, hidden_size, num_layers, seq_length): #  state_size_buff=512):
         super().__init__()
         self.num_classes = num_classes  # number of classes
         self.num_layers = num_layers  # number of layers
@@ -399,30 +511,70 @@ class BMPrediction(tnn.Module):
         self.conv_mono = tnn.Linear(253, 60)  # fully connected last layer
         self.relu = tnn.ReLU()
 
-    def forward(self, x):
-        h_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size))  # hidden state
-        c_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size))  # internal state
+        # self.state_size_buff = state_size_buff
+        # self.h_0 = Variable(torch.zeros(self.num_layers, state_size_buff, self.hidden_size)) # .to(x.device)
+        # self.c_0 = Variable(torch.zeros(self.num_layers, state_size_buff, self.hidden_size)) # .to(x.device)
+
+    def forward(self, residues, **kwargs):
+
+        # assert x.size(0) <= self.state_size_buff
+        #h_0 = self.h_0[:,:x.size(0),:]
+        # c_0 = self.c_0[:,:x.size(0),:]
+
+        h_0 = Variable(torch.zeros(self.num_layers, residues.size(0), self.hidden_size, device=residues.device))  # hidden state
+        c_0 = Variable(torch.zeros(self.num_layers, residues.size(0), self.hidden_size, device=residues.device))  # internal state
         # Propagate input through LSTM
-        output, (hn, cn) = self.lstm(x, (h_0, c_0))  # lstm with input, hidden, and internal state
+        output, (hn, cn) = self.lstm(residues, (h_0, c_0))  # lstm with input, hidden, and internal state
         hn = hn.view(-1, self.hidden_size)  # reshaping the data for Dense layer next
         out = self.relu(hn)
         out = self.linear(out)  # first Dense
         out = self.relu(out)  # relu
         out = self.conv_mono(out)  # Final Output
-        return out.reshape(x.shape[0], 4, 15)
+        return [out.reshape(residues.shape[0], 4, 15)]
 
 
+class Decoder(tnn.Module):
+    def __init__(self, input_size=60, enc_size=21, seq_length=88, **kwargs):
+        super().__init__()
+        if "layers" in kwargs and kwargs["layers"] is not None:
+            layers = kwargs["layers"]
+        else:
+            layers = [200, 500, 1000]
+        self.input_size = input_size  # input size
+        self.enc_size = enc_size
+        self.seq_length = seq_length
+        self.output_size = enc_size*seq_length  # output size
+        modules = [tnn.Linear(input_size, layers[0])]
+        for i in range(len(layers)-1):
+            modules.append(tnn.ReLU())
+            modules.append(tnn.Linear(layers[i], layers[i+1]))
+        modules.append(tnn.ReLU())
+        modules.append(tnn.Linear(layers[len(layers)-1], self.output_size))
+        self.decoder = tnn.Sequential(*modules)
+
+    def forward(self, x):
+        x = x.reshape(x.shape[0], -1)
+        x = self.decoder(x)
+        x = torch.reshape(x, (x.shape[0], self.enc_size, -1))
+        return x
+        # return tnn.functional.softmax(x, dim=1)
+
+
+# This class should be deleted in the future
 class ProteinDNABinding(tnn.Module):
-    def __init__(self, n_rounds, n_batches, num_classes=1, input_size=21, hidden_size=2, num_layers=1, seq_length=88, datatype="pbm"):
+    def __init__(self, n_rounds, n_batches, num_classes=1, input_size=21, hidden_size=2, num_layers=1, seq_length=88, datatype="pbm", **kwargs):
         super().__init__()
         self.datatype = datatype
 
         self.bm_prediction = BMPrediction(num_classes, input_size, hidden_size, num_layers, seq_length)
+        self.decoder = mb.models.Decoder(enc_size=input_size, seq_length=seq_length, **kwargs)
         self.multibind = MultibindFlexibleWeights(n_rounds, n_batches, datatype=datatype)
 
         self.best_model_state = None
         self.best_loss = None
         self.loss_history = []
+        self.crit_history = []
+        self.rec_history = []
         self.loss_color = []
 
     def forward(self, x):
@@ -435,10 +587,12 @@ class ProteinDNABinding(tnn.Module):
             assert False
 
         weights = self.bm_prediction(residues)
+        reconstruction = torch.transpose(self.decoder(weights), 1, 2)
+
         weights = tnn.Parameter(weights)
         weights = torch.unsqueeze(weights, 1)
         pred = self.multibind((mono, mono_rev, batch, countsum, weights))
-        return pred.view(-1)
+        return pred.view(-1), reconstruction
 
     # expects msa as tensor with dims (n_seq, 21, n_residues)
     def get_predicted_bm(self, msa):

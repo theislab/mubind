@@ -28,21 +28,23 @@ class SelexDataset(tdata.Dataset):
         self.rounds = np.array(df) if labels is None else np.array(df[labels])
         # print(self.rounds.shape)
 
+        delete_batch_col = False
         if "batch" not in df.columns:
             df["batch"] = np.repeat(0, df.shape[0])
+            delete_batch_col = True
         self.batch_names = {}
         for i, name in enumerate(set(df["batch"])):
             self.batch_names[i] = name
             mask = df["batch"] == name
             df.loc[mask, "batch"] = i
+        self.batch = np.array(df["batch"])
         self.n_batches = len(set(df["batch"]))
+        if delete_batch_col:
+            del df['batch']
 
         seq = df["seq"] if "seq" in df else df.index
         self.seq = np.array(seq)
-
-
         self.countsum = np.sum(self.rounds, axis=1).astype(np.float32)
-        self.batch = np.array(df["batch"])
 
         if single_encoding_step:
             assert len(set(seq.str.len())) == 1
@@ -91,8 +93,10 @@ class ResiduePBMDataset(tdata.Dataset):
         self.signal = np.array(df).astype(np.float32)
         self.msa_onehot = np.stack(msa_onehot).transpose((0, 2, 1)).astype(np.float32)
 
+        delete_batch_col = False
         if "batch" not in df.columns:
             df["batch"] = np.repeat(0, df.shape[0])
+            delete_batch_col = True
         self.batch_names = {}
         for i, name in enumerate(set(df["batch"])):
             self.batch_names[i] = name
@@ -100,6 +104,8 @@ class ResiduePBMDataset(tdata.Dataset):
             df.loc[mask, "batch"] = i
         self.batch = np.array(df["batch"])
         self.n_batches = len(set(df["batch"]))
+        if delete_batch_col:
+            del df['batch']
 
         seq = df["seq"] if "seq" in df else df.index
         self.seq = np.array(seq)
@@ -133,9 +139,10 @@ class ResiduePBMDataset(tdata.Dataset):
         sample = {
             "mononuc": self.mononuc[x],
             "batch": self.batch[x],
-            "rounds": self.signal[x, y],
+            "rounds": self.signal[x, y:(y+1)],
             "seq": self.seq[x],
             "residues": self.msa_onehot[y],
+            "protein_id": y,
         }
         if self.store_rev:
             sample["mononuc_rev"] = self.mononuc_rev[index]
