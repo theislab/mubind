@@ -19,11 +19,9 @@ from multibind.tl.loss import MSELoss, MultiDatasetLoss, PoissonLoss, ProboundLo
 from multibind.tl.prediction import (  # SelexDataset,; ChipSeqDataset,; create_datasets,
     create_multi_data,
     create_simulated_data,
-    get_last_loss_value,
     test_network,
     train_iterative,
     train_modified_kernel,
     train_network,
-    update_grad,
 )
 from multibind.tl.probound import load_probound

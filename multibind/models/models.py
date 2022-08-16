@@ -10,14 +10,11 @@ import multibind as mb
 
 
 class Multibind(tnn.Module):
-    # TODO: Add getter and setter methods to make train_iterative work.
     """
     Implements the Multibind model as flexible as possible.
 
     Args:
         datatype (String): Type of the experimental data. "selex" and "pbm" are supported.
-        n_batches (Optional[str]): The second parameter. Defaults to None.
-            Second line of description should be indented.
 
     Keyword Args:
         init_random (bool): Use a random initialization for all parameters. Default: True
@@ -28,7 +25,7 @@ class Multibind(tnn.Module):
         ignore_kernel (list[bool]): Whether a kernel should be ignored. Default: None.
         kernels (List[int]): Size of the binding modes (0 indicates non-specific binding). Default: [0, 15]
         init_random (bool): Use a random initialization for all parameters. Default: True
-        use_dinuc (bool): Use dinucleotide contributions (not fully implemented for all kind of models). Default: False
+        n_rounds (int): Necessary for selex data: Number of rounds to be predicted.
 
         bm_generator (torch.nn.Module): PyTorch module which has a weight matrix as output.
         add_intercept (bool): Whether an intercept is used in addition to the predicted binding modes. Default: True
@@ -57,7 +54,7 @@ class Multibind(tnn.Module):
             elif "target_dim" in kwargs:
                 kwargs["n_rounds"] = kwargs["target_dim"] - 1
             else:
-                print("n_rounds (or the length of the output) must be provided.")
+                print("n_rounds must be provided.")
                 assert False
 
         # only keep one padding equals to the length of the max kernel
@@ -113,40 +110,50 @@ class Multibind(tnn.Module):
             return None  # this line should never be called
 
     def set_seed(self, seed, index, max=0, min=-1):
-        assert len(seed) <= self.conv_mono[index].kernel_size[1]
-        shift = int((self.conv_mono[index].kernel_size[1] - len(seed)) / 2)
-        seed_params = torch.full(self.conv_mono[index].kernel_size, max, dtype=torch.float32)
-        for i in range(len(seed)):
-            if seed[i] == "A":
-                seed_params[:, i + shift] = torch.tensor([max, min, min, min])
-            elif seed[i] == "C":
-                seed_params[:, i + shift] = torch.tensor([min, max, min, min])
-            elif seed[i] == "G":
-                seed_params[:, i + shift] = torch.tensor([min, min, max, min])
-            elif seed[i] == "T":
-                seed_params[:, i + shift] = torch.tensor([min, min, min, max])
-            else:
-                seed_params[:, i + shift] = torch.tensor([0, 0, 0, 0])
-        self.conv_mono[index].weight = tnn.Parameter(torch.unsqueeze(torch.unsqueeze(seed_params, 0), 0))
+        if isinstance(self.binding_modes, BindingModesSimple):
+            self.binding_modes.set_seed(seed, index, max, min)
+        else:
+            print("Setting a seed is not possible for that kind of model.")
+            assert False
+
+    def modify_kernel(self, index=None, shift=0, expand_left=0, expand_right=0, device=None):
+        if isinstance(self.binding_modes, BindingModesSimple):
+            self.binding_modes.modify_kernel(index, shift, expand_left, expand_right, device)
+        else:
+            assert False
 
     def set_kernel_weights(self, weight, index):
         assert weight.shape == self.conv_mono[index].weight.shape
         self.conv_mono[index].weight = weight
 
+    def update_grad(self, index, value):
+        self.binding_modes.update_grad(index, value)
+        self.activities.update_grad(index, value)
+
+    def set_ignore_kernel(self, ignore_kernel):
+        self.activities.set_ignore_kernel(ignore_kernel)
+
+    def get_ignore_kernel(self):
+        return self.activities.get_ignore_kernel()
+
+    def get_kernel_width(self, index):
+        assert isinstance(self.binding_modes, BindingModesSimple)
+        return self.binding_modes.get_kernel_width(index)
+
+    def get_kernel_weights(self, index):
+        assert isinstance(self.binding_modes, BindingModesSimple)
+        return self.binding_modes.get_kernel_weights(index)
+
+    def get_log_activities(self):
+        return self.activities.get_log_activities()
+
+    def get_log_etas(self):
+        assert self.datatype == "selex"
+        return self.selex_module.get_log_etas()
+
     def dirichlet_regularization(self):
-        out = 0
-        for m in self.conv_mono:
-            if m is None:
-                continue
-            elif m.weight.requires_grad:
-                out -= torch.sum(m.weight - torch.logsumexp(m.weight, dim=2))
-        if self.use_dinuc:
-            for d in self.conv_di:
-                if d is None:
-                    continue
-                elif d.weight.requires_grad:
-                    out -= torch.sum(d.weight - torch.logsumexp(d.weight, dim=2))
-        return out
+        if isinstance(self.binding_modes, BindingModesSimple):
+            return self.binding_modes.dirichlet_regularization()
 
     def exp_barrier(self, exp_max=40):
         out = 0
@@ -248,6 +255,108 @@ class BindingModesSimple(tnn.Module):
                 bm_pred.append(temp)
         return torch.stack(bm_pred).T
 
+    def set_seed(self, seed, index, max, min):
+        assert len(seed) <= self.conv_mono[index].kernel_size[1]
+        shift = int((self.conv_mono[index].kernel_size[1] - len(seed)) / 2)
+        seed_params = torch.full(self.conv_mono[index].kernel_size, max, dtype=torch.float32)
+        for i in range(len(seed)):
+            if seed[i] == "A":
+                seed_params[:, i + shift] = torch.tensor([max, min, min, min])
+            elif seed[i] == "C":
+                seed_params[:, i + shift] = torch.tensor([min, max, min, min])
+            elif seed[i] == "G":
+                seed_params[:, i + shift] = torch.tensor([min, min, max, min])
+            elif seed[i] == "T":
+                seed_params[:, i + shift] = torch.tensor([min, min, min, max])
+            else:
+                seed_params[:, i + shift] = torch.tensor([0, 0, 0, 0])
+        self.conv_mono[index].weight = tnn.Parameter(torch.unsqueeze(torch.unsqueeze(seed_params, 0), 0))
+
+    def update_grad(self, index, value):
+        if self.conv_mono[index] is not None:
+            self.conv_mono[index].weight.requires_grad = value
+            if not value:
+                self.conv_mono[index].weight.grad = None
+        if self.conv_di[index] is not None:
+            self.conv_di[index].weight.requires_grad = value
+            if not value:
+                self.conv_di[index].weight.grad = None
+
+    def modify_kernel(self, index=None, shift=0, expand_left=0, expand_right=0, device=None):
+        # shift mono
+        for i, m in enumerate(self.conv_mono):
+            if index is not None and index != i:
+                continue
+            if m is None:
+                continue
+            before_w = m.weight.shape[-1]
+            # update the weight
+            if shift >= 1:
+                self.conv_mono[i].weight = torch.nn.Parameter(
+                    torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 4, shift).to(device)], dim=3)
+                )
+            elif shift <= -1:
+                self.conv_mono[i].weight = torch.nn.Parameter(
+                    torch.cat(
+                        [
+                            torch.zeros(1, 1, 4, -shift).to(device),
+                            m.weight[:, :, :, :shift],
+                        ],
+                        dim=3,
+                    )
+                )
+            # adding more positions left and right
+            if expand_left > 0:
+                self.conv_mono[i].weight = torch.nn.Parameter(
+                    torch.cat([torch.zeros(1, 1, 4, expand_left).to(device), m.weight[:, :, :, :]], dim=3)
+                )
+            if expand_right > 0:
+                self.conv_mono[i].weight = torch.nn.Parameter(
+                    torch.cat([m.weight[:, :, :, :], torch.zeros(1, 1, 4, expand_right).to(device)], dim=3)
+                )
+            after_w = m.weight.shape[-1]
+            if after_w != (before_w + expand_left + expand_right):
+                assert after_w != (before_w + expand_left + expand_right)
+        # shift di
+        for i, m in enumerate(self.conv_di):
+            if index is not None and index != i:
+                continue
+            if m is None:
+                continue
+            # update the weight
+            if shift >= 1:
+                m.weight = torch.nn.Parameter(
+                    torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 16, shift).to(device)], dim=3)
+                )
+            elif shift <= -1:
+                m.weight = torch.nn.Parameter(
+                    torch.cat([torch.zeros(1, 1, 16, -shift).to(device), m.weight[:, :, :, :-shift]], dim=3)
+                )
+
+    def dirichlet_regularization(self):
+        out = 0
+        for m in self.conv_mono:
+            if m is None:
+                continue
+            elif m.weight.requires_grad:
+                out -= torch.sum(m.weight - torch.logsumexp(m.weight, dim=2))
+        if self.use_dinuc:
+            for d in self.conv_di:
+                if d is None:
+                    continue
+                elif d.weight.requires_grad:
+                    out -= torch.sum(d.weight - torch.logsumexp(d.weight, dim=2))
+        return out
+
+    def get_kernel_width(self, index):
+        return self.conv_mono[index].weight.shape[-1] if self.conv_mono[index] is not None else 0
+
+    def get_kernel_weights(self, index):
+        return self.conv_mono[index].weight if self.conv_mono[index] is not None else None
+
+    def __len__(self):
+        return len(self.conv_mono)
+
 
 class BindingModesPerProtein(tnn.Module):
     """
@@ -288,6 +397,9 @@ class BindingModesPerProtein(tnn.Module):
             bm_pred.append(temp)
         return torch.stack(bm_pred).T
 
+    def update_grad(self, index, value):
+        None  # TODO
+
 
 class ActivitiesSimple(tnn.Module):
     """
@@ -299,8 +411,6 @@ class ActivitiesSimple(tnn.Module):
     Keyword Args:
         n_batches (int): Number of batches that will occur in the data. Default: 1
         ignore_kernel (list[bool]): Whether a kernel should be ignored. Default: None.
-                May not work properly with train_iterative since changes need to be made in this class!
-                #TODO: add a method to propagate those changes from Multibind to this class.
     """
     def __init__(self, n_kernels, target_dim, **kwargs):
         super().__init__()
@@ -327,6 +437,20 @@ class ActivitiesSimple(tnn.Module):
             else:
                 scores[batch == i] = torch.matmul(binding_per_mode[batch == i], a)
         return scores
+
+    def update_grad(self, index, value):
+        self.log_activities[index].requires_grad = value
+        if not value:
+            self.log_activities[index].grad = None
+
+    def set_ignore_kernel(self, ignore_kernel):
+        self.ignore_kernel = ignore_kernel
+
+    def get_ignore_kernel(self):
+        return self.ignore_kernel
+
+    def get_log_activities(self):
+        return torch.stack(list(self.log_activities), dim=1)
 
 
 class SelexModule(tnn.Module):
@@ -364,6 +488,9 @@ class SelexModule(tnn.Module):
 
         results = out.T / torch.sum(out, dim=1)
         return (results * countsum).T
+
+    def get_log_etas(self):
+        return self.log_etas
 
 
 def _weight_distances(mono, min_k=5):

@@ -33,23 +33,21 @@ def create_logo(net):
 
 def conv_mono(model, figsize=None, flip=False, log=True):
 
-    activities = np.exp(torch.stack(list(model.log_activities), dim=1).cpu().detach().numpy())
+    activities = np.exp(model.get_log_activities().cpu().detach().numpy())
 
     if log:
         print("\n#activities")
         print(activities)
         print("\n#log_etas")
-        print(model.log_etas)
-    n_cols = len(model.conv_mono)
+        print(model.get_log_etas())
+    n_cols = len(model.binding_modes)
     if figsize is not None:
         plt.figure(figsize=figsize)
-    for i, m in enumerate(model.conv_mono):
-        # print(i, m)
-
-        if m is None:
+    for i in range(n_cols):
+        weights = model.get_kernel_weights(i)
+        if weights is None:
             continue
         ax = plt.subplot(1, n_cols - 1, i)
-        weights = m.weight
         weights = weights.squeeze().cpu().detach().numpy()
         weights = pd.DataFrame(weights)
         weights.index = "A", "C", "G", "T"
@@ -101,7 +99,7 @@ def conv_di(model, figsize=None):
 
 def plot_activities(model, dataloader, figsize=None):
     # shape of activities: [n_libraries, len(kernels), n_rounds+1]
-    activities = np.exp(torch.stack(list(model.log_activities), dim=1).cpu().detach().numpy())
+    activities = np.exp(model.get_log_activities().cpu().detach().numpy())
     n_cols = activities.shape[0]
     batch_names = dataloader.dataset.batch_names
     if figsize is not None:
