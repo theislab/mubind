@@ -9,4 +9,5 @@ from multibind.pl.plotting import (
     scatter,
     alignment_protein,
     R2_per_protein,
+    R2_calculation,
 )

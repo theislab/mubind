@@ -133,17 +133,15 @@ def train_network(
             rounds = batch["rounds"].to(device) if "rounds" in batch else None
             countsum = batch["countsum"].to(device) if "countsum" in batch else None
             residues = batch["residues"].to(device) if "residues" in batch else None
-            if residues is not None and store_rev:
+            protein_id = batch["protein_id"].to(device) if "protein_id" in batch else None
+            inputs = {"mono": mononuc, "batch": b, "countsum": countsum}
+            if store_rev:
                 mononuc_rev = batch["mononuc_rev"].to(device)
-                inputs = {"mono": mononuc, "mono_rev": mononuc_rev, "batch": b, "countsum": countsum,
-                          "residues": residues}
-            elif residues is not None:
-                inputs = {"mono": mononuc, "batch": b, "countsum": countsum, "residues": residues}
-            elif store_rev:
-                mononuc_rev = batch["mononuc_rev"].to(device)
-                inputs = {"mono": mononuc, "mono_rev": mononuc_rev, "batch": b, "countsum": countsum}
-            else:
-                inputs = {"mono": mononuc, "batch": b, "countsum": countsum}
+                inputs["mono_rev"] = mononuc_rev
+            if residues is not None:
+                inputs["residues"] = residues
+            if protein_id is not None:
+                inputs["protein_id"] = protein_id
 
             loss = None
             if not is_LBFGS:
@@ -261,28 +259,23 @@ def train_iterative(
     shift_step=2,
     **kwargs,
 ):
-
-    # model_by_k = {}
-    n_rounds = train.dataset.n_rounds
-    n_batches = train.dataset.n_batches
-    enr_series = train.dataset.enr_series
-
-    if verbose != 0:
-        print("# rounds", n_rounds)
-        print("# batches", n_batches)
-        print("# enr_series", enr_series)
-
-    if criterion is None:
-        criterion = mb.tl.PoissonLoss()
-
     # color for visualization of history
     colors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#ffff33", "#a65628"]
-
-    # for w in range(min_w, max_w, 2):
-    # step 1) freeze everything before the current binding mode
     if verbose != 0:
         print("next w", w, type(w))
+
     if isinstance(train.dataset, mb.datasets.SelexDataset):
+        if criterion is None:
+            criterion = mb.tl.PoissonLoss()
+
+        n_rounds = train.dataset.n_rounds
+        n_batches = train.dataset.n_batches
+        enr_series = train.dataset.enr_series
+        if verbose != 0:
+            print("# rounds", n_rounds)
+            print("# batches", n_batches)
+            print("# enr_series", enr_series)
+
         model = mb.models.Multibind(
             datatype="selex",
             kernels=[0] + [w] * (n_kernels - 1),
@@ -290,6 +283,31 @@ def train_iterative(
             init_random=init_random,
             n_batches=n_batches,
             enr_series=enr_series,
+            **kwargs,
+        ).to(device)
+    elif isinstance(train.dataset, mb.datasets.PBMDataset):
+        if criterion is None:
+            criterion = mb.tl.MSELoss()
+
+        n_proteins = train.dataset.n_proteins
+        if verbose != 0:
+            print("# proteins", n_proteins)
+
+        bm_generator = mb.models.BMCollection(n_proteins=n_proteins, n_kernels=n_kernels, init_random=init_random)
+        model = mb.models.Multibind(
+            datatype="pbm",
+            init_random=init_random,
+            n_proteins=n_proteins,
+            bm_generator=bm_generator,
+            n_kernels=n_kernels,
+            **kwargs,
+        ).to(device)
+    elif isinstance(train.dataset, mb.datasets.ResiduePBMDataset):
+        model = mb.models.Multibind(
+            datatype="pbm",
+            init_random=init_random,
+            bm_generator=mb.models.BMPrediction(num_classes=1, input_size=21, hidden_size=2, num_layers=1,
+                                                seq_length=train.dataset.get_max_residue_length()),
             **kwargs,
         ).to(device)
     else:
@@ -304,6 +322,7 @@ def train_iterative(
                 model.set_seed(s, i, min=min_w, max=max_w)
         model = model.to(device)
 
+    # step 1) freeze everything before the current binding mode
     for i in range(0, n_kernels):
         if verbose != 0:
             print("\nKernel to optimize %i" % i)

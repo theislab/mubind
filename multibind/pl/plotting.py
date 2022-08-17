@@ -238,7 +238,7 @@ def R2_per_protein(model, dataloader, device, show_plot=True):
             elif residues is not None:
                 inputs = {"mono": mononuc, "batch": b, "countsum": countsum, "residues": residues}
             else:
-                assert False
+                inputs = {"mono": mononuc, "batch": b, "countsum": countsum, "residues": residues, "protein_id": y}
 
             output = model(**inputs)
             output = output.cpu().detach().numpy()
@@ -254,3 +254,10 @@ def R2_per_protein(model, dataloader, device, show_plot=True):
         plt.hist(R2_values)
         plt.show()
     return R2_values
+
+
+def R2_calculation(model, train):
+    if isinstance(train.dataset, mb.datasets.SelexDataset):
+        return [kmer_enrichment(model, train, show=False)]
+    elif isinstance(train.dataset, mb.datasets.PBMDataset):
+        return R2_per_protein(model, train, next(model.parameters()).device, show_plot=False)
