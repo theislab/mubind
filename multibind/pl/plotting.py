@@ -33,23 +33,21 @@ def create_logo(net):
 
 def conv_mono(model, figsize=None, flip=False, log=True):
 
-    activities = np.exp(torch.stack(list(model.log_activities), dim=1).cpu().detach().numpy())
+    activities = np.exp(model.get_log_activities().cpu().detach().numpy())
 
     if log:
         print("\n#activities")
         print(activities)
         print("\n#log_etas")
-        print(model.log_etas)
-    n_cols = len(model.conv_mono)
+        print(model.get_log_etas())
+    n_cols = len(model.binding_modes)
     if figsize is not None:
         plt.figure(figsize=figsize)
-    for i, m in enumerate(model.conv_mono):
-        # print(i, m)
-
-        if m is None:
+    for i in range(n_cols):
+        weights = model.get_kernel_weights(i)
+        if weights is None:
             continue
         ax = plt.subplot(1, n_cols - 1, i)
-        weights = m.weight
         weights = weights.squeeze().cpu().detach().numpy()
         weights = pd.DataFrame(weights)
         weights.index = "A", "C", "G", "T"
@@ -101,7 +99,7 @@ def conv_di(model, figsize=None):
 
 def plot_activities(model, dataloader, figsize=None):
     # shape of activities: [n_libraries, len(kernels), n_rounds+1]
-    activities = np.exp(torch.stack(list(model.log_activities), dim=1).cpu().detach().numpy())
+    activities = np.exp(model.get_log_activities().cpu().detach().numpy())
     n_cols = activities.shape[0]
     batch_names = dataloader.dataset.batch_names
     if figsize is not None:
@@ -240,7 +238,7 @@ def R2_per_protein(model, dataloader, device, show_plot=True):
             elif residues is not None:
                 inputs = {"mono": mononuc, "batch": b, "countsum": countsum, "residues": residues}
             else:
-                assert False
+                inputs = {"mono": mononuc, "batch": b, "countsum": countsum, "residues": residues, "protein_id": y}
 
             output = model(**inputs)
             output = output.cpu().detach().numpy()
@@ -256,3 +254,10 @@ def R2_per_protein(model, dataloader, device, show_plot=True):
         plt.hist(R2_values)
         plt.show()
     return R2_values
+
+
+def R2_calculation(model, train):
+    if isinstance(train.dataset, mb.datasets.SelexDataset):
+        return [kmer_enrichment(model, train, show=False)]
+    elif isinstance(train.dataset, mb.datasets.PBMDataset):
+        return R2_per_protein(model, train, next(model.parameters()).device, show_plot=False)

@@ -54,16 +54,17 @@ def test_network(model, dataloader, device):
             residues = batch["residues"].to(device) if "residues" in batch else None
             if residues is not None and store_rev:
                 mononuc_rev = batch["mononuc_rev"].to(device)
-                inputs = (mononuc, mononuc_rev, b, countsum, residues)
+                inputs = {"mono": mononuc, "mono_rev": mononuc_rev, "batch": b, "countsum": countsum,
+                          "residues": residues}
             elif residues is not None:
-                inputs = (mononuc, b, countsum, residues)
+                inputs = {"mono": mononuc, "batch": b, "countsum": countsum, "residues": residues}
             elif store_rev:
                 mononuc_rev = batch["mononuc_rev"].to(device)
-                inputs = (mononuc, mononuc_rev, b, countsum)
+                inputs = {"mono": mononuc, "mono_rev": mononuc_rev, "batch": b, "countsum": countsum}
             else:
-                inputs = (mononuc, b, countsum)
+                inputs = {"mono": mononuc, "batch": b, "countsum": countsum}
 
-            output, _ = model(inputs)
+            output = model(**inputs)
             output = output.cpu().detach().numpy()
             if len(output.shape) == 1:
                 output = output.reshape(output.shape[0], 1)
@@ -77,9 +78,6 @@ def test_network(model, dataloader, device):
     return all_seqs, all_targets, all_preds
 
 
-# loss_history = []
-
-
 # if early_stopping is positive, training is stopped if over the length of early_stopping no improvement happened or
 # num_epochs is reached.
 def train_network(
@@ -88,7 +86,7 @@ def train_network(
     device,
     optimiser,
     criterion,
-    reconstruction_crit,
+    # reconstruction_crit,
     num_epochs=15,
     early_stopping=-1,
     dirichlet_regularization=0,
@@ -135,17 +133,15 @@ def train_network(
             rounds = batch["rounds"].to(device) if "rounds" in batch else None
             countsum = batch["countsum"].to(device) if "countsum" in batch else None
             residues = batch["residues"].to(device) if "residues" in batch else None
-            if residues is not None and store_rev:
+            protein_id = batch["protein_id"].to(device) if "protein_id" in batch else None
+            inputs = {"mono": mononuc, "batch": b, "countsum": countsum}
+            if store_rev:
                 mononuc_rev = batch["mononuc_rev"].to(device)
-                inputs = {"mono": mononuc, "mono_rev": mononuc_rev, "batch": b, "countsum": countsum,
-                          "residues": residues}
-            elif residues is not None:
-                inputs = {"mono": mononuc, "batch": b, "countsum": countsum, "residues": residues}
-            elif store_rev:
-                mononuc_rev = batch["mononuc_rev"].to(device)
-                inputs = {"mono": mononuc, "mono_rev": mononuc_rev, "batch": b, "countsum": countsum}
-            else:
-                inputs = {"mono": mononuc, "batch": b, "countsum": countsum}
+                inputs["mono_rev"] = mononuc_rev
+            if residues is not None:
+                inputs["residues"] = residues
+            if protein_id is not None:
+                inputs["protein_id"] = protein_id
 
             loss = None
             if not is_LBFGS:
@@ -263,46 +259,70 @@ def train_iterative(
     shift_step=2,
     **kwargs,
 ):
-
-    # model_by_k = {}
-    n_rounds = train.dataset.n_rounds
-    n_batches = train.dataset.n_batches
-    enr_series = train.dataset.enr_series
-
-    if verbose != 0:
-        print("# rounds", n_rounds)
-        print("# batches", n_batches)
-        print("# enr_series", enr_series)
-
-    if criterion is None:
-        criterion = mb.tl.PoissonLoss()
-
     # color for visualization of history
     colors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#ffff33", "#a65628"]
-
-    # for w in range(min_w, max_w, 2):
-    # step 1) freeze everything before the current binding mode
     if verbose != 0:
         print("next w", w, type(w))
-    # assert False
-    model = mb.models.Multibind(
-        kernels=[0] + [w] * (n_kernels - 1),
-        n_rounds=n_rounds,
-        init_random=init_random,
-        n_batches=n_batches,
-        enr_series=enr_series,
-        **kwargs,
-    ).to(device)
 
-    # this sets up the seed at the first positoin
+    if isinstance(train.dataset, mb.datasets.SelexDataset):
+        if criterion is None:
+            criterion = mb.tl.PoissonLoss()
+
+        n_rounds = train.dataset.n_rounds
+        n_batches = train.dataset.n_batches
+        enr_series = train.dataset.enr_series
+        if verbose != 0:
+            print("# rounds", n_rounds)
+            print("# batches", n_batches)
+            print("# enr_series", enr_series)
+
+        model = mb.models.Multibind(
+            datatype="selex",
+            kernels=[0] + [w] * (n_kernels - 1),
+            n_rounds=n_rounds,
+            init_random=init_random,
+            n_batches=n_batches,
+            enr_series=enr_series,
+            **kwargs,
+        ).to(device)
+    elif isinstance(train.dataset, mb.datasets.PBMDataset):
+        if criterion is None:
+            criterion = mb.tl.MSELoss()
+
+        n_proteins = train.dataset.n_proteins
+        if verbose != 0:
+            print("# proteins", n_proteins)
+
+        bm_generator = mb.models.BMCollection(n_proteins=n_proteins, n_kernels=n_kernels, init_random=init_random)
+        model = mb.models.Multibind(
+            datatype="pbm",
+            init_random=init_random,
+            n_proteins=n_proteins,
+            bm_generator=bm_generator,
+            n_kernels=n_kernels,
+            **kwargs,
+        ).to(device)
+    elif isinstance(train.dataset, mb.datasets.ResiduePBMDataset):
+        model = mb.models.Multibind(
+            datatype="pbm",
+            init_random=init_random,
+            bm_generator=mb.models.BMPrediction(num_classes=1, input_size=21, hidden_size=2, num_layers=1,
+                                                seq_length=train.dataset.get_max_residue_length()),
+            **kwargs,
+        ).to(device)
+    else:
+        assert False  # not implemented yet
+
+    # this sets up the seed at the first position
     if seed is not None:
-        # this sets up the seed at the first positoin
+        # this sets up the seed at the first position
         for i, s, min_w, max_w in seed:
             if s is not None:
                 print(i, s)
                 model.set_seed(s, i, min=min_w, max=max_w)
         model = model.to(device)
 
+    # step 1) freeze everything before the current binding mode
     for i in range(0, n_kernels):
         if verbose != 0:
             print("\nKernel to optimize %i" % i)
@@ -310,7 +330,7 @@ def train_iterative(
         for ki in range(n_kernels):
             if verbose != 0:
                 print("setting grad status of kernel at %i to %i" % (ki, ki == i))
-            mb.tl.update_grad(model, ki, ki == i)
+            model.update_grad(ki, ki == i)
         print("\n")
 
         if show_logo:
@@ -331,10 +351,10 @@ def train_iterative(
 
         # mask kernels to avoid using weights from further steps into early ones.
         if ignore_kernel:
-            model.ignore_kernel = np.array([0 for i in range(i + 1)] + [1 for i in range(i + 1, n_kernels)])
+            model.set_ignore_kernel(np.array([0 for i in range(i + 1)] + [1 for i in range(i + 1, n_kernels)]))
 
         if verbose != 0:
-            print("kernels mask", model.ignore_kernel)
+            print("kernels mask", model.get_ignore_kernel())
 
         # assert False
         mb.tl.train_network(
@@ -390,7 +410,7 @@ def train_iterative(
                 while next_loss is None or next_loss < best_loss:
                     n_attempts += 1
 
-                    curr_w = model.conv_mono[i].weight.shape[-1]
+                    curr_w = model.get_kernel_width(i)
                     if curr_w >= max_w:
                         print("stop. Reached maximum w...")
                         break
@@ -438,7 +458,7 @@ def train_iterative(
                         model_shift.loss_history = []
                         model_shift.loss_color = []
 
-                        model_left = mb.tl.train_modified_kernel(
+                        mb.tl.train_modified_kernel(
                             model_shift,
                             train,
                             kernel_i=i,
@@ -466,7 +486,8 @@ def train_iterative(
 
                         if verbose != 0:
                             print("after opt.")
-                            mb.pl.conv_mono(model_shift)
+                            if show_logo:
+                                mb.pl.conv_mono(model_shift)
 
                     # for shift, model_shift, loss in all_shifts:
                     #     print('shift=%i' % shift, 'loss=%.4f' % loss)
@@ -499,13 +520,6 @@ def train_iterative(
 
                     model = copy.deepcopy(next_model)
 
-        n_feat = sum(
-            np.prod(layer.kernel_size)
-            for conv in [model.conv_mono, model.conv_di]
-            for layer in conv
-            if layer is not None
-        )
-
         if show_logo:
             if verbose != 0:
                 print("after shift optimz model")
@@ -526,7 +540,7 @@ def train_iterative(
         for ki in range(n_kernels):
             if verbose != 0:
                 print("kernel grad (%i) = %i \n" % (ki, True), sep=", ", end="")
-            mb.tl.update_grad(model, ki, ki == i)
+            model.update_grad(ki, ki == i)
         if verbose != 0:
             print("")
 
@@ -538,9 +552,9 @@ def train_iterative(
 
         # mask kernels to avoid using weights from further steps into early ones.
         if ignore_kernel:
-            model.ignore_kernel = np.array([0 for i in range(i + 1)] + [1 for i in range(i + 1, n_kernels)])
+            model.set_ignore_kernel(np.array([0 for i in range(i + 1)] + [1 for i in range(i + 1, n_kernels)]))
         if verbose != 0:
-            print("kernels mask", model.ignore_kernel)
+            print("kernels mask", model.get_ignore_kernel())
         # assert False
         mb.tl.train_network(
             model,
@@ -580,26 +594,6 @@ def train_iterative(
     return model, model.best_loss
 
 
-def update_grad(model, position, value):
-    if model.conv_mono[position] is not None:
-        model.conv_mono[position].weight.requires_grad = value
-        # print("mono grad", position, model.conv_mono[position].weight.grad)
-
-    if model.conv_di[position] is not None:
-        model.conv_di[position].weight.requires_grad = value
-        # print("di grad", position, model.conv_mono[position].weight.grad)
-
-    model.log_activities[position].requires_grad = value
-    if not value:
-        model.log_activities[position].grad = None
-        if model.kernels[position] != 0:
-            model.conv_mono[position].weight.grad = None
-            model.conv_di[position].weight.grad = None
-
-    # padding required?
-    # model.padding[position].weight.requires_grad = valueassert False
-
-
 def train_modified_kernel(
     model,
     train,
@@ -621,86 +615,20 @@ def train_modified_kernel(
     verbose=0,
     **kwargs,
 ):
-
     assert expand_left >= 0 and expand_right >= 0
-
-    # shift mono
-    for i, m in enumerate(model.conv_mono):
-        if kernel_i is not None and kernel_i != i:
-            continue
-        if m is None:
-            continue
-
-        # print('before shift')
-        before_w = m.weight.shape[-1]
-        # print(m.weight.shape)
-        # update the weight
-        if shift >= 1:
-            model.conv_mono[i].weight = torch.nn.Parameter(
-                torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 4, shift).to(device)], dim=3)
-            )
-        elif shift <= -1:
-            # print(torch.zeros(1, 1, 4, -shift).to(device).shape)
-            # print(m.weight[:, :, :, :shift].shape)
-            model.conv_mono[i].weight = torch.nn.Parameter(
-                torch.cat(
-                    [
-                        torch.zeros(1, 1, 4, -shift).to(device),
-                        m.weight[:, :, :, :shift],
-                    ],
-                    dim=3,
-                )
-            )
-
-        # adding more positions left and right
-        if expand_left > 0:
-            model.conv_mono[i].weight = torch.nn.Parameter(
-                torch.cat([torch.zeros(1, 1, 4, expand_left).to(device), m.weight[:, :, :, :]], dim=3)
-            )
-        if expand_right > 0:
-            model.conv_mono[i].weight = torch.nn.Parameter(
-                torch.cat([m.weight[:, :, :, :], torch.zeros(1, 1, 4, expand_right).to(device)], dim=3)
-            )
-
-        after_w = m.weight.shape[-1]
-        # print(before_w, after_w)
-        if after_w != (before_w + expand_left + expand_right):
-            # print(before_w, after_w)
-            assert after_w != (before_w + expand_left + expand_right)
-
-        # the grad has to be modified in order for the weights to be updated.
-        # if verbose != 0:
-        #     print("setting grad status of kernel at %i to %i" % (kernel_i, True))
-        # mb.tl.update_grad(model, kernel_i, True)
-        # make a copy of the model
-        # model = copy.deepcopy(model)
-
-        # finally the optimiser has to be initialized again.
-        optimiser = (
-            topti.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-            if optimiser is None
-            else optimiser(model.parameters(), lr=lr)
-        )
-    # shift di
-    for i, m in enumerate(model.conv_di):
-        if kernel_i is not None and kernel_i != i:
-            continue
-        if m is None:
-            continue
-        # update the weight
-        if shift >= 1:
-            m.weight = torch.nn.Parameter(
-                torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 16, shift).to(device)], dim=3)
-            )
-        elif shift <= -1:
-            m.weight = torch.nn.Parameter(
-                torch.cat([torch.zeros(1, 1, 16, -shift).to(device), m.weight[:, :, :, :-shift]], dim=3)
-            )
+    model.modify_kernel(kernel_i, shift, expand_left, expand_right, device)
 
     # requires grad update
-    n_kernels = len(model.conv_mono)
+    n_kernels = len(model.binding_modes)
     for ki in range(n_kernels):
-        update_grad(model, ki, ki == update_grad_i)
+        model.update_grad(ki, ki == update_grad_i)
+
+    # finally the optimiser has to be initialized again.
+    optimiser = (
+        topti.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+        if optimiser is None
+        else optimiser(model.parameters(), lr=lr)
+    )
 
     if criterion is None:
         criterion = mb.tl.PoissonLoss()
@@ -720,14 +648,6 @@ def train_modified_kernel(
     )
 
     return model
-
-
-# returns the last loss value if it exists
-def get_last_loss_value():
-    global loss_history
-    if len(loss_history) > 0:
-        return loss_history[-1]
-    return None
 
 
 def create_simulated_data(motif="GATA", n_batch=None, n_trials=20000, seqlen=100, batch_sizes=10):
