@@ -302,6 +302,23 @@ def train_iterative(
             n_kernels=n_kernels,
             **kwargs,
         ).to(device)
+    elif isinstance(train.dataset, mb.datasets.GenomicsDataset):
+        if criterion is None:
+            criterion = mb.tl.MSELoss()
+
+        n_proteins = train.dataset.n_cells
+        if verbose != 0:
+            print("# cells", n_proteins)
+
+        bm_generator = mb.models.BMCollection(n_proteins=n_proteins, n_kernels=n_kernels, init_random=init_random)
+        model = mb.models.Multibind(
+            datatype="pbm",
+            init_random=init_random,
+            n_proteins=n_proteins,
+            bm_generator=bm_generator,
+            n_kernels=n_kernels,
+            **kwargs,
+        ).to(device)
     elif isinstance(train.dataset, mb.datasets.ResiduePBMDataset):
         model = mb.models.Multibind(
             datatype="pbm",

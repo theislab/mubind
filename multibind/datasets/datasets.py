@@ -134,6 +134,56 @@ class PBMDataset(tdata.Dataset):
         return self.length
 
 
+# Class for reading training/testing genomic datasets, e.g. ATAC data.
+class GenomicsDataset(tdata.Dataset):
+    def __init__(self, df, single_encoding_step=False, store_rev=False, labels=None):
+        self.store_rev = store_rev
+        self.signal = np.array(df).astype(np.float32) if labels is None else np.array(df[labels]).astype(np.float32)
+        self.n_cells = self.signal.shape[1]
+        self.length = self.signal.shape[0] * self.signal.shape[1]
+        seq = df["seq"] if "seq" in df else df.index
+        self.seq = np.array(seq)
+
+        if single_encoding_step:
+            assert len(set(seq.str.len())) == 1
+            n_entries = df.shape[0]
+            single_seq = "".join(seq.head(n_entries))
+            df_single_entry = df.head(1).copy()
+            df_single_entry["seq"] = [single_seq]
+            le = LabelEncoder()
+            oe = OneHotEncoder(sparse=False)
+            # single encoding step
+            self.mononuc = np.array(
+                [mb.tl.onehot_mononuc(row["seq"], le, oe) for index, row in df_single_entry.iterrows()]
+            )
+            # splitting step
+            self.mononuc = np.array(np.split(self.mononuc, n_entries, axis=2)).squeeze(1)
+        else:
+            max_length = max(set(seq.str.len()))
+            self.mononuc = mb.tl.onehot_mononuc_multi(pd.Series(seq), max_length=max_length)
+
+        if store_rev:
+            self.mononuc_rev = mb.tl.revert_onehot_mononuc(self.mononuc)
+
+    def __getitem__(self, index):
+        # split up the index to one position in the signal matrix
+        x = index % self.signal.shape[0]
+        y = int((index - x) / self.signal.shape[0])
+        # Return a single input/label pair from the dataset.
+        sample = {
+            "mononuc": self.mononuc[x],
+            "rounds": self.signal[x, y:(y + 1)],
+            "seq": self.seq[x],
+            "protein_id": y,
+        }
+        if self.store_rev:
+            sample["mononuc_rev"] = self.mononuc_rev[index]
+        return sample
+
+    def __len__(self):
+        return self.length
+
+
 # Class for reading training/testing PBM data with residue sequences.
 class ResiduePBMDataset(tdata.Dataset):
     def __init__(self, df, msa_onehot, single_encoding_step=False, store_rev=False):

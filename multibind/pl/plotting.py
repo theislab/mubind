@@ -261,3 +261,5 @@ def R2_calculation(model, train):
         return [kmer_enrichment(model, train, show=False)]
     elif isinstance(train.dataset, mb.datasets.PBMDataset):
         return R2_per_protein(model, train, next(model.parameters()).device, show_plot=False)
+    elif isinstance(train.dataset, mb.datasets.GenomicsDataset):
+        return R2_per_protein(model, train, next(model.parameters()).device, show_plot=False)

@@ -3,6 +3,7 @@ from multibind.datasets.datasets import (
     MultiDataset,
     SelexDataset,
     PBMDataset,
+    GenomicsDataset,
     ResiduePBMDataset,
     gata_remap,
     simulate_data,
