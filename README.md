@@ -7,12 +7,13 @@
 [link-tests]: https://github.com/theislab/multibind/actions/workflows/test.yml
 [badge-docs]: https://img.shields.io/readthedocs/multibind
 
-ML for biomolecular binding
+Modeling for fitting and interpretation of biomolecular binding data.
 
 ## Getting started
 
 Please refer to the [documentation][link-docs]. In particular, the
 
+-   [Tutorials][link-tutorial] and
 -   [API documentation][link-api].
 
 ## Installation
@@ -22,15 +23,13 @@ Python installed, we recommend installing `Miniconda <https://docs.conda.io/en/l
 
 There are several alternative options to install multibind:
 
-<!--
-1) Install the latest release of `multibind` from `PyPI <https://pypi.org/project/multibind/>`_:
+1. Install the latest release of `multibind` from `PyPI <https://pypi.org/project/multibind/>`_:
 
 ```bash
 pip install multibind
 ```
--->
 
-1. Install the latest development version:
+2. Install the latest development version:
 
 ```bash
 pip install git+https://github.com/ilibarra/multibind.git@main
@@ -47,7 +46,17 @@ If you found a bug, please use the [issue tracker][issue-tracker].
 
 ## Citation
 
-> t.b.a
+If multibind is useful for your research, please consider to cite as:
+```bibtex
+@software{multibind,
+author = {Ibarra, Schneeberger},
+doi = {},
+month = {},
+title = {{multibind}},
+url = {https://github.com/theislab/multibind},
+year = {2022}
+}
+```
 
 [scverse-discourse]: https://discourse.scverse.org/
 [issue-tracker]: https://github.com/ilibarra/multibind/issues
