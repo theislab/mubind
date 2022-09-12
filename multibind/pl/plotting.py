@@ -32,9 +32,15 @@ def create_logo(net):
 
 
 def conv_mono(model, figsize=None, flip=False, log=True):
+    """
+    Creates a plot of the binding modes of the model.
 
+    :param mb.models.Multibind model: The model which binding modes should be depicted
+    :param Tuple[int] figsize: Size of the whole image
+    :param bool flip: Whether the binding modes of the reverse strand should be plotted
+    :param log: Print a log which contains the values of the activities and the etas
+    """
     activities = np.exp(model.get_log_activities().cpu().detach().numpy())
-
     if log:
         print("\n#activities")
         print(activities)
@@ -60,6 +66,7 @@ def conv_mono(model, figsize=None, flip=False, log=True):
 
         crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5, ax=ax)
         plt.title(i)
+        plt.rcParams["figure.facecolor"] = "white"
     plt.show()
 
 
@@ -115,6 +122,13 @@ def plot_activities(model, dataloader, figsize=None):
 
 
 def plot_loss(model):
+    """
+    Creates a graph of the history of the loss of the given model.
+
+    This method works only if the history is stored in the model.
+
+    :param mb.models.Multibind model: The model which history should be depicted
+    """
     h, c = model.loss_history, model.loss_color
     for i in range(len(h) - 2):
         plt.plot([i, i + 1], h[i : i + 2], c=c[i])
@@ -125,6 +139,22 @@ def plot_loss(model):
 
 # enr_round=-1 means that the last round is used
 def kmer_enrichment(model, train, k=8, base_round=0, enr_round=-1, show=True):
+    """
+    Calculates how well the enrichment of kmers within SELEX rounds is predicted.
+
+    This method is designed for SELEX data. In addition it return the R^2 value of the
+    predicted and observed enrichment.
+
+    :param mb.models.Multibind model: The model that is used for the prediction
+    :param tdata.Dataloader train: The dataloader for which the enrichment predictions should be evaluated
+    :param int k: Length of the kmers
+    :param int base_round: First round from which the prediction should be calculated
+    :param int enr_round: Last round which contains the enriched sequneces.
+        -1 means the last given round of train.
+    :param boot show: Whether the graphic with the enrichment should be shown or only the
+        R^2 value calculated.
+    :return: A list with the R^2 value of the enrichment
+    """
     # getting the targets and predictions from the model
     seqs, targets, pred = mb.tl.test_network(model, train, next(model.parameters()).device)
 
@@ -218,7 +248,20 @@ def alignment_protein(seqs, out_basename=None, cluster=False, figsize=[10, 5], n
     g.ax_heatmap.tick_params(left=False, bottom=False)
 
 
-def R2_per_protein(model, dataloader, device, show_plot=True):
+def R2_per_protein(model, dataloader, device=None, show_plot=True):
+    """
+    Calculates and plots the R^2 values for a model which makes predictions for multiple proteins.
+
+    Most times this will be a model for PBM data.
+
+    :param mb.models.Multibind model: The model that is used for the prediction
+    :param tdata.Dataloader dataloader: The dataloader for which the enrichment predictions should be evaluated
+    :param torch.device device: The device which should be used for calculations
+    :param bool show_plot: Whether a histogram of the R^2 values will be displayed
+    :return: A list of R^2 values
+    """
+    if device is None:
+        device = next(model.parameters()).device
     target_signal = dataloader.dataset.signal
     pred_signal = pd.DataFrame(data=np.zeros(target_signal.shape), index=dataloader.dataset.seq)
     store_rev = dataloader.dataset.store_rev
@@ -257,7 +300,17 @@ def R2_per_protein(model, dataloader, device, show_plot=True):
 
 
 def R2_calculation(model, train):
+    """
+    A general method to calculate R^2 values for any model.
+
+    :param mb.models.Multibind model: The model that is used for the prediction
+    :param tdata.Dataloader train: The dataloader for which the enrichment predictions should be evaluated
+    :return: A list of R^2 values
+    """
     if isinstance(train.dataset, mb.datasets.SelexDataset):
         return [kmer_enrichment(model, train, show=False)]
     elif isinstance(train.dataset, mb.datasets.PBMDataset):
         return R2_per_protein(model, train, next(model.parameters()).device, show_plot=False)
+    else:
+        print("Not implemented yet.")
+        return None

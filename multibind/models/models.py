@@ -10,32 +10,34 @@ import multibind as mb
 
 
 class Multibind(tnn.Module):
-    """
+    r"""
     Implements the Multibind model as flexible as possible.
 
-    Args:
-        datatype (String): Type of the experimental data. "selex" and "pbm" are supported.
+    :param String datatype: Type of the experimental data. "selex" and "pbm" are supported.
+    :param \**kwargs: See below
 
-    Keyword Args:
-        n_rounds (int): Necessary for selex data: Number of rounds to be predicted.
-        init_random (bool): Use a random initialization for all parameters. Default: True
-        padding_const (double): Value for padding DNA-seqs. Default: 0.25
-        use_dinuc (bool): Use dinucleotide contributions (not fully implemented for all kind of models). Default: False
-        enr_series (bool): Whether the data should be handled as enrichment series. Default: True
-        n_batches (int): Number of batches that will occur in the data. Default: 1
-        ignore_kernel (list[bool]): Whether a kernel should be ignored. Default: None.
-        kernels (List[int]): Size of the binding modes (0 indicates non-specific binding). Default: [0, 15]
-        n_kernels (int). Number of kernels to be used (including non-specific binding). Default: 2
-        init_random (bool): Use a random initialization for all parameters. Default: True
-        n_proteins (int): Number of proteins in the dataset. Either n_proteins or n_batches may be used. Default: 1
+    :Keyword Arguments:
+        * *n_rounds* (``int``): Necessary for selex data: Number of rounds to be predicted.
+        * *init_random* (``bool``): Use a random initialization for all parameters. Default: True
+        * *padding_const* (``double``): Value for padding DNA-seqs. Default: 0.25
+        * *use_dinuc* (``bool``): Use dinucleotide contributions (not fully implemented for all kind of models). Default: False
+        * *enr_series* (``bool``): Whether the data should be handled as enrichment series. Default: True
+        * *n_batches* (``int``): Number of batches that will occur in the data. Default: 1
+        * *ignore_kernel* (``List[bool]``): Whether a kernel should be ignored. Default: None.
+        * *kernels* (``List[int]``): Size of the binding modes (0 indicates non-specific binding). Default: [0, 15]
+        * *n_kernels* (``int``). Number of kernels to be used (including non-specific binding). Default: 2
+        * *init_random* (``bool``): Use a random initialization for all parameters. Default: True
+        * *n_proteins* (``int``): Number of proteins in the dataset. Either n_proteins or n_batches may be used. Default: 1
 
-        bm_generator (torch.nn.Module): PyTorch module which has a weight matrix as output.
-        add_intercept (bool): Whether an intercept is used in addition to the predicted binding modes. Default: True
+        * *bm_generator* (``torch.nn.Module``): PyTorch module which has a weight matrix as output.
+        * *add_intercept* (``bool``): Whether an intercept is used in addition to the predicted binding modes. Default: True
     """
     def __init__(self, datatype, **kwargs):
         super().__init__()
         self.datatype = datatype.lower()
-        assert self.datatype in ["selex", "pbm"]
+        assert self.datatype in ["selex", "pbm", "gen"]
+        if self.datatype == "gen":
+            self.datatype = "pbm"  # Genomic data is currently handled in the same way as pbm data.
         self.padding_const = kwargs.get("padding_const", 0.25)
         self.use_dinuc = kwargs.get("use_dinuc", False)
         if "kernels" not in kwargs and "n_kernels" not in kwargs:
@@ -67,6 +69,7 @@ class Multibind(tnn.Module):
             self.padding = tnn.ConstantPad2d((max(self.kernels) - 1, max(self.kernels) - 1, 0, 0), self.padding_const)
         if "bm_generator" in kwargs and kwargs["bm_generator"] is not None:
             self.binding_modes = BindingModesPerProtein(**kwargs)
+            kwargs["n_kernels"] = kwargs["bm_generator"].get_num_kernels()
         else:
             self.binding_modes = BindingModesSimple(**kwargs)
         self.activities = ActivitiesSimple(**kwargs)
@@ -149,8 +152,10 @@ class Multibind(tnn.Module):
         return self.activities.get_log_activities()
 
     def get_log_etas(self):
-        assert self.datatype == "selex"
-        return self.selex_module.get_log_etas()
+        if self.datatype == "selex":
+            return self.selex_module.get_log_etas()
+        else:
+            return None
 
     def dirichlet_regularization(self):
         return self.binding_modes.dirichlet_regularization()
@@ -359,14 +364,14 @@ class BindingModesSimple(tnn.Module):
 
 
 class BindingModesPerProtein(tnn.Module):
-    """
+    r"""
     Implements binding modes (also non-specific binding) for multiple proteins in the same batch.
 
-    Args:
-        bm_generator (torch.nn.Module): PyTorch module which has a weight matrix as output
+    :param torch.nn.Module bm_generator: PyTorch module which has a weight matrix as output
+    :param \**kwargs: See below
 
-    Keyword Args:
-        add_intercept (bool): Whether an intercept is used in addition to the predicted binding modes. Default: True
+    :Keyword Arguments:
+        * *add_intercept* (``bool``): Whether an intercept is used in addition to the predicted binding modes. Default: True
     """
     def __init__(self, bm_generator, **kwargs):
         super().__init__()
@@ -644,16 +649,18 @@ class MultibindFlexibleWeights(tnn.Module):
         return results
 
 
-# This class can be used to store binding modes for several proteins
+# This class can be used as generator for BindingModesPerProtein
 class BMCollection(tnn.Module):
-    """
-    Implements binding modes for multiple proteins at once. Should be used as a generator in combination with
-    BindingModesPerProtein.
+    r"""
+    Implements binding modes for multiple proteins at once. Should be used as a generator.
 
-    Keyword Args:
-        kernels (List[int]): Size of the binding modes (0 indicates non-specific binding, and will be accomplished by
+    :param int n_proteins: Number of proteins in the dataset (interpreted as the number of independent sets of binding modes)
+    :param \**kwargs: See below
+
+    :Keyword Arguments:
+        * *kernels* (``List[int]``): Size of the binding modes (0 indicates non-specific binding, and will be accomplished by
                 setting add_intercept to True). Default: [0, 15]
-        init_random (bool): Use a random initialization for all parameters. Default: True
+        * *init_random* (``bool``): Use a random initialization for all parameters. Default: True
     """
     def __init__(self, n_proteins, **kwargs):
         super().__init__()
@@ -743,15 +750,25 @@ class BMCollection(tnn.Module):
     def get_kernel_weights(self, index):
         return self.conv_mono_list[index][0].weight if self.conv_mono_list[index] is not None else None
 
+    def get_num_protein(self):
+        return self.n_proteins
+
     def __len__(self):
         return len(self.kernels)
 
 
-# This class could be used as a bm_generator
+# This class can be used as a bm_generator for BindingModesPerProtein
 class BMPrediction(tnn.Module):
-    def __init__(self, num_classes, input_size, hidden_size, num_layers, seq_length): #  state_size_buff=512):
+    """
+    Class to predict one binding mode based on a sequence of residues.
+
+    :param int input_size: Number of symbols in the input (e.g. 21 for 20 amino acids and 1 symbol for "unknown"
+    :param int hidden_size: Number of features in the hidden state of the LSTM. Compare to torch.nn.LSTM.
+    :param int num_layers: Number of recurrent layers in the LSTM. Compare to torch.nn.LSTM.
+    :param int seq_length: Length of the given input sequence.
+    """
+    def __init__(self, input_size, hidden_size, num_layers, seq_length): #  state_size_buff=512):
         super().__init__()
-        self.num_classes = num_classes  # number of classes
         self.num_layers = num_layers  # number of layers
         self.input_size = input_size  # input size
         self.hidden_size = hidden_size  # hidden state
@@ -782,6 +799,9 @@ class BMPrediction(tnn.Module):
         out = self.relu(out)  # relu
         out = self.conv_mono(out)  # Final Output
         return [out.reshape(residues.shape[0], 4, 15)]
+
+    def get_num_kernels(self):
+        return 2  # nonspecific binding and one predicted binding mode
 
 
 class Decoder(tnn.Module):

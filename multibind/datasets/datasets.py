@@ -13,13 +13,30 @@ import pandas as pd
 
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
+    """
+    Store SELEX data and make it usable for training.
+    """
     def __init__(self, df, n_rounds=1, enr_series=True, single_encoding_step=False, store_rev=False,
                  labels=None):
+        """
+        :param pd.Dataframe df: A dataframe which contains all the information. The DNA sequences should be the index
+            and the information about the rounds should be in the columns. If an additional batch column is used,
+            labels must be given.
+        :param int n_rounds: Number of rounds in the experiment
+        :param bool enr_series: Whether the experiment leads to enriched data (nearly always True)
+        :param bool single_encoding_step: Indicates which encoding method should be used to onehot-encode the DNA sequences
+        :param bool store_rev: Whether the reverse DNA strand is stored as well
+        :param List labels: Labels which columns contain information about the experimental rounds. Needs to be given if
+            there are any other columns in the dataframe.
+        """
         self.n_rounds = n_rounds
         self.enr_series = enr_series
         self.store_rev = store_rev
         self.length = len(df)
 
+        if "seq" in df:
+            df.index = df['seq']
+            del df['seq']
         # df = df.reset_index(drop=True)
 
         # this only works if the columns are equal to the round names (partly obsolete)
@@ -86,7 +103,19 @@ class SelexDataset(tdata.Dataset):
 
 # Class for reading training/testing PBM dataset files.
 class PBMDataset(tdata.Dataset):
+    """
+    Store PBM data and make it usable for training.
+    """
     def __init__(self, df, single_encoding_step=False, store_rev=False, labels=None):
+        """
+        :param pd.Dataframe df: A dataframe which contains all the information. The DNA sequences should be the index
+            and the information about the experiments with different proteins should be in the columns. They all need to
+            be numbers. If an additional batch column is used, labels must be given.
+        :param bool single_encoding_step: Indicates which encoding method should be used to onehot-encode the DNA sequences
+        :param bool store_rev: Whether the reverse DNA strand is stored as well
+        :param List labels: Labels which columns contain information about the experimental rounds. Needs to be given if
+            there are any other columns in the dataframe.
+        """
         self.store_rev = store_rev
         self.signal = np.array(df).astype(np.float32) if labels is None else np.array(df[labels]).astype(np.float32)
         self.n_proteins = self.signal.shape[1]
@@ -136,7 +165,19 @@ class PBMDataset(tdata.Dataset):
 
 # Class for reading training/testing PBM data with residue sequences.
 class ResiduePBMDataset(tdata.Dataset):
+    """
+    Store PBM data and the residue sequence of the proteins and make it usable for training.
+    """
     def __init__(self, df, msa_onehot, single_encoding_step=False, store_rev=False):
+        """
+        :param pd.Dataframe df: A dataframe which contains all the information. The DNA sequences should be the index
+            and the information about the experiments with different proteins should be in the columns. They all need to
+            be numbers. If an additional batch column is used, labels must be given.
+        :param List msa_onehot: The onehot-encoded MSA of all proteins for which information is given in df. They need
+            to have the same order.
+        :param bool single_encoding_step: Indicates which encoding method should be used to onehot-encode the DNA sequences
+        :param bool store_rev: Whether the reverse DNA strand is stored as well
+        """
         self.n_rounds = 0
         self.store_rev = store_rev
         self.length = df.shape[0] * df.shape[1]

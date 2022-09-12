@@ -15,7 +15,7 @@ rule all:
     output:
         results = str(cfg.ROOT) + '/results.tsv.gz'
     params:
-        cmd = f"conda run -n {cfg.py_env} python",
+        cmd = f"conda run -n {cfg.py_env} ~/anaconda3/envs/multibind/bin/python",
     shell: "{params.cmd} {input.script} -i {input.files} -o {output.results}"
 
 # rule metrics:
@@ -32,7 +32,7 @@ rule all:
 #     output:
 #     message: "Merge all metrics"
 #     params:
-#         cmd = f"conda run -n {cfg.py_env} python"
+#         cmd = f"conda run -n {cfg.py_env} ~/anaconda3/envs/multibind/bin/python"
 #     shell: "{params.cmd} {input.script} -o {output} --root {cfg.ROOT}"
 
 rule fit_model:
@@ -45,7 +45,7 @@ rule fit_model:
     log:
         str(cfg.ROOT) + '/{experiment}/{gene_names}/fit_model.out.txt'
     params:
-        cmd = f"conda run -n {cfg.py_env} python",
+        cmd = f"conda run -n {cfg.py_env} ~/anaconda3/envs/multibind/bin/python",
         model = str(cfg.ROOT) + '/{experiment}/{gene_names}/models',
         n_epochs = expand('{n_epochs}', n_epochs=cfg.HYPERPARAM['n_epochs']),
     shell:
@@ -69,7 +69,7 @@ rule data_prepare:
     log:
         str(cfg.ROOT) + '/{experiment}/{gene_names}/data_prepare.out.txt'
     params:
-        cmd       = f"conda run -n {cfg.py_env} python",
+        cmd       = f"conda run -n {cfg.py_env} ~/anaconda3/envs/multibind/bin/python",
         # tf_name = expand('{gene_names}', gene_names=cfg.GENE_NAMES),
         # tf_name = lambda wildcards: 'wildcards.gene_names',
         tf_name = '{gene_names}'.split('//')[0],

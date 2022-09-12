@@ -11,6 +11,7 @@ name = "multibind"
 description = "ML for biomolecular binding"
 authors = [
     {name = "Ignacio Ibarra"},
+    {name = "Johanna Schneeberger"},
 ]
 maintainers = [
     {name = "Ignacio Ibarra", email = "ignacio.ibarra@helmholtz-muenchen.de"},

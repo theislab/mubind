@@ -1,8 +1,8 @@
 from importlib.metadata import version
 
-from . import pl, pp, tl
+from . import pl, pp, tl, models, datasets
 
-__all__ = ["pl", "pp", "tl", "datasets"]
+__all__ = ["pl", "pp", "tl", "datasets", "models"]
 
 __version__ = version("multibind")
 

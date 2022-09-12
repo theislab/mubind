@@ -37,6 +37,7 @@ def create_datasets(data_file):
     return train_loader, test_loader
 
 
+# internal method, used for kmer_enrichment()
 def test_network(model, dataloader, device):
     all_seqs = []
     all_targets = np.zeros((len(dataloader.dataset), dataloader.dataset.n_rounds + 1), dtype=np.float32)
@@ -90,11 +91,30 @@ def train_network(
     num_epochs=15,
     early_stopping=-1,
     dirichlet_regularization=0,
-    exp_max=40,  # if this value is negative, the exponential barrier will not be used.
+    exp_max=40,
     log_each=-1,
     verbose=0,
 ):
-    # global loss_history
+    """
+    This method provides a routine to train a mb.models.Multibind model.
+
+    The model may be already pretrained.
+
+    :param mb.models.Multibind model: The model which should be trained
+    :param tdata.Dataloader train_dataloader: The drataloader which hsould be used for training
+    :param torch.device device: The device which should be used for training
+    :param torch.optim.Optimizer optimiser: The used optimizer
+    :param torch.nn.Module criterion: The used loss function, which is minimized
+    :param int num_epochs: The number of training epochs
+    :param int early_stopping: The number of epochs after which the training should be stopped if there
+        is no more improvement. -1 means no stopping.
+    :param float dirichlet_regularization: A factor multiplied with the dirichlet regulation before it is added.
+    :param float exp_max: A limit for the absolute value of all model parameters. If it is negative, no limit
+        will be used.
+    :param int log_each: The number of epochs after which a line will be printed to the log
+    :param int verbose: Indicates how many log information will be printed
+    :return: Nothing, only the model object is modified
+    """
     loss_history = []
     best_loss = None
     best_epoch = -1
@@ -259,6 +279,44 @@ def train_iterative(
     shift_step=2,
     **kwargs,
 ):
+    """
+    Initializes a model and trains it according to the specified routine
+
+    The kind of the model which is created depends on the given dataset. It is part of the training
+    routine to freeze some binding modes, to mask them, to shift their weights and to change their width
+    to find an even better fitting.
+
+    :param tdata.Dataloader train: The dataloader which is used for training
+    :param torch.device device: The device (gpu or cpu) which is used for training
+    :param int n_kernels: Number of binding modes in the model
+    :param int w: Minimal width of the binding modes
+    :param int max_w: Maximal width of the binding modes
+    :param int num_epochs: Maximal number of epochs for a single training run (multiple are run in the process)
+    :param int early_stopping: The number of epochs after which the training should be stopped if there
+        is no more improvement. -1 means no stopping.
+    :param int log_each: The number of epochs after which a line will be printed to the log
+    :param bool opt_kernel_shift: Whether the weights of the binding modes should be shifted
+    :param bool opt_kernel_length: Whether the length of the binding modes should be modifies
+    :param int expand_length_max: The maximal number of places the binding mode is expanded
+    :param int expand_length_step: The stepsize which is used for expansion
+    :param bool show_logo: Whether the binding modes should be plotted during execution
+    :param torch.optim.Optimizer optimiser: The used optimizer
+    :param torch.nn.Module criterion: The used loss function, which is minimized
+    :param Tuple seed: If a seed for the binding modes should be used, it needs to be given here
+    :param bool init_random: Whether the binding modes should be initialized randomly
+    :param float lr: The learning rate which is used for the optimizer
+    :param bool ignore_kernel: Whether some binding modes should be ignored in the beginning of the training
+    :param floaf weight_decay: The weight decay which is used for the optimizer (instead L2-regularization)
+    :param int stop_at_kernel: If given, the training will stop earlier after the given binding mode
+    :param float dirichlet_regularization: A factor multiplied with the dirichlet regulation before it is added.
+    :param int verbose: Indicates how many log information will be printed
+    :param float exp_max: A limit for the absolute value of all model parameters. If it is negative, no limit
+        will be used.
+    :param int shift_max: The maximum number of places by which the binding motif is shifted.
+    :param int shift_step: The used stepsize for the tried shifts
+    :param kwargs: Further Arguments which are given to the model
+    :return:
+    """
     # color for visualization of history
     colors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#ffff33", "#a65628"]
     if verbose != 0:
@@ -306,7 +364,7 @@ def train_iterative(
         model = mb.models.Multibind(
             datatype="pbm",
             init_random=init_random,
-            bm_generator=mb.models.BMPrediction(num_classes=1, input_size=21, hidden_size=2, num_layers=1,
+            bm_generator=mb.models.BMPrediction(input_size=21, hidden_size=2, num_layers=1,
                                                 seq_length=train.dataset.get_max_residue_length()),
             **kwargs,
         ).to(device)
@@ -594,6 +652,7 @@ def train_iterative(
     return model, model.best_loss
 
 
+# only used internally
 def train_modified_kernel(
     model,
     train,
