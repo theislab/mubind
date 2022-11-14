@@ -76,6 +76,7 @@ class Multibind(tnn.Module):
         self.best_model_state = None
         self.best_loss = None
         self.loss_history = []
+        self.r2_history = []
         self.loss_color = []
 
     def forward(self, mono, **kwargs):
@@ -824,6 +825,7 @@ class ProteinDNABinding(tnn.Module):
         self.best_model_state = None
         self.best_loss = None
         self.loss_history = []
+        self.r2_history = []
         self.crit_history = []
         self.rec_history = []
         self.loss_color = []

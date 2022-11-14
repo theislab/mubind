@@ -1,0 +1,393 @@
+Building DAG of jobs...
+Using shell: /bin/bash
+Provided cores: 2
+Rules claiming more threads will be scaled down.
+Job stats:
+job             count    min threads    max threads
+------------  -------  -------------  -------------
+all                 1              1              1
+data_prepare       16              1              1
+fit_model          16              1              1
+total              33              1              1
+
+Select jobs to execute...
+
+[Mon Oct 31 18:32:08 2022]
+Job 28: 
+        Preparing adata
+        wildcards: experiment=SELEX,gene_names=ELF4
+        parameters: conda run -n multibind python ELF4 annotations ['5000']
+        output: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELF4/queries.tsv
+        
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELF4/queries.tsv
+
+
+[Mon Oct 31 18:32:08 2022]
+Job 30: 
+        Preparing adata
+        wildcards: experiment=SELEX,gene_names=ETS1
+        parameters: conda run -n multibind python ETS1 annotations ['5000']
+        output: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETS1/queries.tsv
+        
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETS1/queries.tsv
+
+[Mon Oct 31 18:32:12 2022]
+Finished job 28.
+1 of 33 steps (3%) done
+Select jobs to execute...
+
+[Mon Oct 31 18:32:12 2022]
+Job 32: 
+        Preparing adata
+        wildcards: experiment=SELEX,gene_names=EGR1
+        parameters: conda run -n multibind python EGR1 annotations ['5000']
+        output: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/EGR1/queries.tsv
+        
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/EGR1/queries.tsv
+
+[Mon Oct 31 18:32:36 2022]
+Finished job 30.
+2 of 33 steps (6%) done
+Select jobs to execute...
+
+[Mon Oct 31 18:32:36 2022]
+Job 4: 
+        Preparing adata
+        wildcards: experiment=SELEX,gene_names=ELK3
+        parameters: conda run -n multibind python ELK3 annotations ['5000']
+        output: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELK3/queries.tsv
+        
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELK3/queries.tsv
+
+[Mon Oct 31 18:32:39 2022]
+Finished job 4.
+3 of 33 steps (9%) done
+Select jobs to execute...
+
+[Mon Oct 31 18:32:39 2022]
+Job 6: 
+        Preparing adata
+        wildcards: experiment=SELEX,gene_names=ETV5
+        parameters: conda run -n multibind python ETV5 annotations ['5000']
+        output: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETV5/queries.tsv
+        
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETV5/queries.tsv
+
+[Mon Oct 31 18:32:42 2022]
+Finished job 6.
+4 of 33 steps (12%) done
+Select jobs to execute...
+
+[Mon Oct 31 18:32:42 2022]
+Job 8: 
+        Preparing adata
+        wildcards: experiment=SELEX,gene_names=ALX4
+        parameters: conda run -n multibind python ALX4 annotations ['5000']
+        output: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX4/queries.tsv
+        
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX4/queries.tsv
+
+[Mon Oct 31 18:32:51 2022]
+Finished job 32.
+5 of 33 steps (15%) done
+Select jobs to execute...
+
+[Mon Oct 31 18:32:51 2022]
+Job 10: 
+        Preparing adata
+        wildcards: experiment=SELEX,gene_names=ELF2
+        parameters: conda run -n multibind python ELF2 annotations ['5000']
+        output: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELF2/queries.tsv
+        
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELF2/queries.tsv
+
+[Mon Oct 31 18:32:53 2022]
+Finished job 10.
+6 of 33 steps (18%) done
+Select jobs to execute...
+
+[Mon Oct 31 18:32:53 2022]
+Job 12: 
+        Preparing adata
+        wildcards: experiment=SELEX,gene_names=ELF3
+        parameters: conda run -n multibind python ELF3 annotations ['5000']
+        output: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELF3/queries.tsv
+        
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELF3/queries.tsv
+
+[Mon Oct 31 18:32:56 2022]
+Finished job 12.
+7 of 33 steps (21%) done
+Select jobs to execute...
+
+[Mon Oct 31 18:32:56 2022]
+Job 14: 
+        Preparing adata
+        wildcards: experiment=SELEX,gene_names=GATA4
+        parameters: conda run -n multibind python GATA4 annotations ['5000']
+        output: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/GATA4/queries.tsv
+        
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/GATA4/queries.tsv
+
+[Mon Oct 31 18:32:59 2022]
+Finished job 14.
+8 of 33 steps (24%) done
+Select jobs to execute...
+
+[Mon Oct 31 18:32:59 2022]
+Job 16: 
+        Preparing adata
+        wildcards: experiment=SELEX,gene_names=TBX5
+        parameters: conda run -n multibind python TBX5 annotations ['5000']
+        output: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/TBX5/queries.tsv
+        
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/TBX5/queries.tsv
+
+[Mon Oct 31 18:33:02 2022]
+Finished job 16.
+9 of 33 steps (27%) done
+Select jobs to execute...
+
+[Mon Oct 31 18:33:02 2022]
+Job 18: 
+        Preparing adata
+        wildcards: experiment=SELEX,gene_names=ALX1
+        parameters: conda run -n multibind python ALX1 annotations ['5000']
+        output: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX1/queries.tsv
+        
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX1/queries.tsv
+
+[Mon Oct 31 18:33:02 2022]
+Finished job 8.
+10 of 33 steps (30%) done
+Select jobs to execute...
+
+[Mon Oct 31 18:33:02 2022]
+Job 2: 
+        Preparing adata
+        wildcards: experiment=SELEX,gene_names=FOXA1
+        parameters: conda run -n multibind python FOXA1 annotations ['5000']
+        output: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/FOXA1/queries.tsv
+        
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/FOXA1/queries.tsv
+
+[Mon Oct 31 18:33:10 2022]
+Finished job 18.
+11 of 33 steps (33%) done
+Select jobs to execute...
+
+[Mon Oct 31 18:33:10 2022]
+Job 20: 
+        Preparing adata
+        wildcards: experiment=SELEX,gene_names=ETV4
+        parameters: conda run -n multibind python ETV4 annotations ['5000']
+        output: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETV4/queries.tsv
+        
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETV4/queries.tsv
+
+[Mon Oct 31 18:33:13 2022]
+Finished job 20.
+12 of 33 steps (36%) done
+Select jobs to execute...
+
+[Mon Oct 31 18:33:13 2022]
+Job 22: 
+        Preparing adata
+        wildcards: experiment=SELEX,gene_names=ETV6
+        parameters: conda run -n multibind python ETV6 annotations ['5000']
+        output: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETV6/queries.tsv
+        
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETV6/queries.tsv
+
+[Mon Oct 31 18:33:16 2022]
+Finished job 22.
+13 of 33 steps (39%) done
+Select jobs to execute...
+
+[Mon Oct 31 18:33:16 2022]
+Job 24: 
+        Preparing adata
+        wildcards: experiment=SELEX,gene_names=ELK1
+        parameters: conda run -n multibind python ELK1 annotations ['5000']
+        output: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELK1/queries.tsv
+        
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELK1/queries.tsv
+
+[Mon Oct 31 18:33:18 2022]
+Finished job 24.
+14 of 33 steps (42%) done
+Select jobs to execute...
+
+[Mon Oct 31 18:33:18 2022]
+Job 26: 
+        Preparing adata
+        wildcards: experiment=SELEX,gene_names=CTCF
+        parameters: conda run -n multibind python CTCF annotations ['5000']
+        output: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/CTCF/queries.tsv
+        
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/CTCF/queries.tsv
+
+[Mon Oct 31 18:33:21 2022]
+Finished job 26.
+15 of 33 steps (45%) done
+Select jobs to execute...
+
+[Mon Oct 31 18:33:21 2022]
+Job 31: Merge all metrics
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/EGR1/metrics.tsv; Input files updated by another job: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/EGR1/queries.tsv
+
+[Mon Oct 31 18:33:23 2022]
+Finished job 2.
+16 of 33 steps (48%) done
+Select jobs to execute...
+
+[Mon Oct 31 18:33:23 2022]
+Job 1: Merge all metrics
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/FOXA1/metrics.tsv; Input files updated by another job: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/FOXA1/queries.tsv
+
+[Mon Oct 31 18:44:50 2022]
+Finished job 1.
+17 of 33 steps (52%) done
+Select jobs to execute...
+
+[Mon Oct 31 18:44:50 2022]
+Job 29: Merge all metrics
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETS1/metrics.tsv; Input files updated by another job: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETS1/queries.tsv
+
+[Mon Oct 31 18:54:12 2022]
+Finished job 29.
+18 of 33 steps (55%) done
+Select jobs to execute...
+
+[Mon Oct 31 18:54:12 2022]
+Job 7: Merge all metrics
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX4/metrics.tsv; Input files updated by another job: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX4/queries.tsv
+
+[Mon Oct 31 18:54:26 2022]
+Finished job 31.
+19 of 33 steps (58%) done
+Select jobs to execute...
+
+[Mon Oct 31 18:54:26 2022]
+Job 17: Merge all metrics
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX1/metrics.tsv; Input files updated by another job: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX1/queries.tsv
+
+[Mon Oct 31 19:00:21 2022]
+Finished job 17.
+20 of 33 steps (61%) done
+Select jobs to execute...
+
+[Mon Oct 31 19:00:21 2022]
+Job 11: Merge all metrics
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELF3/metrics.tsv; Input files updated by another job: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELF3/queries.tsv
+
+[Mon Oct 31 19:00:24 2022]
+Finished job 11.
+21 of 33 steps (64%) done
+Select jobs to execute...
+
+[Mon Oct 31 19:00:24 2022]
+Job 13: Merge all metrics
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/GATA4/metrics.tsv; Input files updated by another job: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/GATA4/queries.tsv
+
+[Mon Oct 31 19:00:27 2022]
+Finished job 13.
+22 of 33 steps (67%) done
+Select jobs to execute...
+
+[Mon Oct 31 19:00:27 2022]
+Job 15: Merge all metrics
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/TBX5/metrics.tsv; Input files updated by another job: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/TBX5/queries.tsv
+
+[Mon Oct 31 19:00:30 2022]
+Finished job 15.
+23 of 33 steps (70%) done
+Select jobs to execute...
+
+[Mon Oct 31 19:00:30 2022]
+Job 3: Merge all metrics
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELK3/metrics.tsv; Input files updated by another job: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELK3/queries.tsv
+
+[Mon Oct 31 19:00:32 2022]
+Finished job 3.
+24 of 33 steps (73%) done
+Select jobs to execute...
+
+[Mon Oct 31 19:00:32 2022]
+Job 19: Merge all metrics
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETV4/metrics.tsv; Input files updated by another job: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETV4/queries.tsv
+
+[Mon Oct 31 19:00:35 2022]
+Finished job 19.
+25 of 33 steps (76%) done
+Select jobs to execute...
+
+[Mon Oct 31 19:00:35 2022]
+Job 21: Merge all metrics
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETV6/metrics.tsv; Input files updated by another job: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETV6/queries.tsv
+
+[Mon Oct 31 19:00:37 2022]
+Finished job 21.
+26 of 33 steps (79%) done
+Select jobs to execute...
+
+[Mon Oct 31 19:00:37 2022]
+Job 23: Merge all metrics
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELK1/metrics.tsv; Input files updated by another job: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELK1/queries.tsv
+
+[Mon Oct 31 19:00:40 2022]
+Finished job 23.
+27 of 33 steps (82%) done
+Select jobs to execute...
+
+[Mon Oct 31 19:00:40 2022]
+Job 27: Merge all metrics
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELF4/metrics.tsv; Input files updated by another job: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELF4/queries.tsv
+
+[Mon Oct 31 19:00:43 2022]
+Finished job 27.
+28 of 33 steps (85%) done
+Select jobs to execute...
+
+[Mon Oct 31 19:00:43 2022]
+Job 5: Merge all metrics
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETV5/metrics.tsv; Input files updated by another job: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETV5/queries.tsv
+
+[Mon Oct 31 19:00:45 2022]
+Finished job 5.
+29 of 33 steps (88%) done
+Select jobs to execute...
+
+[Mon Oct 31 19:00:45 2022]
+Job 9: Merge all metrics
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELF2/metrics.tsv; Input files updated by another job: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELF2/queries.tsv
+
+[Mon Oct 31 19:00:48 2022]
+Finished job 9.
+30 of 33 steps (91%) done
+Select jobs to execute...
+
+[Mon Oct 31 19:00:48 2022]
+Job 25: Merge all metrics
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/CTCF/metrics.tsv; Input files updated by another job: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/CTCF/queries.tsv
+
+[Mon Oct 31 19:00:50 2022]
+Finished job 25.
+31 of 33 steps (94%) done
+[Mon Oct 31 19:04:11 2022]
+Finished job 7.
+32 of 33 steps (97%) done
+Select jobs to execute...
+
+[Mon Oct 31 19:04:11 2022]
+rule all:
+    input: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/FOXA1/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELK3/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETV5/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX4/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELF2/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELF3/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/GATA4/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/TBX5/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX1/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETV4/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETV6/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELK1/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/CTCF/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELF4/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETS1/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/EGR1/metrics.tsv, scripts/merge_metrics.py
+    output: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/results.tsv.gz
+    jobid: 0
+    reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/results.tsv.gz; Input files updated by another job: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/FOXA1/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX4/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/EGR1/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX1/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/CTCF/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETS1/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETV4/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETV5/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELK1/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELK3/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/GATA4/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/TBX5/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELF2/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ETV6/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELF3/metrics.tsv, /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ELF4/metrics.tsv
+    resources: tmpdir=/var/folders/17/ksjp4vcn2gs552rnysdxktrc0000gn/T
+
+[Mon Oct 31 19:04:14 2022]
+Finished job 0.
+33 of 33 steps (100%) done
+Complete log: .snakemake/log/2022-10-31T183208.372005.snakemake.log

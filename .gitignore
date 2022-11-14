@@ -1,3 +1,8 @@
+# data
+/annotations
+/outputs
+/output
+
 # Temp files
 .DS_Store
 *~

@@ -9,6 +9,13 @@ import torch.utils.data as tdata
 import matplotlib.pyplot as plt
 import pickle
 
+from torch.profiler import profile, record_function, ProfilerActivity
+
+def trace_handler(p):
+    output = p.key_averages().table(sort_by="self_cuda_time_total", row_limit=10)
+    print(output)
+    p.export_chrome_trace("/tmp/trace_" + str(p.step_num) + ".json")
+
 # Use a GPU if available, as it should be faster.
 # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # print("Using device: " + str(device))
@@ -71,7 +78,7 @@ if __name__ == '__main__':
         if not exists(model_path):
             print('training starts...')
             model, best_loss = mb.tl.train_iterative(train, device, num_epochs=args.n_epochs, show_logo=False,
-                                                     early_stopping=args.early_stopping, log_each=50)
+                                                    early_stopping=args.early_stopping, log_each=50)
             torch.save(model.state_dict(), model_path)
             pickle.dump(model, open(pkl_path, 'wb'))
         else:
@@ -82,6 +89,7 @@ if __name__ == '__main__':
         r2 = mb.pl.kmer_enrichment(model, train, k=8, show=False)
         print("R^2:", r2)
         
+        # TODO: appends here to the output metrics
         metrics.append(list(r.values[:-1]) + [args.n_epochs, model.best_loss, r2])
         print(metrics[-1])
         print('\n\n')

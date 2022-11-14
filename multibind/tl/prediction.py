@@ -9,6 +9,7 @@ import torch.utils.data as tdata
 
 import multibind as mb
 
+from torch.profiler import profile, ProfilerActivity
 
 def calculate_enrichment(data, approx=True, cols=[0, 1]):
     data["p0"] = data[cols[0]] / np.sum(data[cols[0]])
@@ -95,6 +96,7 @@ def train_network(
     verbose=0,
 ):
     # global loss_history
+    r2_history = []
     loss_history = []
     best_loss = None
     best_epoch = -1
@@ -210,6 +212,7 @@ def train_network(
 
         # print("Epoch: %2d, Loss: %.3f" % (epoch + 1, running_loss / len(train_dataloader)))
         loss_history.append(loss_final)
+        r2_history.append(mb.pl.kmer_enrichment(model, train_dataloader, k=8, show=False))
         # model.crit_history.append(crit_final)
         # model.rec_history.append(rec_final)
 
@@ -223,7 +226,11 @@ def train_network(
             if verbose != 0:
                 print("early stop!")
             break
-
+    
+    # Print if profiling included. Temporarily removed profiling to save memory.
+    # print('Profiling epoch:')
+    # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=25))
+    # prof.export_chrome_trace(f'profile_{epoch}.json')
     print("total time: %.3f s" % (time.time() - t0))
     print("secs per epoch: %.3f s" % ((time.time() - t0) / max(epoch, 1)))
     model.loss_history += loss_history
