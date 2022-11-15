@@ -1,0 +1,46 @@
+Building DAG of jobs...
+Using shell: /bin/bash
+Provided cores: 2
+Rules claiming more threads will be scaled down.
+Job stats:
+job             count    min threads    max threads
+------------  -------  -------------  -------------
+all                 1              1              1
+data_prepare        1              1              1
+fit_model           1              1              1
+total               3              1              1
+
+Select jobs to execute...
+
+[Tue Nov 15 14:14:37 2022]
+Job 2: 
+        Preparing adata
+        wildcards: experiment=SELEX,gene_names=ALX1
+        parameters: conda run -n multibind python ALX1 annotations ['100']
+        output: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX1/queries.tsv
+        
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX1/queries.tsv
+
+[Tue Nov 15 14:14:47 2022]
+Finished job 2.
+1 of 3 steps (33%) done
+Select jobs to execute...
+
+[Tue Nov 15 14:14:47 2022]
+Job 1: Merge all metrics
+Reason: Missing output files: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX1/metrics.tsv; Input files updated by another job: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX1/queries.tsv
+
+[Tue Nov 15 14:14:48 2022]
+Error in rule fit_model:
+    jobid: 1
+    output: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX1/metrics.tsv
+    log: /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX1/fit_model.out.txt (check log file(s) for error message)
+    shell:
+        
+        conda run -n multibind python scripts/fit_model.py -i /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX1/queries.tsv --out_model /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX1/models --out_tsv /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX1/metrics.tsv             --n_epochs 12 1> /Users/egeerdogan/Desktop/theislab/multibind/output/snakemake/SELEX/ALX1/fit_model.out.txt
+        
+        (one of the commands exited with non-zero exit code; note that snakemake uses bash strict mode!)
+
+Shutting down, this might take some time.
+Exiting because a job execution failed. Look above for error message
+Complete log: .snakemake/log/2022-11-15T141437.058684.snakemake.log

@@ -462,7 +462,6 @@ def train_iterative(
                                 % (expand_left, expand_right, shift)
                             )
 
-                        # TODO: might be here
                         model_shift = copy.deepcopy(model)
                         model_shift.loss_history = []
                         model_shift.r2_history = []
