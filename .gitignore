@@ -2,6 +2,7 @@
 /annotations
 /outputs
 /output
+/.snakemake
 
 # Temp files
 .DS_Store
