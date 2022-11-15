@@ -90,6 +90,8 @@ if __name__ == '__main__':
         print("R^2:", r2)
         
         # TODO: appends here to the output metrics
+        for idx, val in enumerate(model.r2_history):
+            metrics.append(list(r.values[:-1]) + [idx, -1, val])
         metrics.append(list(r.values[:-1]) + [args.n_epochs, model.best_loss, r2])
         print(metrics[-1])
         print('\n\n')
