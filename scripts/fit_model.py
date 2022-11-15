@@ -93,6 +93,9 @@ if __name__ == '__main__':
         metrics.append(list(r.values[:-1]) + [args.n_epochs, model.best_loss, r2])
         print(metrics[-1])
         print('\n\n')
+        print('--MODEL r2 HISTORY--')
+        print(len(model.r2_history))
+        print(model.r2_history)
         
     metrics = pd.DataFrame(metrics, columns=list(queries.columns[:-1]) + ['n_epochs', 'best_loss', 'r_2'])
     metrics.to_csv(args.out_tsv)

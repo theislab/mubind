@@ -234,6 +234,7 @@ def train_network(
     print("total time: %.3f s" % (time.time() - t0))
     print("secs per epoch: %.3f s" % ((time.time() - t0) / max(epoch, 1)))
     model.loss_history += loss_history
+    model.r2_history += r2_history
 
 
 def train_iterative(
@@ -461,8 +462,10 @@ def train_iterative(
                                 % (expand_left, expand_right, shift)
                             )
 
+                        # TODO: might be here
                         model_shift = copy.deepcopy(model)
                         model_shift.loss_history = []
+                        model_shift.r2_history = []
                         model_shift.loss_color = []
 
                         mb.tl.train_modified_kernel(
@@ -523,6 +526,7 @@ def train_iterative(
 
                     if next_position != 0:
                         next_model.loss_history = model.loss_history + next_model.loss_history
+                        next_model.r2_history = model.r2_history + next_model.r2_history
                         next_model.loss_color = model.loss_color + next_model.loss_color
 
                     model = copy.deepcopy(next_model)
