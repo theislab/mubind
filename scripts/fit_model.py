@@ -9,13 +9,6 @@ import torch.utils.data as tdata
 import matplotlib.pyplot as plt
 import pickle
 
-from torch.profiler import profile, record_function, ProfilerActivity
-
-def trace_handler(p):
-    output = p.key_averages().table(sort_by="self_cuda_time_total", row_limit=10)
-    print(output)
-    p.export_chrome_trace("/tmp/trace_" + str(p.step_num) + ".json")
-
 # Use a GPU if available, as it should be faster.
 # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # print("Using device: " + str(device))
@@ -94,9 +87,6 @@ if __name__ == '__main__':
         metrics.append(list(r.values[:-1]) + [args.n_epochs, model.best_loss, r2])
         print(metrics[-1])
         print('\n\n')
-        print('--MODEL r2 HISTORY--')
-        print(len(model.r2_history))
-        print(model.r2_history)
         
     metrics = pd.DataFrame(metrics, columns=list(queries.columns[:-1]) + ['n_epochs', 'best_loss', 'r_2'])
     metrics.to_csv(args.out_tsv)
