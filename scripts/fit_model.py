@@ -71,7 +71,7 @@ if __name__ == '__main__':
         if not exists(model_path):
             print('training starts...')
             model, best_loss = mb.tl.train_iterative(train, device, num_epochs=args.n_epochs, show_logo=False,
-                                                     early_stopping=args.early_stopping, log_each=50)
+                                                    early_stopping=args.early_stopping, log_each=50)
             torch.save(model.state_dict(), model_path)
             pickle.dump(model, open(pkl_path, 'wb'))
         else:
@@ -82,6 +82,8 @@ if __name__ == '__main__':
         r2 = mb.pl.kmer_enrichment(model, train, k=8, show=False)
         print("R^2:", r2)
         
+        for idx, val in enumerate(model.r2_history):
+            metrics.append(list(r.values[:-1]) + [idx, -1, val])
         metrics.append(list(r.values[:-1]) + [args.n_epochs, model.best_loss, r2])
         print(metrics[-1])
         print('\n\n')
