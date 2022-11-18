@@ -212,6 +212,7 @@ def train_network(
 
         # print("Epoch: %2d, Loss: %.3f" % (epoch + 1, running_loss / len(train_dataloader)))
         loss_history.append(loss_final)
+        # FIXME: remove r2 history for faster runs
         r2_history.append(mb.pl.kmer_enrichment(model, train_dataloader, k=8, show=False))
         # model.crit_history.append(crit_final)
         # model.rec_history.append(rec_final)
@@ -231,8 +232,11 @@ def train_network(
     # print('Profiling epoch:')
     # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=25))
     # prof.export_chrome_trace(f'profile_{epoch}.json')
-    print("total time: %.3f s" % (time.time() - t0))
+    total_time = time.time() - t0
+    model.total_time += total_time
+    print(f'total time: {total_time}s {len(loss_history)}')
     print("secs per epoch: %.3f s" % ((time.time() - t0) / max(epoch, 1)))
+    
     model.loss_history += loss_history
     model.r2_history += r2_history
 

@@ -83,12 +83,14 @@ if __name__ == '__main__':
         print("R^2:", r2)
         
         for idx, val in enumerate(model.r2_history):
-            metrics.append(list(r.values[:-1]) + [idx, -1, val])
-        metrics.append(list(r.values[:-1]) + [args.n_epochs, model.best_loss, r2])
+            metrics.append(list(r.values[:-1]) + [idx, -1, val, -1])
+
+        metrics.append(list(r.values[:-1]) + [args.n_epochs, model.best_loss, r2, model.total_time])
         print(metrics[-1])
         print('\n\n')
         
-    metrics = pd.DataFrame(metrics, columns=list(queries.columns[:-1]) + ['n_epochs', 'best_loss', 'r_2'])
+    
+    metrics = pd.DataFrame(metrics, columns=list(queries.columns[:-1]) + ['n_epochs', 'best_loss', 'r_2', 'running_time'])
     metrics.to_csv(args.out_tsv)
     print(metrics)
     

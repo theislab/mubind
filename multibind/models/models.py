@@ -78,6 +78,7 @@ class Multibind(tnn.Module):
         self.loss_history = []
         self.r2_history = []
         self.loss_color = []
+        self.total_time = 0
 
     def forward(self, mono, **kwargs):
         # mono_rev=None, di=None, di_rev=None, batch=None, countsum=None, residues=None, protein_id=None):
@@ -829,6 +830,7 @@ class ProteinDNABinding(tnn.Module):
         self.crit_history = []
         self.rec_history = []
         self.loss_color = []
+        self.total_time = 0
 
     def forward(self, x):
         if len(x) == 4:
