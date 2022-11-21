@@ -212,7 +212,6 @@ def train_network(
 
         # print("Epoch: %2d, Loss: %.3f" % (epoch + 1, running_loss / len(train_dataloader)))
         loss_history.append(loss_final)
-        # FIXME: remove r2 history for faster runs
         r2_history.append(mb.pl.kmer_enrichment(model, train_dataloader, k=8, show=False))
         # model.crit_history.append(crit_final)
         # model.rec_history.append(rec_final)
