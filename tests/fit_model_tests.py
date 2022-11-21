@@ -10,7 +10,9 @@ import unittest
 class ModelTests(unittest.TestCase):
     N_EPOCHS = 50
 
-    def setUp(self):
+    @classmethod
+    def setUpClass(cls):
+
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
         early_stopping = 100
@@ -21,9 +23,9 @@ class ModelTests(unittest.TestCase):
 
         labels = list(data.columns[:n_rounds + 1])
         dataset = mb.datasets.SelexDataset(data, n_rounds=n_rounds, labels=labels)
-        self.train = tdata.DataLoader(dataset=dataset, batch_size=256, shuffle=True)
+        cls.train = tdata.DataLoader(dataset=dataset, batch_size=256, shuffle=True)
 
-        self.model, _ = mb.tl.train_iterative(self.train, device, num_epochs=self.N_EPOCHS, show_logo=False,
+        cls.model, _ = mb.tl.train_iterative(cls.train, device, num_epochs=cls.N_EPOCHS, show_logo=False,
                                                     early_stopping=early_stopping, log_each=50,
                                                     verbose=0)
 
@@ -36,7 +38,7 @@ class ModelTests(unittest.TestCase):
 
     @unittest.skip
     def test_r2_positive(self):
-        r2 = mb.pl.kmer_enrichment(self.model, self.train, k=8, show=False)
+        r2 = mb.pl.kmer_enrichment(ModelTests.model, ModelTests.train, k=8, show=False)
         self.assertTrue(r2 > 0)
     
 
