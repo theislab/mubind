@@ -257,6 +257,7 @@ def train_iterative(
     seed=None,
     init_random=False,
     lr=0.01,
+    joint_learning=False,
     ignore_kernel=False,
     weight_decay=0.001,
     stop_at_kernel=None,
@@ -293,23 +294,34 @@ def train_iterative(
             enr_series=enr_series,
             **kwargs,
         ).to(device)
-    elif isinstance(train.dataset, mb.datasets.PBMDataset):
+    elif isinstance(train.dataset, mb.datasets.PBMDataset) or isinstance(train.dataset, mb.datasets.GenomicsDataset):
         if criterion is None:
             criterion = mb.tl.MSELoss()
-
-        n_proteins = train.dataset.n_proteins
+        if isinstance(train.dataset, mb.datasets.PBMDataset):
+            n_proteins = train.dataset.n_proteins
+        else:
+            n_proteins = train.dataset.n_cells
         if verbose != 0:
             print("# proteins", n_proteins)
 
-        bm_generator = mb.models.BMCollection(n_proteins=n_proteins, n_kernels=n_kernels, init_random=init_random)
-        model = mb.models.Multibind(
-            datatype="pbm",
-            init_random=init_random,
-            n_proteins=n_proteins,
-            bm_generator=bm_generator,
-            n_kernels=n_kernels,
-            **kwargs,
-        ).to(device)
+        if joint_learning or n_proteins == 1:
+            model = mb.models.Multibind(
+                datatype="pbm",
+                kernels=[0] + [w] * (n_kernels - 1),
+                init_random=init_random,
+                n_batches=n_proteins,
+                **kwargs,
+            ).to(device)
+        else:
+            bm_generator = mb.models.BMCollection(n_proteins=n_proteins, n_kernels=n_kernels, init_random=init_random)
+            model = mb.models.Multibind(
+                datatype="pbm",
+                init_random=init_random,
+                n_proteins=n_proteins,
+                bm_generator=bm_generator,
+                n_kernels=n_kernels,
+                **kwargs,
+            ).to(device)
     elif isinstance(train.dataset, mb.datasets.ResiduePBMDataset):
         model = mb.models.Multibind(
             datatype="pbm",
