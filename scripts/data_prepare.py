@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # coding: utf-8
-import multibind as mb
+import mubind as mb
 import numpy as np
 import pandas as pd
 import bindome as bd
-import sys          
+import sys
 from pathlib import Path
 
 if __name__ == '__main__':
@@ -22,9 +22,9 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--output', required=True, help='output directory for counts and queries metadata file')
     parser.add_argument('--tf_name', required=True)
     parser.add_argument('--n_sample', default=None, type=int)
-    
+
     args = parser.parse_args()
-    
+
     bd.constants.ANNOTATIONS_DIRECTORY = args.annot
     data = bd.bindome.datasets.SELEX.get_data()
     tf_query = args.tf_name
@@ -67,7 +67,7 @@ if __name__ == '__main__':
                 next_data = reads_zero[k_r0].copy()
                 new_cols = ['seq', k_r0]
                 for k_tf in reads_tf:
-                    next_data = next_data.merge(reads_tf[k_tf], on='seq', how='outer').fillna(0) # .astype(int)                    
+                    next_data = next_data.merge(reads_tf[k_tf], on='seq', how='outer').fillna(0) # .astype(int)
                     new_cols.append(k_tf)
                 # next_data = reads_zero[k_r0].merge(reads_tf[k_tf], on='seq', how='outer').fillna(0) # .astype(int)
                 # new_cols = ['seq', k_r0, k_tf]
@@ -79,7 +79,7 @@ if __name__ == '__main__':
                 # next_data = next_data.head(10000)
                 if args.n_sample is not None and args.n_sample != -1:
                     next_data = next_data.sample(n=args.n_sample)
-                
+
                 # print(next_data.shape)
                 next_data = next_data.set_index('seq')
                 # print(next_data.head())
@@ -91,17 +91,17 @@ if __name__ == '__main__':
                 next_data['batch'] = 1
                 next_data['is_count_data'] = 1
 
-                next_outpath = str(queries_directory) + '/' + k_model + '.tsv.gz'                
+                next_outpath = str(queries_directory) + '/' + k_model + '.tsv.gz'
                 next_data.to_csv(next_outpath, sep='\t')
 
                 queries.append([tf_query, k_r0, library, next_outpath, next_data.shape[0]])
-                    
+
     queries = pd.DataFrame(queries, columns=['tf_name', 'r0', 'library', 'counts_path', 'n_sample'])
     queries.to_csv(queries_tsv_outpath, sep='\t')
     sys.exit()
     #                 dataset = mb.datasets.SelexDataset(next_data) # n_rounds=n_rounds)
     #                 train = tdata.DataLoader(dataset=dataset, batch_size=256, shuffle=True)
-    #                 train_test = tdata.DataLoader(dataset=dataset, batch_size=1, shuffle=False)                
+    #                 train_test = tdata.DataLoader(dataset=dataset, batch_size=1, shuffle=False)
 
     #                 ### steps to train model
     #                 model = mb.models.DinucSelex(use_dinuc=False, kernels=[0, 14, 12]).to(device) #, n_rounds=n_rounds)
@@ -109,7 +109,7 @@ if __name__ == '__main__':
     #                 criterion = mb.tl.PoissonLoss()
     #                 mb.tl.train_network(model, train, device, optimiser, criterion, num_epochs=200, early_stopping=5, log_each=11)
 
-    #                 # probably here load the state of the best epoch and save 
+    #                 # probably here load the state of the best epoch and save
     #                 model.load_state_dict(model.best_model_state)
 
     #                 # store model parameters and fit for later visualization

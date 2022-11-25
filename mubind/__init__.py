@@ -4,18 +4,18 @@ from . import pl, pp, tl
 
 __all__ = ["pl", "pp", "tl", "datasets"]
 
-__version__ = version("multibind")
+__version__ = version("mubind")
 
 
-import multibind
-import multibind.datasets
-import multibind.models
-import multibind.pl
-import multibind.tl
+import mubind
+import mubind.datasets
+import mubind.models
+import mubind.pl
+import mubind.tl
 
 try:
     import bindome
 
-    multibind.bindome = bindome
+    mubind.bindome = bindome
 except ImportError:
     print("bindome has not been installed. Please check at https://github.com/theislab/bindome")

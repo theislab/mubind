@@ -1,6 +1,6 @@
 import os
 import sys
-import multibind as mb
+import mubind as mb
 import pandas as pd
 import torch
 import torch.utils.data as tdata
@@ -40,7 +40,7 @@ class ModelTests(unittest.TestCase):
     def test_r2_positive(self):
         r2 = mb.pl.kmer_enrichment(ModelTests.model, ModelTests.train, k=8, show=False)
         self.assertTrue(r2 > 0)
-    
+
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:

@@ -1,4 +1,4 @@
-import multibind as mb
+import mubind as mb
 import numpy as np
 import pandas as pd
 import torch
@@ -29,27 +29,27 @@ if __name__ == '__main__':
     parser.add_argument('--n_epochs', default=50, help='# of epochs for training', type=int)
     parser.add_argument('--early_stopping', default=100, help='# epochs for early stopping', type=int)
     parser.add_argument('--is_count_data', default=True)
-    
+
     # Use a GPU if available, as it should be faster.
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print("Using device: " + str(device))
 
     args = parser.parse_args()
-    
+
     queries = pd.read_csv(args.queries, sep='\t', index_col=0)
-    
+
     out_model = args.out_model
     if not os.path.exists(out_model):
         os.mkdir(out_model)
-        
+
     metrics = []
     for ri, r in queries.iterrows():
-        
+
         counts_path = r['counts_path']
-        
+
         model_path = out_model + '/' + os.path.basename(counts_path).replace('.tsv.gz', '.h5')
         pkl_path = model_path.replace('.h5', '.pkl')
-                        
+
         data = pd.read_csv(counts_path, sep='\t', index_col=0)
         n_rounds = len(data.columns) - 3
         n_batches = len(set(data.batch))
@@ -64,7 +64,7 @@ if __name__ == '__main__':
         print('labels', labels)
         dataset = mb.datasets.SelexDataset(data, n_rounds=n_rounds, labels=labels)
         train = tdata.DataLoader(dataset=dataset, batch_size=256, shuffle=True)
-        # train_test = tdata.DataLoader(dataset=dataset, batch_size=1, shuffle=False)                
+        # train_test = tdata.DataLoader(dataset=dataset, batch_size=1, shuffle=False)
         ### steps to train model
 
         print(exists(model_path), model_path)
@@ -77,20 +77,19 @@ if __name__ == '__main__':
         else:
             model = pickle.load(open(pkl_path, 'rb'))
             model.load_state_dict(torch.load(model_path))
-            
-        
+
+
         r2 = mb.pl.kmer_enrichment(model, train, k=8, show=False)
         print("R^2:", r2)
-        
+
         for idx, val in enumerate(model.r2_history):
             metrics.append(list(r.values[:-1]) + [idx, -1, val, -1])
 
         metrics.append(list(r.values[:-1]) + [args.n_epochs, model.best_loss, r2, model.total_time])
         print(metrics[-1])
         print('\n\n')
-        
-    
+
+
     metrics = pd.DataFrame(metrics, columns=list(queries.columns[:-1]) + ['n_epochs', 'best_loss', 'r_2', 'running_time'])
     metrics.to_csv(args.out_tsv)
     print(metrics)
-    
