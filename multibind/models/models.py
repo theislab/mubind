@@ -69,14 +69,16 @@ class Multibind(tnn.Module):
             self.binding_modes = BindingModesPerProtein(**kwargs)
         else:
             self.binding_modes = BindingModesSimple(**kwargs)
-        self.activities = ActivitiesSimple(**kwargs)
+        self.activities = ActivitiesLayer(**kwargs)
         if self.datatype == "selex":
             self.selex_module = SelexModule(**kwargs)
 
         self.best_model_state = None
         self.best_loss = None
         self.loss_history = []
+        self.r2_history = []
         self.loss_color = []
+        self.total_time = 0
 
     def forward(self, mono, **kwargs):
         # mono_rev=None, di=None, di_rev=None, batch=None, countsum=None, residues=None, protein_id=None):
@@ -419,7 +421,7 @@ class BindingModesPerProtein(tnn.Module):
         return len(self.generator)
 
 
-class ActivitiesSimple(tnn.Module):
+class ActivitiesLayer(tnn.Module):
     """
     Implements activities with batch effects.
 
@@ -824,9 +826,11 @@ class ProteinDNABinding(tnn.Module):
         self.best_model_state = None
         self.best_loss = None
         self.loss_history = []
+        self.r2_history = []
         self.crit_history = []
         self.rec_history = []
         self.loss_color = []
+        self.total_time = 0
 
     def forward(self, x):
         if len(x) == 4:

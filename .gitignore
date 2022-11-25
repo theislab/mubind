@@ -1,3 +1,14 @@
+# data
+/annotations
+/outputs
+/output
+
+# logs
+/.snakemake
+
+# profiling
+trace.json
+
 # Temp files
 .DS_Store
 *~
