@@ -1,10 +1,9 @@
 import os
 import sys
-import mubind as mb
 import pandas as pd
 import torch
 import torch.utils.data as tdata
-
+import warnings
 import unittest
 
 class ModelTests(unittest.TestCase):
@@ -12,6 +11,8 @@ class ModelTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        import mubind as mb
 
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -33,11 +34,17 @@ class ModelTests(unittest.TestCase):
     # just to formalize that the code above raises no errors
     #   if it does, this method won't be called anyways
     def test_no_errors(self):
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        import mubind as mb
+
         self.assertTrue(True)
 
 
     @unittest.skip
     def test_r2_positive(self):
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        import mubind as mb
+
         r2 = mb.pl.kmer_enrichment(ModelTests.model, ModelTests.train, k=8, show=False)
         self.assertTrue(r2 > 0)
 
