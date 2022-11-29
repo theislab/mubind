@@ -1,4 +1,4 @@
-from multibind.pl.plotting import (
+from mubind.pl.plotting import (
     conv_di,
     conv_mono,
     create_heatmap,

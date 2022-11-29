@@ -8,7 +8,7 @@ from sklearn.metrics import r2_score
 
 import scipy
 import scipy.cluster.hierarchy as hc
-import multibind as mb
+import mubind as mb
 
 
 def scatter(x, y):

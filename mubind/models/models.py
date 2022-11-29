@@ -6,7 +6,7 @@ import torch.nn.functional as F
 
 from torch.autograd import Variable
 
-import multibind as mb
+import mubind as mb
 
 
 class Multibind(tnn.Module):
@@ -109,6 +109,12 @@ class Multibind(tnn.Module):
         # binding_per_mode: matrix of size [batchsize, number of binding modes]
         binding_per_mode = self.binding_modes(mono=mono, mono_rev=mono_rev, **kwargs)
         binding_scores = self.activities(binding_per_mode, **kwargs)
+
+        # print('mode')
+        # print(binding_per_mode)
+        # print('scores')
+        # print(binding_scores)
+        # assert False
 
         if self.datatype == "pbm":
             return binding_scores
@@ -230,6 +236,7 @@ class BindingModesSimple(tnn.Module):
     def forward(self, mono, mono_rev, di=None, di_rev=None, **kwargs):
         bm_pred = []
         for i in range(len(self.kernels)):
+            # print(i)
             if self.kernels[i] == 0:
                 # intercept (will be scaled by the activity of the non-specific binding)
                 temp = torch.Tensor([1.0] * mono.shape[0]).to(device=mono.device)
@@ -251,10 +258,14 @@ class BindingModesSimple(tnn.Module):
                     )
                 else:
                     temp = torch.cat((self.conv_mono[i](mono), self.conv_mono[i](mono_rev)), dim=3)
+
+                # this particular step can generate out of bounds due to the exponentail cost
                 temp = torch.exp(temp)
                 temp = temp.view(temp.shape[0], -1)
                 temp = torch.sum(temp, dim=1)
                 bm_pred.append(temp)
+
+
         return torch.stack(bm_pred).T
 
     def set_seed(self, seed, index, max, min):
@@ -497,6 +508,7 @@ class SelexModule(tnn.Module):
         batch = kwargs.get("batch", None)
         if batch is None:
             batch = torch.zeros([binding_scores.shape[0]]).to(device=binding_scores.device)
+
         if self.enr_series:
             predictions_ = [binding_scores[:, 0]]
             for i in range(1, self.n_rounds + 1):
@@ -504,6 +516,7 @@ class SelexModule(tnn.Module):
             out = torch.stack(predictions_).T
         else:
             out = binding_scores
+
 
         for i in range(self.n_batches):
             eta = torch.exp(self.log_etas[i, :])
@@ -821,7 +834,7 @@ class ProteinDNABinding(tnn.Module):
 
         self.bm_prediction = BMPrediction(num_classes, input_size, hidden_size, num_layers, seq_length)
         self.decoder = mb.models.Decoder(enc_size=input_size, seq_length=seq_length, **kwargs)
-        self.multibind = MultibindFlexibleWeights(n_rounds, n_batches, datatype=datatype)
+        self.mubind = MultibindFlexibleWeights(n_rounds, n_batches, datatype=datatype)
 
         self.best_model_state = None
         self.best_loss = None
@@ -846,7 +859,7 @@ class ProteinDNABinding(tnn.Module):
 
         weights = tnn.Parameter(weights)
         weights = torch.unsqueeze(weights, 1)
-        pred = self.multibind((mono, mono_rev, batch, countsum, weights))
+        pred = self.mubind((mono, mono_rev, batch, countsum, weights))
         return pred.view(-1), reconstruction
 
     # expects msa as tensor with dims (n_seq, 21, n_residues)
