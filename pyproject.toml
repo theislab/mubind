@@ -7,7 +7,7 @@ requires = [
 
 
 [project]
-name = "multibind"
+name = "mubind"
 description = "ML for biomolecular binding"
 authors = [
     {name = "Ignacio Ibarra"},
@@ -15,9 +15,9 @@ authors = [
 maintainers = [
     {name = "Ignacio Ibarra", email = "ignacio.ibarra@helmholtz-muenchen.de"},
 ]
-urls.Documentation = "https://multibind.readthedocs.io/"
-urls.Source = "https://github.com/theislab/multibind"
-urls.Home-page = "https://github.com/theislab/multibind"
+urls.Documentation = "https://mubind.readthedocs.io/"
+urls.Source = "https://github.com/theislab/mubind"
+urls.Home-page = "https://github.com/theislab/mubind"
 version = "0.0.1"
 requires-python = ">=3.8"
 license = {file = "LICENSE"}
@@ -46,7 +46,7 @@ test = [
 ]
 
 [tool.coverage.run]
-source = ["multibind"]
+source = ["mubind"]
 omit = [
     "**/test_*.py",
 ]
