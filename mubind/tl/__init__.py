@@ -1,4 +1,4 @@
-from multibind.tl.encoding import (
+from mubind.tl.encoding import (
     bin2string,
     mono2dinuc,
     mono2revmono,
@@ -14,9 +14,9 @@ from multibind.tl.encoding import (
     get_protein_aa_index,
     string2bin,
 )
-from multibind.tl.kmers import fastq2kmers, get_seed, log2fc_vs_zero, seqs2kmers
-from multibind.tl.loss import MSELoss, MultiDatasetLoss, PoissonLoss, ProboundLoss
-from multibind.tl.prediction import (  # SelexDataset,; ChipSeqDataset,; create_datasets,
+from mubind.tl.kmers import fastq2kmers, get_seed, log2fc_vs_zero, seqs2kmers
+from mubind.tl.loss import MSELoss, MultiDatasetLoss, PoissonLoss, ProboundLoss
+from mubind.tl.prediction import (  # SelexDataset,; ChipSeqDataset,; create_datasets,
     create_multi_data,
     create_simulated_data,
     test_network,
@@ -24,4 +24,4 @@ from multibind.tl.prediction import (  # SelexDataset,; ChipSeqDataset,; create_
     train_modified_kernel,
     train_network,
 )
-from multibind.tl.probound import load_probound
+from mubind.tl.probound import load_probound

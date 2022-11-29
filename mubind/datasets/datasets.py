@@ -6,7 +6,7 @@ import numpy as np
 import torch.utils.data as tdata
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 
-import multibind as mb
+import mubind as mb
 
 import pandas as pd
 
@@ -26,7 +26,7 @@ class SelexDataset(tdata.Dataset):
         # labels = [i for i in range(n_rounds + 1)]
         # self.rounds = np.array(df[labels])
         self.rounds = np.array(df) if labels is None else np.array(df[labels])
-        # print(self.rounds.shape)
+        print(self.rounds.shape)
 
         delete_batch_col = False
         if "batch" not in df.columns:

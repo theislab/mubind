@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn as tnn
 
-import multibind as mb
+import mubind as mb
 
 
 def load_probound(json_path):

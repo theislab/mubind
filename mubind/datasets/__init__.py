@@ -1,4 +1,4 @@
-from multibind.datasets.datasets import (
+from mubind.datasets.datasets import (
     ChipSeqDataset,
     MultiDataset,
     SelexDataset,

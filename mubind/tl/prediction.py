@@ -7,7 +7,7 @@ import torch
 import torch.optim as topti
 import torch.utils.data as tdata
 
-import multibind as mb
+import mubind as mb
 
 from torch.profiler import profile, ProfilerActivity
 
@@ -159,6 +159,8 @@ def train_network(
                 else:
                     dir_weight = dirichlet_regularization * model.dirichlet_regularization()
 
+                # print(outputs.shape)
+                # print(rounds.shape)
                 loss = criterion(outputs, rounds) + dir_weight
                 # loss = criterion(outputs, rounds) + 0.01*reconstruction_crit(reconstruction, residues) + dir_weight
 
@@ -226,7 +228,7 @@ def train_network(
             if verbose != 0:
                 print("early stop!")
             break
-    
+
     # Print if profiling included. Temporarily removed profiling to save memory.
     # print('Profiling epoch:')
     # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=25))
@@ -235,7 +237,7 @@ def train_network(
     model.total_time += total_time
     print(f'total time: {total_time}s {len(loss_history)}')
     print("secs per epoch: %.3f s" % ((time.time() - t0) / max(epoch, 1)))
-    
+
     model.loss_history += loss_history
     model.r2_history += r2_history
 
@@ -283,11 +285,11 @@ def train_iterative(
         n_rounds = train.dataset.n_rounds
         n_batches = train.dataset.n_batches
         enr_series = train.dataset.enr_series
+
         if verbose != 0:
             print("# rounds", n_rounds)
             print("# batches", n_batches)
             print("# enr_series", enr_series)
-
         model = mb.models.Multibind(
             datatype="selex",
             kernels=[0] + [w] * (n_kernels - 1),
@@ -349,7 +351,7 @@ def train_iterative(
     for i in range(0, n_kernels):
         if verbose != 0:
             print("\nKernel to optimize %i" % i)
-            print("\nFreezing kernels")
+            print("\nFREEZING KERNELS")
         for ki in range(n_kernels):
             if verbose != 0:
                 print("setting grad status of kernel at %i to %i" % (ki, ki == i))
@@ -440,7 +442,7 @@ def train_iterative(
 
                     if verbose != 0:
                         print(
-                            "\noptimize_motif_shift (%s)..." % ("first" if next_loss is None else "again"),
+                            "\nFILTER SHIFT OPTIMIZATION (%s)..." % ("first" if next_loss is None else "again"),
                             end="",
                         )
                         print("")
@@ -579,6 +581,7 @@ def train_iterative(
         if ignore_kernel:
             model.set_ignore_kernel(np.array([0 for i in range(i + 1)] + [1 for i in range(i + 1, n_kernels)]))
         if verbose != 0:
+            print("kernels mask", model.get_ignore_kernel())
             print("kernels mask", model.get_ignore_kernel())
         # assert False
         mb.tl.train_network(

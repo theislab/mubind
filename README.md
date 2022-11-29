@@ -1,11 +1,11 @@
-# multibind
+# mubind
 
 [![Tests][badge-tests]][link-tests]
 [![Documentation][badge-docs]][link-docs]
 
-[badge-tests]: https://img.shields.io/github/workflow/status/ilibarra/multibind/Test/main
-[link-tests]: https://github.com/theislab/multibind/actions/workflows/test.yml
-[badge-docs]: https://img.shields.io/readthedocs/multibind
+[badge-tests]: https://img.shields.io/github/workflow/status/ilibarra/mubind/Test/main
+[link-tests]: https://github.com/theislab/mubind/actions/workflows/test.yml
+[badge-docs]: https://img.shields.io/readthedocs/mubind
 
 Modeling for fitting and interpretation of biomolecular binding data.
 
@@ -21,18 +21,18 @@ Please refer to the [documentation][link-docs]. In particular, the
 You need to have Python 3.8 or newer installed on your system. If you don't have
 Python installed, we recommend installing `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`\_.
 
-There are several alternative options to install multibind:
+There are several alternative options to install mubind:
 
-1. Install the latest release of `multibind` from `PyPI <https://pypi.org/project/multibind/>`_:
+1. Install the latest release of `mubind` from `PyPI <https://pypi.org/project/mubind/>`_:
 
 ```bash
-pip install multibind
+pip install mubind
 ```
 
 2. Install the latest development version:
 
 ```bash
-pip install git+https://github.com/ilibarra/multibind.git@main
+pip install git+https://github.com/ilibarra/mubind.git@main
 ```
 
 ## Release notes
@@ -46,27 +46,27 @@ If you found a bug, please use the [issue tracker][issue-tracker].
 
 ## Citation
 
-If multibind is useful for your research, please consider to cite as:
+If mubind is useful for your research, please consider to cite as:
 ```bibtex
-@software{multibind,
+@software{mubind,
 author = {Ibarra, Schneeberger},
 doi = {},
 month = {},
-title = {{multibind}},
-url = {https://github.com/theislab/multibind},
+title = {{mubind}},
+url = {https://github.com/theislab/mubind},
 year = {2022}
 }
 ```
 
 [scverse-discourse]: https://discourse.scverse.org/
-[issue-tracker]: https://github.com/ilibarra/multibind/issues
-[changelog]: https://multibind.readthedocs.io/latest/changelog.html
-[link-docs]: https://multibind.readthedocs.io
-[link-api]: https://multibind.readthedocs.io/latest/api.html
+[issue-tracker]: https://github.com/ilibarra/mubind/issues
+[changelog]: https://mubind.readthedocs.io/latest/changelog.html
+[link-docs]: https://mubind.readthedocs.io
+[link-api]: https://mubind.readthedocs.io/latest/api.html
 
 ## Old text
 
-# multibind
+# mubind
 
 Inference of binding specificities from protein sequence and multiple genomics experiments.
 
@@ -78,7 +78,7 @@ Inference of binding specificities from protein sequence and multiple genomics e
 # Installation
 
 1. `conda env create -f environment.yml`
-2. `conda activate multibind`
+2. `conda activate mubind`
 3. `pip install -e .`
 
 Notes

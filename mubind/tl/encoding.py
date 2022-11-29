@@ -98,7 +98,7 @@ def onehot_protein(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncod
 
 def onehot_mononuc_multi(seqs, max_length):
     result = np.full([len(seqs), 4, max_length], 0.25, dtype=np.float32)
-    for i, seq in seqs.iteritems():
+    for i, seq in seqs.items():
         shift = int((max_length - len(seq)) / 2)
         for j in range(len(seq)):
             base = seq[j]
