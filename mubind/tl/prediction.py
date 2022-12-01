@@ -94,6 +94,7 @@ def train_network(
     exp_max=40,  # if this value is negative, the exponential barrier will not be used.
     log_each=-1,
     verbose=0,
+    r2_per_epoch=False,
 ):
     # global loss_history
     r2_history = []
@@ -214,7 +215,9 @@ def train_network(
 
         # print("Epoch: %2d, Loss: %.3f" % (epoch + 1, running_loss / len(train_dataloader)))
         loss_history.append(loss_final)
-        r2_history.append(mb.pl.kmer_enrichment(model, train_dataloader, k=8, show=False))
+
+        if r2_per_epoch:
+            r2_history.append(mb.pl.kmer_enrichment(model, train_dataloader, k=8, show=False))
         # model.crit_history.append(crit_final)
         # model.rec_history.append(rec_final)
 
@@ -261,9 +264,9 @@ def train_iterative(
     criterion=None,
     seed=None,
     init_random=False,
-    lr=0.01,
     joint_learning=False,
     ignore_kernel=False,
+    lr=0.01,
     weight_decay=0.001,
     stop_at_kernel=None,
     dirichlet_regularization=0,
@@ -271,6 +274,7 @@ def train_iterative(
     exp_max=40,
     shift_max=3,
     shift_step=2,
+    r2_per_epoch=False,
     **kwargs,
 ):
     # color for visualization of history
@@ -399,7 +403,6 @@ def train_iterative(
         model.loss_color += list(np.repeat(colors[i], len(model.loss_history) - len(model.loss_color)))
         # probably here load the state of the best epoch and save
         model.load_state_dict(model.best_model_state)
-        "%i" % w
         # store model parameters and fit for later visualization
         model = copy.deepcopy(model)
         # optimizer for left / right flanks
