@@ -124,48 +124,27 @@ def plot_loss(model):
 
 
 # enr_round=-1 means that the last round is used
-def kmer_enrichment(model, train, k=8, base_round=0, enr_round=-1, show=True):
+def kmer_enrichment(model, train, k=8, base_round=0, enr_round=-1, show=True,
+                    log_scale=True, style='distplot', xlab='enr_pred', ylab='enr_obs'):
     # getting the targets and predictions from the model
-    seqs, targets, pred = mb.tl.test_network(model, train, next(model.parameters()).device)
-
-    target_kmers = mb.tl.seqs2kmers(seqs, k=k, counts=targets)
-    target_labels = ["t" + str(i) for i in range(train.dataset.n_rounds + 1)]
-    target_kmers[target_labels] = np.stack(target_kmers["counts"].to_numpy())
-
-    pred_kmers = mb.tl.seqs2kmers(seqs, k=k, counts=pred)
-    pred_labels = ["p" + str(i) for i in range(train.dataset.n_rounds + 1)]
-    pred_kmers[pred_labels] = np.stack(pred_kmers["counts"].to_numpy())
-
-    counts = (
-        target_kmers[target_labels]
-        .merge(pred_kmers[pred_labels], left_index=True, right_index=True, how="outer")
-        .fillna(0)
-    )
-
-    if model.datatype == 'selex':
-        if enr_round == -1:
-            enr_round = train.dataset.n_rounds
-        counts["enr_pred"] = (1 + counts[pred_labels[enr_round]]) / (1 + counts[pred_labels[base_round]])
-        counts["enr_obs"] = (1 + counts[target_labels[enr_round]]) / (1 + counts[target_labels[base_round]])
-        counts["f_pred"] = (1 / (enr_round - base_round)) * np.log10(counts["enr_pred"])
-        counts["f_obs"] = (1 / (enr_round - base_round)) * np.log10(counts["enr_obs"])
-    elif model.datatype == 'pbm':  # assuming only one column of numbers to be modeled
-        counts["enr_pred"] = counts['p0']
-        counts["enr_obs"] = counts['t0']
-        counts["f_pred"] = counts['p0']
-        counts["f_obs"] = counts['t0']
-    else:
-        assert False
-
-    r2 = r2_score(counts["f_obs"], counts["f_pred"])
+    counts = mb.tl.kmer_enrichment(model, train, k, base_round, enr_round)
+    scores = mb.tl.scores(model, train)
+    r2_counts = scores['r2_counts']
+    r2_fc = scores['r2_foldchange']
+    pearson_fc = scores['pearson_foldchange']
     if show:
         # plotting
-        p = sns.displot(counts, x="enr_pred", y="enr_obs", cbar=True)
-        p.set(xscale="log", yscale="log")
-        plt.title('R^2: %.2f' % r2)
+        p = None
+        if style == 'distplot':
+            p = sns.displot(counts, x=xlab, y=ylab, cbar=True)
+        elif style == 'scatter':
+            p = sns.scatterplot(counts, x=xlab, y=ylab)
+        if log_scale:
+            p.set(xscale='log', yscale='log')
+        plt.title(r'$R^2 (counts)$ = %.2f' % r2_counts + r', $R^2 (fc)$ = %.2f' % r2_fc + ', Pearson\'s R(fc) = %.2f' % pearson_fc)
         # plt.plot([0.1, 10], [0.1, 10], linewidth=2)
         plt.show()
-    return r2
+    return scores
 
 
 def get_dism(words):
@@ -256,10 +235,10 @@ def R2_per_protein(model, dataloader, device, show_plot=True):
     return R2_values
 
 
-def R2_calculation(model, train):
+def R2_calculation(model, train, show=True):
     if isinstance(train.dataset, mb.datasets.SelexDataset):
-        return [kmer_enrichment(model, train, show=False)]
+        return [kmer_enrichment(model, train, show=show)]
     elif isinstance(train.dataset, mb.datasets.PBMDataset):
-        return R2_per_protein(model, train, next(model.parameters()).device, show_plot=False)
+        return R2_per_protein(model, train, next(model.parameters()).device, show_plot=show)
     elif isinstance(train.dataset, mb.datasets.GenomicsDataset):
-        return R2_per_protein(model, train, next(model.parameters()).device, show_plot=False)
+        return R2_per_protein(model, train, next(model.parameters()).device, show_plot=show)

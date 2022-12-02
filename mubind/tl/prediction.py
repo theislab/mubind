@@ -3,6 +3,8 @@ import time
 
 import numpy as np
 import pandas as pd
+import sklearn.metrics
+import scipy
 import torch
 import torch.optim as topti
 import torch.utils.data as tdata
@@ -150,7 +152,8 @@ def train_network(
             if not is_LBFGS:
                 # PyTorch calculates gradients by accumulating contributions to them (useful for
                 # RNNs).  Hence we must manully set them to zero before calculating them.
-                optimiser.zero_grad()
+                optimiser.zero_grad(set_to_none=None)
+
                 # outputs, reconstruction = model(inputs)  # Forward pass through the network.
                 outputs = model(**inputs)  # Forward pass through the network.
 
@@ -162,6 +165,12 @@ def train_network(
 
                 # print(outputs.shape)
                 # print(rounds.shape)
+
+                # # print(outputs)
+                # # print(rounds)
+                # # print(criterion(outputs, rounds))
+                # assert False
+
                 loss = criterion(outputs, rounds) + dir_weight
                 # loss = criterion(outputs, rounds) + 0.01*reconstruction_crit(reconstruction, residues) + dir_weight
 
@@ -371,6 +380,7 @@ def train_iterative(
 
         next_lr = lr if not isinstance(lr, list) else lr[i]
         next_weight_decay = weight_decay if not isinstance(weight_decay, list) else weight_decay[i]
+        next_early_stopping = early_stopping if not isinstance(early_stopping, list) else early_stopping[i]
 
         next_optimiser = (
             topti.Adam(model.parameters(), lr=next_lr, weight_decay=next_weight_decay)
@@ -386,14 +396,14 @@ def train_iterative(
             print("kernels mask", model.get_ignore_kernel())
 
         # assert False
-        mb.tl.train_network(
+        train_network(
             model,
             train,
             device,
             next_optimiser,
             criterion,
             num_epochs=num_epochs,
-            early_stopping=early_stopping,
+            early_stopping=next_early_stopping,
             log_each=log_each,
             dirichlet_regularization=dirichlet_regularization,
             exp_max=exp_max,
@@ -496,7 +506,7 @@ def train_iterative(
                             expand_right=expand_right,
                             device=device,
                             num_epochs=num_epochs,
-                            early_stopping=early_stopping,
+                            early_stopping=next_early_stopping,
                             log_each=log_each,
                             update_grad_i=i,
                             lr=next_lr,
@@ -587,14 +597,14 @@ def train_iterative(
             print("kernels mask", model.get_ignore_kernel())
             print("kernels mask", model.get_ignore_kernel())
         # assert False
-        mb.tl.train_network(
+        train_network(
             model,
             train,
             device,
             next_optimiser,
             criterion,
             num_epochs=num_epochs,
-            early_stopping=early_stopping,
+            early_stopping=next_early_stopping,
             log_each=log_each,
             dirichlet_regularization=dirichlet_regularization,
             verbose=verbose,
@@ -664,7 +674,7 @@ def train_modified_kernel(
     if criterion is None:
         criterion = mb.tl.PoissonLoss()
 
-    mb.tl.train_network(
+    train_network(
         model,
         train,
         device,
@@ -691,7 +701,7 @@ def create_simulated_data(motif="GATA", n_batch=None, n_trials=20000, seqlen=100
     data = pd.DataFrame({"seq": x2, "target": y2})
     batch = mb.tl.onehot_covar(np.random.random_integers(0, n_batch - 1, len(y2)))
 
-    assert n_batch == len(batch_sizes)
+    # assert n_batch == len(batch_sizes)
     batch_mult = np.array(batch_sizes)[(np.argmax(batch, axis=1))]
     # print(batch_mult)
     # df = pd.DataFrame()
@@ -807,7 +817,7 @@ def create_multi_data(n_chip=100, n_selex=100, n_batch_selex=3):
     batch_test = test_dataframe["batch"]
     batch_train = train_dataframe["batch"]
 
-    #     print('train batch labels')
+
     #     print(batch_train)
     #     print(batch_train.value_counts())
 
@@ -829,3 +839,55 @@ def create_multi_data(n_chip=100, n_selex=100, n_batch_selex=3):
     test_loader = tdata.DataLoader(dataset=test_data, batch_size=1, shuffle=False)
 
     return train_loader, test_loader
+
+def scores(model, train, **kwargs):
+    counts = mb.tl.kmer_enrichment(model, train, **kwargs)
+    r2_counts = sklearn.metrics.r2_score(counts[[c for c in counts if c.startswith('t')]],
+                                         counts[[c for c in counts if c.startswith('p')]])
+    r2_enr = sklearn.metrics.r2_score(counts["enr_obs"], counts["enr_pred"])
+    r2_f = sklearn.metrics.r2_score(counts["f_obs"], counts["f_pred"])
+    try:
+        r_f = scipy.stats.pearsonr(counts["f_obs"], counts["f_pred"])[0]
+    except:
+        r_f = np.nan
+
+    return {'r2_counts': r2_counts, 'r2_foldchange': r2_f, 'r2_enr': r2_enr, 'pearson_foldchange': r_f}
+
+def kmer_enrichment(model, train, k=8, base_round=0, enr_round=-1, pseudo_count=1):
+    # getting the targets and predictions from the model
+    seqs, targets, pred = mb.tl.test_network(model, train, next(model.parameters()).device)
+
+    target_kmers = mb.tl.seqs2kmers(seqs, k=k, counts=targets)
+    target_labels = ["t" + str(i) for i in range(train.dataset.n_rounds + 1)]
+    target_kmers[target_labels] = np.stack(target_kmers["counts"].to_numpy())
+
+    pred_kmers = mb.tl.seqs2kmers(seqs, k=k, counts=pred)
+    pred_labels = ["p" + str(i) for i in range(train.dataset.n_rounds + 1)]
+    pred_kmers[pred_labels] = np.stack(pred_kmers["counts"].to_numpy())
+
+    counts = (
+        target_kmers[target_labels]
+        .merge(pred_kmers[pred_labels], left_index=True, right_index=True, how="outer")
+        .fillna(0)
+    )
+
+    if model.datatype == 'selex':
+        if enr_round == -1:
+            enr_round = train.dataset.n_rounds
+        counts["enr_pred"] = (pseudo_count + counts[pred_labels[enr_round]]) / (pseudo_count + counts[pred_labels[base_round]])
+        counts["enr_obs"] = (pseudo_count + counts[target_labels[enr_round]]) / (pseudo_count + counts[target_labels[base_round]])
+        counts["f_pred"] = (1 / (enr_round - base_round)) * np.log10(counts["enr_pred"])
+        counts["f_obs"] = (1 / (enr_round - base_round)) * np.log10(counts["enr_obs"])
+    elif model.datatype == 'pbm':  # assuming only one column of numbers to be modeled
+        counts["enr_pred"] = counts['p0']
+        counts["enr_obs"] = counts['t0']
+        counts["f_pred"] = counts['p0']
+        counts["f_obs"] = counts['t0']
+    else:
+        assert False
+
+    return counts
+
+def predict(model, train, show=True):
+    counts = mb.tl.kmer_enrichment(model, train)
+    return counts
