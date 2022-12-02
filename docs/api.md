@@ -3,8 +3,8 @@
 ## Preprocessing
 
 ```{eval-rst}
-.. module:: mubind.pp
-.. currentmodule:: mubind
+.. module:: multibind.pp
+.. currentmodule:: multibind
 
 .. autosummary::
     :toctree: generated
@@ -15,8 +15,8 @@
 ## Tools
 
 ```{eval-rst}
-.. module:: mubind.tl
-.. currentmodule:: mubind
+.. module:: multibind.tl
+.. currentmodule:: multibind
 
 .. autosummary::
     :toctree: generated
@@ -27,8 +27,8 @@
 ## Plotting
 
 ```{eval-rst}
-.. module:: mubind.pl
-.. currentmodule:: mubind
+.. module:: multibind.pl
+.. currentmodule:: multibind
 
 .. autosummary::
     :toctree: generated

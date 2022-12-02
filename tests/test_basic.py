@@ -27,7 +27,6 @@ def test_simdata_train():
     )
     data.index = x2
 
-
     # divide in train and test data -- copied from above, organize differently!
     train_dataframe = data.copy()
     # data.shape[0]
