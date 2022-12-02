@@ -1,0 +1,13 @@
+1st stage: 0.104206s
+2nd stage: 0.031456s
+Total    : 0.135662s
+Tmp size : 0MB
+
+Stats:
+   No. of k-mers below min. threshold :        67011
+   No. of k-mers above max. threshold :            0
+   No. of unique k-mers               :       494960
+   No. of unique counted k-mers       :       427949
+   Total no. of k-mers                :      2393644
+   Total no. of reads                 :       217620
+   Total no. of super-k-mers          :            0

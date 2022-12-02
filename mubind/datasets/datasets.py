@@ -376,32 +376,38 @@ def _mismatch(word, letters, num_mismatches):
 
 
 # Generate a seq of sequences with a seuquence embedded
-def simulate_xy(motif, batch=100, n_trials=500, seqlen=50, max_mismatches=-1, min_count=1):
+def simulate_xy(motif, counts_size=100, n_trials=500, seqlen=50, max_mismatches=-1, min_count=1):
     import numpy as np
 
-    x = np.array([_get_random_sequence(seqlen) + "ACGT" for k in range(n_trials)])
 
     options = []
-    mismatch_values = list(range(0, len(motif)))
+    mismatch_values = list(range(0, len(motif) + 1))
     if max_mismatches > 0:
-        mismatch_values = mismatch_values[:max_mismatches]
+        mismatch_values = mismatch_values[:max_mismatches + 1]
 
     for n_mismatches in mismatch_values:
         next_options = np.random.choice(
-            list(_mismatch(motif, "ACGT", n_mismatches)),
+            list(_mismatch(motif, "ACGT", min(len(motif), n_mismatches))),
             int(n_trials / len(mismatch_values)),
         )
-        # print(n_mismatches, len(next_options), next_options)
+        # print('# mismatches', n_mismatches)
+        # print('# options', len(next_options), next_options)
         options += list(next_options)
 
     y = []
+    x = np.array([_get_random_sequence(seqlen) + "ACGT" for k in range(n_trials)])
     for i, opt in zip(range(len(x)), options):
         p = np.random.choice(range(len(x[0]) - 4 - len(opt)))
         x[i] = x[i][:p] + opt + x[i][p + len(opt) :]
-        y.append(int(_similar(motif, opt) * batch))
+        y.append(int(_similar(motif, opt) * counts_size))
+
+        # print(len(x), len(y))
 
     y = np.array(y) + min_count
-    x = np.array(x)
+    x = np.array(x)[:y.shape[0]]
+
+    # print(x.shape[0], y.shape[0])
+    assert x.shape[0], y.shape[0]
 
     return x, y
 
@@ -434,3 +440,5 @@ def gata_remap(n_sample=5000):
     x = np.array([s[1] for s in seqs] + [s[1] for s in shuffled_seqs])
     y = np.array([int(i % 2 == 0) for i, s in enumerate([seqs, shuffled_seqs]) for yi in range(len(s))])
     return x, y
+
+

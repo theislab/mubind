@@ -81,7 +81,6 @@ class Multibind(tnn.Module):
         self.total_time = 0
 
     def forward(self, mono, **kwargs):
-        # mono_rev=None, di=None, di_rev=None, batch=None, countsum=None, residues=None, protein_id=None):
         mono_rev = kwargs.get("mono_rev", None)
         di = kwargs.get("di", None)
         di_rev = kwargs.get("di_rev", None)
@@ -114,7 +113,6 @@ class Multibind(tnn.Module):
         # print(binding_per_mode)
         # print('scores')
         # print(binding_scores)
-        # assert False
 
         if self.datatype == "pbm":
             return binding_scores
@@ -470,6 +468,7 @@ class ActivitiesLayer(tnn.Module):
                 scores[batch == i] = torch.matmul(binding_per_mode[batch == i][:, mask], a[mask, :])
             else:
                 scores[batch == i] = torch.matmul(binding_per_mode[batch == i], a)
+
         return scores
 
     def update_grad(self, index, value):
@@ -518,9 +517,18 @@ class SelexModule(tnn.Module):
             out = binding_scores
 
 
+        # print('\nbefore multiplying by etas')
+        # print(out)
+
+        # print(self.log_etas)
         for i in range(self.n_batches):
             eta = torch.exp(self.log_etas[i, :])
+            # print(eta)
             out[batch == i] = out[batch == i] * eta
+
+        # print('\nafter multiplying by etas')
+        # print(out)
+        # print(countsum)
 
         results = out.T / torch.sum(out, dim=1)
         return (results * countsum).T

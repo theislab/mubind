@@ -23,5 +23,8 @@ from mubind.tl.prediction import (  # SelexDataset,; ChipSeqDataset,; create_dat
     train_iterative,
     train_modified_kernel,
     train_network,
+    kmer_enrichment,
+    scores,
+    predict
 )
 from mubind.tl.probound import load_probound
