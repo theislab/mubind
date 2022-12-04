@@ -51,8 +51,9 @@ class Multibind(tnn.Module):
         if self.datatype == "pbm":
             kwargs["target_dim"] = 1
         elif self.datatype == "selex":
+            print(kwargs)
             if "n_rounds" in kwargs:
-                kwargs["target_dim"] = kwargs["n_rounds"] + 1
+                kwargs["target_dim"] = kwargs["n_rounds"]
             elif "target_dim" in kwargs:
                 kwargs["n_rounds"] = kwargs["target_dim"] - 1
             else:
@@ -110,11 +111,11 @@ class Multibind(tnn.Module):
         binding_per_mode = self.binding_modes(mono=mono, mono_rev=mono_rev, **kwargs)
         binding_scores = self.activities(binding_per_mode, **kwargs)
 
+
         # print('mode')
         # print(binding_per_mode)
         # print('scores')
         # print(binding_scores)
-        # assert False
 
         if self.datatype == "pbm":
             return binding_scores
@@ -447,7 +448,10 @@ class ActivitiesLayer(tnn.Module):
     def __init__(self, n_kernels, target_dim, **kwargs):
         super().__init__()
         self.n_kernels = n_kernels
-        self.target_dim = target_dim
+
+        print(target_dim)
+        # due to having multiple batches in some rounds, the max n_rounds is stored
+        self.target_dim = max(target_dim) if not isinstance(target_dim, int) else target_dim
         self.n_batches = kwargs.get("n_batches", 1) if "n_batches" in kwargs else kwargs.get("n_proteins", 1)
         self.ignore_kernel = kwargs.get("ignore_kernel", None)
         self.log_activities = tnn.ParameterList()
@@ -470,6 +474,16 @@ class ActivitiesLayer(tnn.Module):
                 scores[batch == i] = torch.matmul(binding_per_mode[batch == i][:, mask], a[mask, :])
             else:
                 scores[batch == i] = torch.matmul(binding_per_mode[batch == i], a)
+
+        # print('log activities')
+        # print(self.log_activities)
+        # print(self.log_activities[0])
+        # print(self.log_activities[1])
+        #
+        # print('')
+        # print('scores after activities')
+        # print(scores)
+
         return scores
 
     def update_grad(self, index, value):
@@ -499,10 +513,10 @@ class SelexModule(tnn.Module):
     """
     def __init__(self, n_rounds, **kwargs):
         super().__init__()
-        self.n_rounds = n_rounds
+        self.n_rounds = max(n_rounds) if not isinstance(n_rounds, int) else n_rounds
         self.enr_series = kwargs.get("enr_series", True)
         self.n_batches = kwargs.get("n_batches", 1)
-        self.log_etas = tnn.Parameter(torch.zeros([self.n_batches, self.n_rounds + 1]))
+        self.log_etas = tnn.Parameter(torch.zeros([self.n_batches, self.n_rounds]))
 
     def forward(self, binding_scores, countsum, **kwargs):
         batch = kwargs.get("batch", None)
@@ -511,18 +525,20 @@ class SelexModule(tnn.Module):
 
         if self.enr_series:
             predictions_ = [binding_scores[:, 0]]
-            for i in range(1, self.n_rounds + 1):
+            for i in range(1, self.n_rounds):
                 predictions_.append(predictions_[-1] * binding_scores[:, i])
             out = torch.stack(predictions_).T
         else:
             out = binding_scores
 
-
         for i in range(self.n_batches):
             eta = torch.exp(self.log_etas[i, :])
             out[batch == i] = out[batch == i] * eta
 
+
         results = out.T / torch.sum(out, dim=1)
+
+
         return (results * countsum).T
 
     def get_log_etas(self):

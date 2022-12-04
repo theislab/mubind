@@ -13,9 +13,11 @@ import pandas as pd
 
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
-    def __init__(self, df, n_rounds=1, enr_series=True, single_encoding_step=False, store_rev=False,
+    def __init__(self, df, n_rounds=None, enr_series=True, single_encoding_step=False, store_rev=False,
                  labels=None):
-        self.n_rounds = n_rounds
+
+        assert n_rounds is not None
+        self.n_rounds = n_rounds if not isinstance(n_rounds, int) else np.repeat(n_rounds, df.shape[0])
         self.enr_series = enr_series
         self.store_rev = store_rev
         self.length = len(df)
@@ -28,10 +30,9 @@ class SelexDataset(tdata.Dataset):
         self.rounds = np.array(df) if labels is None else np.array(df[labels])
         print(self.rounds.shape)
 
-        delete_batch_col = False
+
         if "batch" not in df.columns:
             df["batch"] = np.repeat(0, df.shape[0])
-            delete_batch_col = True
         self.batch_names = {}
         for i, name in enumerate(set(df["batch"])):
             self.batch_names[i] = name
@@ -39,12 +40,15 @@ class SelexDataset(tdata.Dataset):
             df.loc[mask, "batch"] = i
         self.batch = np.array(df["batch"])
         self.n_batches = len(set(df["batch"]))
-        if delete_batch_col:
+
+        if "batch" in df.columns:
             del df['batch']
 
         seq = df["seq"] if "seq" in df else df.index
         self.seq = np.array(seq)
-        self.countsum = np.sum(self.rounds, axis=1).astype(np.float32)
+
+        # countsum ignoring -1 and nan
+        self.countsum = np.nansum(np.where(self.rounds == -1, 0, self.rounds), axis=1).astype(np.float32)
 
         if single_encoding_step:
             assert len(set(seq.str.len())) == 1
@@ -73,6 +77,7 @@ class SelexDataset(tdata.Dataset):
             "mononuc": self.mononuc[index],
             "batch": self.batch[index],
             "rounds": self.rounds[index],
+            "n_rounds": self.n_rounds[index],
             "seq": self.seq[index],
             "countsum": self.countsum[index],
         }

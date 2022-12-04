@@ -7,7 +7,7 @@ class PoissonLoss(tnn.Module):
         super().__init__()
 
     def forward(self, y_pred, y_true):
-        return torch.mean(y_pred - y_true * torch.log(y_pred))
+        return torch.nanmean(y_pred - y_true * torch.log(y_pred))
 
 
 class ProboundLoss(tnn.Module):

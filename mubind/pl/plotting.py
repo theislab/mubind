@@ -124,24 +124,27 @@ def plot_loss(model):
 
 
 # enr_round=-1 means that the last round is used
-def kmer_enrichment(model, train, k=8, base_round=0, enr_round=-1, show=True,
+def kmer_enrichment(model, train, k=None, base_round=0, enr_round=-1, show=True, hue='batch',
                     log_scale=True, style='distplot', xlab='enr_pred', ylab='enr_obs'):
     # getting the targets and predictions from the model
     counts = mb.tl.kmer_enrichment(model, train, k, base_round, enr_round)
     scores = mb.tl.scores(model, train)
     r2_counts = scores['r2_counts']
-    r2_fc = scores['r2_foldchange']
+    r2_fc = scores['r2_fc']
     pearson_fc = scores['pearson_foldchange']
+
+    hue = hue if hue in counts else None
     if show:
         # plotting
         p = None
         if style == 'distplot':
-            p = sns.displot(counts, x=xlab, y=ylab, cbar=True)
+            p = sns.displot(counts, x=xlab, y=ylab, cbar=True, hue=hue)
         elif style == 'scatter':
-            p = sns.scatterplot(counts, x=xlab, y=ylab)
+            p = sns.scatterplot(counts, x=xlab, y=ylab, hue=hue)
         if log_scale:
             p.set(xscale='log', yscale='log')
-        plt.title(r'$R^2 (counts)$ = %.2f' % r2_counts + r', $R^2 (fc)$ = %.2f' % r2_fc + ', Pearson\'s R(fc) = %.2f' % pearson_fc)
+        plt.title('k-mer length = %i\n' % (k if k is not None else -1) + r'$R^2 (counts)$ = %.2f' % (r2_counts) +
+                  r', $R^2 (fc)$ = %.2f' % r2_fc + ', Pearson\'s R(fc) = %.2f' % pearson_fc)
         # plt.plot([0.1, 10], [0.1, 10], linewidth=2)
         plt.show()
     return scores

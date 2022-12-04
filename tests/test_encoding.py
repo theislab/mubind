@@ -4,7 +4,7 @@ import torch
 import torch.utils.data as tdata
 
 
-def test_simdata_train():
+def test_encoding_basic():
     import warnings
 
     warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -31,7 +31,7 @@ def test_simdata_train():
     train_dataframe = data.copy()
     train_dataframe = train_dataframe  # .sample(n=n_sample)
     # create datasets and dataloaders
-    train_data = mb.datasets.SelexDataset(train_dataframe, single_encoding_step=False)
+    train_data = mb.datasets.SelexDataset(train_dataframe, single_encoding_step=False, n_rounds=train_dataframe.shape[1])
     train_loader = tdata.DataLoader(dataset=train_data, batch_size=256, shuffle=True)
 
     model = mb.models.Multibind('selex', n_rounds=1, kernels=[0, 12]).to(device)
