@@ -7,7 +7,7 @@ import warnings
 import unittest
 
 class ModelTests(unittest.TestCase):
-    N_EPOCHS = 50
+    N_EPOCHS = 10
 
     @classmethod
     def setUpClass(cls):
@@ -20,9 +20,18 @@ class ModelTests(unittest.TestCase):
         counts_path = os.path.abspath('tests/_data/ALX1-ZeroCycle_TACCAA40NTTA_0_0-TACCAA40NTTA.tsv.gz')
 
         data = pd.read_csv(counts_path, sep='\t', index_col=0)
-        n_rounds = len(data.columns) - 3
+        n_rounds = len(data.columns) - 2
 
-        labels = list(data.columns[:n_rounds + 1])
+        labels = list(data.columns[:n_rounds])
+        # print(data.shape)
+        # print(data.head())
+        # print(n_rounds)
+        # print(data.columns)
+        # print(labels)
+        # assert False
+        print(len(labels))
+        print(n_rounds)
+
         dataset = mb.datasets.SelexDataset(data, n_rounds=n_rounds, labels=labels)
         cls.train = tdata.DataLoader(dataset=dataset, batch_size=256, shuffle=True)
 

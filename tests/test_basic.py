@@ -32,11 +32,17 @@ def test_simdata_train():
     # data.shape[0]
     train_dataframe = train_dataframe  # .sample(n=n_sample)
 
+    # print(train_dataframe.shape)
     # create datasets and dataloaders
-    train_data = mb.datasets.SelexDataset(train_dataframe, single_encoding_step=False)
+    n_rounds = train_dataframe.shape[1]
+    train_data = mb.datasets.SelexDataset(train_dataframe, single_encoding_step=False, n_rounds=n_rounds)
     train_loader = tdata.DataLoader(dataset=train_data, batch_size=256, shuffle=True)
-    model = mb.models.Multibind('selex', n_rounds=1, kernels=[0, 12]).to(device)
+
+    # print(train_loader.dataset.rounds.shape)
+
+    model = mb.models.Multibind('selex', n_rounds=n_rounds, kernels=[0, 12]).to(device)
     optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.01)
     criterion = mb.tl.PoissonLoss()
+
     l2 = mb.tl.train_network(model, train_loader, device, optimiser, criterion, num_epochs=10, log_each=1)
     # mb.pl.conv_mono(model)

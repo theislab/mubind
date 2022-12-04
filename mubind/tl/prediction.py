@@ -42,8 +42,8 @@ def create_datasets(data_file):
 
 def test_network(model, dataloader, device):
     all_seqs = []
-    all_targets = np.zeros((len(dataloader.dataset), dataloader.dataset.n_rounds + 1), dtype=np.float32)
-    all_preds = np.zeros((len(dataloader.dataset), dataloader.dataset.n_rounds + 1), dtype=np.float32)
+    all_targets = np.zeros((len(dataloader.dataset), max(dataloader.dataset.n_rounds)), dtype=np.float32)
+    all_preds = np.zeros((len(dataloader.dataset), max(dataloader.dataset.n_rounds)), dtype=np.float32)
     position = 0
     store_rev = dataloader.dataset.store_rev
     with torch.no_grad():  # we don't need gradients in the testing phase
@@ -68,16 +68,19 @@ def test_network(model, dataloader, device):
                 inputs = {"mono": mononuc, "batch": b, "countsum": countsum}
 
             output = model(**inputs)
+
             output = output.cpu().detach().numpy()
             if len(output.shape) == 1:
                 output = output.reshape(output.shape[0], 1)
             target = rounds.cpu().detach().numpy()
             if len(target.shape) == 1:
                 target = target.reshape(output.shape[0], 1)
+
             all_preds[position:(position + len(seq)), :] = output
             all_targets[position:(position + len(seq)), :] = target
             all_seqs.extend(seq)
             position += len(seq)
+
     return all_seqs, all_targets, all_preds
 
 
@@ -135,6 +138,7 @@ def train_network(
             mononuc = batch["mononuc"].to(device)
             b = batch["batch"].to(device) if "batch" in batch else None
             rounds = batch["rounds"].to(device) if "rounds" in batch else None
+            n_rounds = batch["n_rounds"].to(device) if "n_rounds" in batch else None
             countsum = batch["countsum"].to(device) if "countsum" in batch else None
             residues = batch["residues"].to(device) if "residues" in batch else None
             protein_id = batch["protein_id"].to(device) if "protein_id" in batch else None
@@ -162,21 +166,49 @@ def train_network(
                 else:
                     dir_weight = dirichlet_regularization * model.dirichlet_regularization()
 
-                # print(outputs.shape)
-                # print(rounds.shape)
+                # print(outputs.shape, rounds.shape)
 
-                # # print(outputs)
-                # # print(rounds)
-                # # print(criterion(outputs, rounds))
-                # assert False
+                # define a mask to remove items on a rounds specific manner
+                mask = torch.zeros((n_rounds.shape[0], outputs.shape[1]), dtype=torch.bool).to(device=device)
 
-                loss = criterion(outputs, rounds) + dir_weight
+                for i in range(mask.shape[1]):
+                    mask[:, i] = ~(n_rounds - 1 < i)
+
+                # print('mask')
+                # print(mask)
+                # print('')
+                # print(outputs[mask].shape)
+                # print(rounds[mask].shape)
+                # # print(n_rounds)
+
+                # print(rounds[mask])
+                # print(outputs[mask])
+
+                # print(model.activities.log_activities[0])
+                print(outputs.shape, rounds.shape)
+                loss = criterion(outputs[mask], rounds[mask]) + dir_weight
+                # print(loss)
+
                 # loss = criterion(outputs, rounds) + 0.01*reconstruction_crit(reconstruction, residues) + dir_weight
 
                 if exp_max >= 0:
                     loss += model.exp_barrier(exp_max)
+
+                # print(loss)
+                # print('backward')
                 loss.backward()  # Calculate gradients.
+                # print(model.activities.log_activities[0])
+                # print('step')
                 optimiser.step()
+                # print(model.activities.log_activities[0])
+                # assert False
+                outputs = model(**inputs)  # Forward pass through the network.
+
+
+                # print(outputs)
+
+                # assert False
+
 
             else:
 
@@ -298,6 +330,8 @@ def train_iterative(
         if verbose != 0:
             print("# rounds", n_rounds)
             print("# batches", n_batches)
+            print("# kernels", n_kernels)
+            print("# initial w", w)
             print("# enr_series", enr_series)
         model = mb.models.Multibind(
             datatype="selex",
@@ -405,6 +439,7 @@ def train_iterative(
             exp_max=exp_max,
             verbose=verbose,
         )
+
         # print('next color', colors[i])
         model.loss_color += list(np.repeat(colors[i], len(model.loss_history) - len(model.loss_color)))
         # probably here load the state of the best epoch and save
@@ -839,38 +874,77 @@ def create_multi_data(n_chip=100, n_selex=100, n_batch_selex=3):
 
 def scores(model, train, **kwargs):
     counts = mb.tl.kmer_enrichment(model, train, **kwargs)
-    r2_counts = sklearn.metrics.r2_score(counts[[c for c in counts if c.startswith('t')]],
-                                         counts[[c for c in counts if c.startswith('p')]])
+
+    targets = counts[[c for c in counts if c.startswith('t')]]
+    pred = counts[[c for c in counts if c.startswith('p')]]
+    mask = np.isnan(targets)
+
+    r2_counts = sklearn.metrics.r2_score(targets.to_numpy()[~mask], pred.to_numpy()[~mask])
+
+    print(counts)
     r2_enr = sklearn.metrics.r2_score(counts["enr_obs"], counts["enr_pred"])
     r2_f = sklearn.metrics.r2_score(counts["f_obs"], counts["f_pred"])
+
     try:
         r_f = scipy.stats.pearsonr(counts["f_obs"], counts["f_pred"])[0]
     except:
         r_f = np.nan
 
-    return {'r2_counts': r2_counts, 'r2_foldchange': r2_f, 'r2_enr': r2_enr, 'pearson_foldchange': r_f}
+    return {'r2_counts': r2_counts,
+            'r2_foldchange': r2_f, 'r2_enr': r2_enr,
+            'r2_fc': r_f ** 2,
+            'pearson_foldchange': r_f}
 
-def kmer_enrichment(model, train, k=8, base_round=0, enr_round=-1, pseudo_count=1):
+def kmer_enrichment(model, train, k=None, base_round=0, enr_round=-1, pseudo_count=1):
     # getting the targets and predictions from the model
     seqs, targets, pred = mb.tl.test_network(model, train, next(model.parameters()).device)
 
-    target_kmers = mb.tl.seqs2kmers(seqs, k=k, counts=targets)
-    target_labels = ["t" + str(i) for i in range(train.dataset.n_rounds + 1)]
-    target_kmers[target_labels] = np.stack(target_kmers["counts"].to_numpy())
+    counts = None
+    target_labels = ["t" + str(i) for i in range(max(train.dataset.n_rounds))]
+    pred_labels = ["p" + str(i) for i in range(max(train.dataset.n_rounds))]
 
-    pred_kmers = mb.tl.seqs2kmers(seqs, k=k, counts=pred)
-    pred_labels = ["p" + str(i) for i in range(train.dataset.n_rounds + 1)]
-    pred_kmers[pred_labels] = np.stack(pred_kmers["counts"].to_numpy())
+    if k is not None:
+        target_kmers = mb.tl.seqs2kmers(seqs, k=k, counts=targets)
+        # print(target_kmers.shape)
+        # print(target_kmers.head())
+        # print(np.stack(target_kmers["counts"].to_numpy()))
 
-    counts = (
-        target_kmers[target_labels]
-        .merge(pred_kmers[pred_labels], left_index=True, right_index=True, how="outer")
-        .fillna(0)
-    )
+        target_kmers[target_labels] = np.stack(target_kmers["counts"].to_numpy())
+        pred_kmers = mb.tl.seqs2kmers(seqs, k=k, counts=pred)
+        pred_kmers[pred_labels] = np.stack(pred_kmers["counts"].to_numpy())
+
+        counts = (
+            target_kmers[target_labels]
+            .merge(pred_kmers[pred_labels], left_index=True, right_index=True, how="outer")
+            .fillna(0)
+        )
+    else:
+        t = pd.DataFrame(targets, index = seqs,
+                         columns=target_labels)
+        p = pd.DataFrame(pred, index = seqs,
+                         columns=pred_labels)
+        for i in range(max(train.dataset.n_rounds)):
+
+            print(train.dataset.n_rounds - 1)
+            p['p' + str(i)] = np.where(~(train.dataset.n_rounds - 1 < i), p['p' + str(i)], np.nan)
+            t['t' + str(i)] = np.where(~(train.dataset.n_rounds - 1 < i), t['t' + str(i)], np.nan)
+        counts = pd.concat([t, p], axis=1)
+        # print(counts)
+        # assert False
+
+        if train.dataset.batch is not None:
+            counts['batch'] = train.dataset.batch
+        counts['n_rounds'] = train.dataset.n_rounds
+
 
     if model.datatype == 'selex':
         if enr_round == -1:
-            enr_round = train.dataset.n_rounds
+            enr_round = max(train.dataset.n_rounds) - 1
+
+        # print(counts.head())
+        # print(enr_round)
+        # print(pred_labels[enr_round])
+
         counts["enr_pred"] = (pseudo_count + counts[pred_labels[enr_round]]) / (pseudo_count + counts[pred_labels[base_round]])
         counts["enr_obs"] = (pseudo_count + counts[target_labels[enr_round]]) / (pseudo_count + counts[target_labels[base_round]])
         counts["f_pred"] = (1 / (enr_round - base_round)) * np.log10(counts["enr_pred"])
