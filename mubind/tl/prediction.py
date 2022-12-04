@@ -186,7 +186,7 @@ def train_network(
                 # print(outputs[mask])
 
                 # print(model.activities.log_activities[0])
-                print(outputs.shape, rounds.shape)
+                # print(outputs.shape, rounds.shape)
                 loss = criterion(outputs[mask], rounds[mask]) + dir_weight
                 # print(loss)
 
@@ -884,9 +884,14 @@ def scores(model, train, **kwargs):
 
     r2_counts = sklearn.metrics.r2_score(targets.to_numpy()[~mask], pred.to_numpy()[~mask])
 
-    print(counts)
+    # print(counts)
     r2_enr = sklearn.metrics.r2_score(counts["enr_obs"], counts["enr_pred"])
-    r2_f = sklearn.metrics.r2_score(counts["f_obs"], counts["f_pred"])
+
+
+    try:
+        r2_f = sklearn.metrics.r2_score(counts["f_obs"], counts["f_pred"])
+    except:
+        r2_f = np.nan
 
     try:
         r_f = scipy.stats.pearsonr(counts["f_obs"], counts["f_pred"])[0]
