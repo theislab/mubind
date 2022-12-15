@@ -44,9 +44,6 @@ def conv_mono(model, figsize=None, flip=False, log=True):
     if figsize is not None:
         plt.figure(figsize=figsize)
     for i in range(n_cols):
-        weights = model.get_kernel_weights(i)
-        if weights is None:
-            continue
         ax = plt.subplot(1, n_cols - 1, i)
         weights = weights.squeeze().cpu().detach().numpy()
         weights = pd.DataFrame(weights)
@@ -63,16 +60,18 @@ def conv_mono(model, figsize=None, flip=False, log=True):
     plt.show()
 
 
-def conv_di(model, figsize=None):
-    n_cols = len(model.conv_mono)
+def conv_di(model, figsize=None, mode='complex'): # modes include simple/complex/triangle
+    n_cols = len(model.binding_modes)
     if figsize is not None:
         plt.figure(figsize=figsize)
-    for i, m in enumerate(model.conv_di):
+    print('here... ', n_cols)
+
+    for i, m in enumerate(model.binding_modes.conv_di):
         # print(i, m)
-        ax = plt.subplot(1, n_cols, i + 1)
-        if m is None:
+        weights = model.get_kernel_weights(i, dinucleotide=True)
+        if weights is None:
             continue
-        weights = m.weight
+        ax = plt.subplot(1, n_cols - 1, i)
         weights = weights.squeeze().cpu().detach().numpy()
         weights = pd.DataFrame(weights)
         weights.index = (
@@ -93,7 +92,41 @@ def conv_di(model, figsize=None):
             "TG",
             "TT",
         )
-        sns.heatmap(weights, cmap="coolwarm", center=0, ax=ax)
+
+        if mode == 'complex':
+            df = []
+            for c in weights:
+                a = weights.index.str[0]
+                b = weights.index.str[1]
+                df2 = pd.DataFrame()
+                df2['a'] = a
+                df2['b'] = b
+                df2['weights'] = weights[c].values
+                df2['pos'] = c
+                # df.append(df2)
+                df.append(df2.pivot('a', 'b', 'weights'))
+
+            m = pd.concat(df, axis=1)
+
+            sns.heatmap(m, xticklabels=True, cmap="coolwarm", center=0)
+            plt.yticks(rotation=0, fontsize=5);
+            plt.xticks(rotation=45, ha='center', fontsize=5);
+
+        elif mode == 'triangle':
+            df = []
+            for c in weights:
+                a = weights.index.str[0]
+                b = weights.index.str[1]
+                df2 = pd.DataFrame()
+                df2['a'] = a + str(c)
+                df2['b'] = b + str(c)
+                df2['weights'] = weights[c].values
+                df2['pos'] = c
+                df.append(df2.pivot('a', 'b', 'weights'))
+            sns.heatmap(pd.concat(df), cmap='coolwarm', center=0)
+        else:
+            sns.heatmap(weights, cmap="coolwarm", center=0, ax=ax)
+
     plt.show()
 
 
