@@ -42,7 +42,7 @@ def mono2dinuc(mono):
     return dinuc
 
 
-dict_dna = " ACGT"
+dict_dna = "ACGT"
 dict_prot = "ACDEFGHIKLMNPQRSTVWY"
 
 
