@@ -5,7 +5,7 @@ import torch.optim as topti
 import torch.utils.data as tdata
 
 
-def test_simdata_train():
+def test_dataset_index_int():
     import warnings
 
     warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -26,17 +26,29 @@ def test_simdata_train():
         }
     )
     data.index = x2
-    # divide in train and test data -- copied from above, organize differently!
-    train_dataframe = data.copy()
-    # data.shape[0]
-    train_dataframe = train_dataframe  # .sample(n=n_sample)
-    # create datasets and dataloaders
-    n_rounds = train_dataframe.shape[1]
-    train_data = mb.datasets.SelexDataset(train_dataframe, single_encoding_step=False, n_rounds=n_rounds)
-    train_loader = tdata.DataLoader(dataset=train_data, batch_size=256, shuffle=True)
-    model = mb.models.Multibind('selex', n_rounds=n_rounds, kernels=[0, 12]).to(device)
-    optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.01)
-    criterion = mb.tl.PoissonLoss()
-    l2 = mb.tl.train_network(model, train_loader, device, optimiser, criterion, num_epochs=10, log_each=1)
+    n_rounds = data.shape[1]
 
-    # mb.pl.conv_mono(model)
+    train_data = mb.datasets.SelexDataset(data, single_encoding_step=False, n_rounds=n_rounds, index_type=int)
+    train_loader = tdata.DataLoader(dataset=train_data, batch_size=256, shuffle=True)
+
+    return train_loader
+
+
+def test_seq_conversion():
+    import warnings
+
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    import mubind as mb
+
+    # Use a GPU if available, as it should be faster.
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    print("Using device: " + str(device))
+
+    motif = "AGGAACCTA"
+    x2, _ = mb.datasets.simulate_xy(motif, n_trials=1000, seqlen=30, max_mismatches=2)
+
+    ints = list(map(mb.tl.encoding.string2bin, x2))
+    strs = list(map(mb.tl.encoding.bin2string, ints))
+
+    assert (x2 == strs).all()
+
