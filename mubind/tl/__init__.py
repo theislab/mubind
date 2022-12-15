@@ -20,9 +20,9 @@ from mubind.tl.prediction import (  # SelexDataset,; ChipSeqDataset,; create_dat
     create_multi_data,
     create_simulated_data,
     test_network,
-    train_iterative,
+    optimize_iterative,
     train_modified_kernel,
-    train_network,
+    optimize_simple,
     kmer_enrichment,
     scores,
     predict

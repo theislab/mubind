@@ -23,19 +23,10 @@ class ModelTests(unittest.TestCase):
         n_rounds = len(data.columns) - 2
 
         labels = list(data.columns[:n_rounds])
-        # print(data.shape)
-        # print(data.head())
-        # print(n_rounds)
-        # print(data.columns)
-        # print(labels)
-        # assert False
-        print(len(labels))
-        print(n_rounds)
-
         dataset = mb.datasets.SelexDataset(data, n_rounds=n_rounds, labels=labels)
         cls.train = tdata.DataLoader(dataset=dataset, batch_size=256, shuffle=True)
 
-        cls.model, _ = mb.tl.train_iterative(cls.train, device, num_epochs=cls.N_EPOCHS, show_logo=False,
+        cls.model, _ = mb.tl.optimize_iterative(cls.train, device, num_epochs=cls.N_EPOCHS, show_logo=False,
                                                     early_stopping=early_stopping, log_each=50,
                                                     verbose=0)
 

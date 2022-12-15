@@ -44,5 +44,5 @@ def test_simdata_train():
     optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.01)
     criterion = mb.tl.PoissonLoss()
 
-    l2 = mb.tl.train_network(model, train_loader, device, optimiser, criterion, num_epochs=10, log_each=1)
+    l2 = mb.tl.optimize_simple(model, train_loader, device, optimiser, criterion, num_epochs=10, log_each=1)
     # mb.pl.conv_mono(model)
