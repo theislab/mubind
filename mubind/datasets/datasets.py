@@ -14,13 +14,14 @@ import pandas as pd
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
     def __init__(self, df, n_rounds=None, enr_series=True, single_encoding_step=False, store_rev=False,
-                 labels=None):
+                 labels=None, index_type=str):
 
         assert n_rounds is not None
         self.n_rounds = n_rounds if not isinstance(n_rounds, int) else np.repeat(n_rounds, df.shape[0])
         self.enr_series = enr_series
         self.store_rev = store_rev
         self.length = len(df)
+        self.index_type = index_type
 
         # df = df.reset_index(drop=True)
 
@@ -45,7 +46,7 @@ class SelexDataset(tdata.Dataset):
             del df['batch']
 
         seq = df["seq"] if "seq" in df else df.index
-        self.seq = np.array(seq)
+        self.seq = np.array(list(map(mb.tl.encoding.string2bin, seq)) if self.index_type == int else seq)
 
         # countsum ignoring -1 and nan
         self.countsum = np.nansum(np.where(self.rounds == -1, 0, self.rounds), axis=1).astype(np.float32)
@@ -91,13 +92,14 @@ class SelexDataset(tdata.Dataset):
 
 # Class for reading training/testing PBM dataset files.
 class PBMDataset(tdata.Dataset):
-    def __init__(self, df, single_encoding_step=False, store_rev=False, labels=None):
+    def __init__(self, df, single_encoding_step=False, store_rev=False, labels=None, index_type=str):
         self.store_rev = store_rev
         self.signal = np.array(df).astype(np.float32) if labels is None else np.array(df[labels]).astype(np.float32)
         self.n_proteins = self.signal.shape[1]
         self.length = self.signal.shape[0] * self.signal.shape[1]
+        self.index_type = index_type
         seq = df["seq"] if "seq" in df else df.index
-        self.seq = np.array(seq)
+        self.seq = np.array(list(map(mb.tl.encoding.string2bin, seq)) if self.index_type == int else seq)
 
         if single_encoding_step:
             assert len(set(seq.str.len())) == 1
