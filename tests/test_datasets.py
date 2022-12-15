@@ -50,5 +50,5 @@ def test_seq_conversion():
     ints = list(map(mb.tl.encoding.string2bin, x2))
     strs = list(map(mb.tl.encoding.bin2string, ints))
 
-    assert x2 == strs
+    assert (x2 == strs).all()
 
