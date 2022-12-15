@@ -7,14 +7,14 @@ import torch.utils.data as tdata
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 
 import mubind as mb
-
+from scipy import sparse
 import pandas as pd
 
 
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
     def __init__(self, df, n_rounds=None, enr_series=True, single_encoding_step=False, store_rev=False,
-                 labels=None, index_type=str):
+                 labels=None, index_type=str, use_sparse=False):
 
         assert n_rounds is not None
         self.n_rounds = n_rounds if not isinstance(n_rounds, int) else np.repeat(n_rounds, df.shape[0])
@@ -28,9 +28,12 @@ class SelexDataset(tdata.Dataset):
         # this only works if the columns are equal to the round names (partly obsolete)
         # labels = [i for i in range(n_rounds + 1)]
         # self.rounds = np.array(df[labels])
-        self.rounds = np.array(df) if labels is None else np.array(df[labels])
-        print(self.rounds.shape)
 
+        self.rounds = np.array(df) if labels is None else np.array(df[labels])
+
+        # this statement has to be done before sparsifing the matrix
+        # countsum ignoring -1 and nan
+        self.countsum = np.nansum(np.where(self.rounds == -1, 0, self.rounds), axis=1).astype(np.float32)
 
         if "batch" not in df.columns:
             df["batch"] = np.repeat(0, df.shape[0])
@@ -42,14 +45,15 @@ class SelexDataset(tdata.Dataset):
         self.batch = np.array(df["batch"])
         self.n_batches = len(set(df["batch"]))
 
+        if use_sparse:
+            self.rounds = sparse.csr_matrix(self.rounds)
+
         if "batch" in df.columns:
             del df['batch']
 
         seq = df["seq"] if "seq" in df else df.index
         self.seq = np.array(list(map(mb.tl.encoding.string2bin, seq)) if self.index_type == int else seq)
 
-        # countsum ignoring -1 and nan
-        self.countsum = np.nansum(np.where(self.rounds == -1, 0, self.rounds), axis=1).astype(np.float32)
 
         if single_encoding_step:
             assert len(set(seq.str.len())) == 1
