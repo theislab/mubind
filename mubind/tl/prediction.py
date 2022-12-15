@@ -86,7 +86,7 @@ def test_network(model, dataloader, device):
 
 # if early_stopping is positive, training is stopped if over the length of early_stopping no improvement happened or
 # num_epochs is reached.
-def train_network(
+def optimize_simple(
     model,
     train_dataloader,
     device,
@@ -175,42 +175,15 @@ def train_network(
                 for i in range(mask.shape[1]):
                     mask[:, i] = ~(n_rounds - 1 < i)
 
-                # print('mask')
-                # print(mask)
-                # print('')
-                # print(outputs[mask].shape)
-                # print(rounds[mask].shape)
-                # # print(n_rounds)
-
-                # print(rounds[mask])
-                # print(outputs[mask])
-
-                # print(model.activities.log_activities[0])
-                # print(outputs.shape, rounds.shape)
                 loss = criterion(outputs[mask], rounds[mask]) + dir_weight
-                # print(loss)
 
                 # loss = criterion(outputs, rounds) + 0.01*reconstruction_crit(reconstruction, residues) + dir_weight
 
                 if exp_max >= 0:
                     loss += model.exp_barrier(exp_max)
-
-                # print(loss)
-                # print('backward')
                 loss.backward()  # Calculate gradients.
-                # print(model.activities.log_activities[0])
-                # print('step')
                 optimiser.step()
-                # print(model.activities.log_activities[0])
-                # assert False
                 outputs = model(**inputs)  # Forward pass through the network.
-
-
-                # print(outputs)
-
-                # assert False
-
-
             else:
 
                 def closure():
@@ -285,8 +258,7 @@ def train_network(
     model.loss_history += loss_history
     model.r2_history += r2_history
 
-
-def train_iterative(
+def optimize_iterative(
     train,
     device,
     n_kernels=4,
@@ -320,8 +292,15 @@ def train_iterative(
 ):
     # color for visualization of history
     colors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#ffff33", "#a65628"]
-    if verbose != 0:
-        print("next w", w, type(w))
+
+    # verbose print declaration
+    if verbose:
+        def vprint(*args, **kwargs):
+            print(*args, **kwargs)
+    else:
+        vprint = lambda *a, **k: None  # do-nothing function
+
+    vprint("next w", w, type(w))
 
     if isinstance(train.dataset, mb.datasets.SelexDataset):
         if criterion is None:
@@ -331,12 +310,12 @@ def train_iterative(
         n_batches = train.dataset.n_batches
         enr_series = train.dataset.enr_series
 
-        if verbose != 0:
-            print("# rounds", n_rounds)
-            print("# batches", n_batches)
-            print("# kernels", n_kernels)
-            print("# initial w", w)
-            print("# enr_series", enr_series)
+        vprint("# rounds", n_rounds)
+        vprint("# batches", n_batches)
+        vprint("# kernels", n_kernels)
+        vprint("# initial w", w)
+        vprint("# enr_series", enr_series)
+
         model = mb.models.Multibind(
             datatype="selex",
             kernels=[0] + [w] * (n_kernels - 1),
@@ -353,8 +332,7 @@ def train_iterative(
             n_proteins = train.dataset.n_proteins
         else:
             n_proteins = train.dataset.n_cells
-        if verbose != 0:
-            print("# proteins", n_proteins)
+        vprint("# proteins", n_proteins)
 
         if joint_learning or n_proteins == 1:
             model = mb.models.Multibind(
@@ -385,6 +363,7 @@ def train_iterative(
     else:
         assert False  # not implemented yet
 
+
     # this sets up the seed at the first position
     if seed is not None:
         # this sets up the seed at the first position
@@ -396,9 +375,8 @@ def train_iterative(
 
     # step 1) freeze everything before the current binding mode
     for i in range(0, n_kernels):
-        if verbose != 0:
-            print("\nKernel to optimize %i" % i)
-            print("\nFREEZING KERNELS")
+        vprint("\nKernel to optimize %i" % i)
+        vprint("\nFREEZING KERNELS")
         for ki in range(n_kernels):
             if verbose != 0:
                 print("setting grad status of kernel at %i to %i" % (ki, ki == i))
@@ -406,8 +384,7 @@ def train_iterative(
         print("\n")
 
         if show_logo:
-            if verbose != 0:
-                print("before kernel optimization.")
+            vprint("before kernel optimization.")
             mb.pl.plot_activities(model, train)
             mb.pl.conv_mono(model)
             mb.pl.conv_mono(model, flip=True, log=False)
@@ -430,7 +407,7 @@ def train_iterative(
             print("kernels mask", model.get_ignore_kernel())
 
         # assert False
-        train_network(
+        optimize_simple(
             model,
             train,
             device,
@@ -444,7 +421,6 @@ def train_iterative(
             verbose=verbose,
         )
 
-        # print('next color', colors[i])
         model.loss_color += list(np.repeat(colors[i], len(model.loss_history) - len(model.loss_color)))
         # probably here load the state of the best epoch and save
         model.load_state_dict(model.best_model_state)
@@ -464,140 +440,33 @@ def train_iterative(
         #######
         # optimize the flanks through +1/-1 shifts
         #######
-        n_attempts = 0
-
         if (opt_kernel_shift or opt_kernel_length) and i != 0:
-
-            opt_expand_left = range(1, expand_length_max, expand_length_step)
-            opt_expand_right = range(1, expand_length_max, expand_length_step)
-            opt_shift = [0] + list(range(-shift_max, shift_max + 1, shift_step))
-
-            for opt_option_text, opt_option_next in zip(
-                ["FLANKS", "SHIFT"], [[opt_expand_left, opt_expand_right, [0]], [[0], [0], opt_shift]]
-            ):
-
-                # print(opt_option_text, opt_option_next)
-                # assert False
-
-                next_loss = None
-                while next_loss is None or next_loss < best_loss:
-                    n_attempts += 1
-
-                    curr_w = model.get_kernel_width(i)
-                    if curr_w >= max_w:
-                        print("stop. Reached maximum w...")
-                        break
-
-                    if verbose != 0:
-                        print(
-                            "\nFILTER SHIFT OPTIMIZATION (%s)..." % ("first" if next_loss is None else "again"),
-                            end="",
-                        )
-                        print("")
-                    model = copy.deepcopy(model)
-                    best_loss = model.best_loss
-                    next_color = colors[-(1 if n_attempts % 2 == 0 else -2)]
-
-                    all_options = []
-
-                    options = [
-                        [expand_left, expand_right, shift]
-                        for expand_left in opt_option_next[0]
-                        for expand_right in opt_option_next[1]
-                        for shift in opt_option_next[2]
-                    ]
-
-                    # print(options)
-
-                    for expand_left, expand_right, shift in options:
-
-                        if abs(expand_left) + abs(expand_right) + abs(shift) == 0:
-                            continue
-                        if abs(shift) > 0:  # skip shift for now.
-                            continue
-                        if curr_w + expand_left + expand_right > max_w:
-                            continue
-
-                        # print(expand_left, expand_right, shift)
-                        # assert False
-
-                        if verbose != 0:
-                            print(
-                                "next expand left: %i, next expand right: %i, shift: %i"
-                                % (expand_left, expand_right, shift)
-                            )
-
-                        model_shift = copy.deepcopy(model)
-                        model_shift.loss_history = []
-                        model_shift.r2_history = []
-                        model_shift.loss_color = []
-
-                        mb.tl.train_modified_kernel(
-                            model_shift,
-                            train,
-                            kernel_i=i,
-                            shift=shift,
-                            expand_left=expand_left,
-                            expand_right=expand_right,
-                            device=device,
-                            num_epochs=num_epochs,
-                            early_stopping=next_early_stopping,
-                            log_each=log_each,
-                            update_grad_i=i,
-                            lr=next_lr,
-                            weight_decay=next_weight_decay,
-                            optimiser=optimiser,
-                            criterion=criterion,
-                            dirichlet_regularization=dirichlet_regularization,
-                            exp_max=exp_max,
-                            verbose=verbose,
-                            **kwargs,
-                        )
-                        model_shift.loss_color += list(np.repeat(next_color, len(model_shift.loss_history)))
-                        # print('history left', len(model_left.loss_history))
-                        all_options.append([expand_left, expand_right, shift, model_shift, model_shift.best_loss])
-                        # print('\n')
-
-                        if verbose != 0:
-                            print("after opt.")
-                            if show_logo:
-                                mb.pl.conv_mono(model_shift)
-
-                    # for shift, model_shift, loss in all_shifts:
-                    #     print('shift=%i' % shift, 'loss=%.4f' % loss)
-                    best = sorted(
-                        all_options + [[0, 0, 0, model, best_loss]],
-                        key=lambda x: x[-1],
-                    )
-                    if verbose != 0:
-                        print("sorted")
-                    best_df = pd.DataFrame(
-                        [
-                            [expand_left, expand_right, shift, loss]
-                            for expand_left, expand_right, shift, model_shift, loss in best
-                        ],
-                        columns=["expand.left", "expand.right", "shift", "loss"],
-                    )
-                    if verbose != 0:
-                        print(best_df.sort_values("loss"))
-                    # for shift, model_shift, loss in best:
-                    #     print('shift=%i' % shift, 'loss=%.4f' % loss)
-
-                    # print('\n history len')
-                    next_expand_left, next_expand_right, next_position, next_model, next_loss = best[0]
-                    if verbose != 0:
-                        print("action: %s\n" % str((next_expand_left, next_expand_right, next_position)))
-
-                    if next_position != 0:
-                        next_model.loss_history = model.loss_history + next_model.loss_history
-                        next_model.r2_history = model.r2_history + next_model.r2_history
-                        next_model.loss_color = model.loss_color + next_model.loss_color
-
-                    model = copy.deepcopy(next_model)
+            model = optimize_width_and_length(train,
+                                              model,
+                                              device,
+                                              expand_length_max,
+                                              expand_length_step,
+                                              shift_max,
+                                              shift_step,
+                                              i,
+                                              colors=colors,
+                                              verbose=verbose,
+                                              lr=next_lr,
+                                              weight_decay=next_weight_decay,
+                                              optimiser=optimiser,
+                                              log_each=log_each,
+                                              exp_max=exp_max,
+                                              dirichlet_regularization=dirichlet_regularization,
+                                              early_stopping=next_early_stopping, criterion=criterion,
+                                              show_logo=show_logo,
+                                              n_kernels=n_kernels,
+                                              w=w,
+                                              max_w=max_w,
+                                              num_epochs=num_epochs,
+                                              **kwargs)
 
         if show_logo:
-            if verbose != 0:
-                print("after shift optimz model")
+            vprint("after shift optimz model")
             mb.pl.plot_activities(model, train)
             mb.pl.conv_mono(model)
             mb.pl.conv_mono(model, flip=True, log=False)
@@ -608,31 +477,29 @@ def train_iterative(
         if i == 0:
             continue
 
-        if verbose != 0:
-            print("\n\nfinal refinement step (after shift)...")
-            print("\nunfreezing all layers for final refinement")
+        vprint("\n\nfinal refinement step (after shift)...")
+        vprint("\nunfreezing all layers for final refinement")
 
         for ki in range(n_kernels):
-            if verbose != 0:
-                print("kernel grad (%i) = %i \n" % (ki, True), sep=", ", end="")
+            vprint("kernel grad (%i) = %i \n" % (ki, True), sep=", ", end="")
             model.update_grad(ki, ki == i)
-        if verbose != 0:
-            print("")
+        vprint("")
 
+        # define the optimizer for final refinement of the model
         next_optimiser = (
             topti.Adam(model.parameters(), lr=next_lr, weight_decay=next_weight_decay)
             if optimiser is None
             else optimiser(model.parameters(), lr=next_lr)
         )
-
         # mask kernels to avoid using weights from further steps into early ones.
         if ignore_kernel:
             model.set_ignore_kernel(np.array([0 for i in range(i + 1)] + [1 for i in range(i + 1, n_kernels)]))
-        if verbose != 0:
-            print("kernels mask", model.get_ignore_kernel())
-            print("kernels mask", model.get_ignore_kernel())
-        # assert False
-        train_network(
+
+        vprint("kernels mask", model.get_ignore_kernel())
+        vprint("kernels mask", model.get_ignore_kernel())
+
+        # final refinement of weights
+        optimize_simple(
             model,
             train,
             device,
@@ -653,22 +520,141 @@ def train_iterative(
             break
 
         if show_logo:
-            print("\n##final motif signal (after final refinement)")
+            vprint("\n##final motif signal (after final refinement)")
             mb.pl.plot_activities(model, train)
             mb.pl.conv_mono(model)
             mb.pl.conv_mono(model, flip=True, log=False)
-            # mb.pl.plot_loss(model)
 
-        print('best loss', model.best_loss)
-        # if i == 1:
-        #     assert False
-
-    # r = [k_parms, w, n_feat, l_best]
-    # # print(r)
-    # res.append(r)
+        vprint('best loss', model.best_loss)
 
     return model, model.best_loss
 
+def optimize_width_and_length(train, model, device, expand_length_max, expand_length_step, shift_max, shift_step, i,
+                           colors=None, verbose=False, lr=0.01, weight_decay=0.001, optimiser=None, log_each=10, exp_max=40,
+                           dirichlet_regularization=0, early_stopping=15, criterion=None, show_logo=False,
+                           n_kernels=4, w=15, max_w=20, num_epochs=100, **kwargs):
+    """
+    A variation of the main optimization routine that attempts expanding the kernel of the model at position i, and refines
+    the weights and loss in order to find a better convergence.
+    """
+
+    # verbose print declaration
+    if verbose:
+        def vprint(*args, **kwargs):
+            print(*args, **kwargs)
+    else:
+        vprint = lambda *a, **k: None  # do-nothing function
+
+    n_attempts = 0  # to keep a log of overall attempts
+    opt_expand_left = range(1, expand_length_max, expand_length_step)
+    opt_expand_right = range(1, expand_length_max, expand_length_step)
+    opt_shift = [0] + list(range(-shift_max, shift_max + 1, shift_step))
+    for opt_option_text, opt_option_next in zip(
+        ["FLANKS", "SHIFT"], [[opt_expand_left, opt_expand_right, [0]], [[0], [0], opt_shift]]
+    ):
+        next_loss = None
+        while next_loss is None or next_loss < best_loss:
+            n_attempts += 1
+
+            curr_w = model.get_kernel_width(i)
+            if curr_w >= max_w:
+                print("stop. Reached maximum w...")
+                break
+
+            vprint("\nFILTER SHIFT OPTIMIZATION (%s)..." % ("first" if next_loss is None else "again"), end="")
+            vprint("")
+
+            model = copy.deepcopy(model)
+            best_loss = model.best_loss
+            next_color = colors[-(1 if n_attempts % 2 == 0 else -2)]
+
+            all_options = []
+
+            options = [
+                [expand_left, expand_right, shift]
+                for expand_left in opt_option_next[0]
+                for expand_right in opt_option_next[1]
+                for shift in opt_option_next[2]
+            ]
+
+            for expand_left, expand_right, shift in options:
+
+                if abs(expand_left) + abs(expand_right) + abs(shift) == 0:
+                    continue
+                if abs(shift) > 0:  # skip shift for now.
+                    continue
+                if curr_w + expand_left + expand_right > max_w:
+                    continue
+
+                # print(expand_left, expand_right, shift)
+                # assert False
+
+                vprint("next expand left: %i, next expand right: %i, shift: %i"
+                       % (expand_left, expand_right, shift))
+
+                model_shift = copy.deepcopy(model)
+                model_shift.loss_history = []
+                model_shift.r2_history = []
+                model_shift.loss_color = []
+
+                mb.tl.train_modified_kernel(
+                    model_shift,
+                    train,
+                    kernel_i=i,
+                    shift=shift,
+                    expand_left=expand_left,
+                    expand_right=expand_right,
+                    device=device,
+                    num_epochs=num_epochs,
+                    early_stopping=early_stopping,
+                    log_each=log_each,
+                    update_grad_i=i,
+                    lr=lr,
+                    weight_decay=weight_decay,
+                    optimiser=optimiser,
+                    criterion=criterion,
+                    dirichlet_regularization=dirichlet_regularization,
+                    exp_max=exp_max,
+                    verbose=verbose,
+                    **kwargs,
+                )
+                model_shift.loss_color += list(np.repeat(next_color, len(model_shift.loss_history)))
+                # print('history left', len(model_left.loss_history))
+                all_options.append([expand_left, expand_right, shift, model_shift, model_shift.best_loss])
+                # print('\n')
+
+                vprint("after opt.")
+                if show_logo:
+                    mb.pl.conv_mono(model_shift)
+
+            # for shift, model_shift, loss in all_shifts:
+            #     print('shift=%i' % shift, 'loss=%.4f' % loss)
+            best = sorted(
+                all_options + [[0, 0, 0, model, best_loss]],
+                key=lambda x: x[-1],
+            )
+            if verbose != 0:
+                print("sorted")
+            best_df = pd.DataFrame(
+                [
+                    [expand_left, expand_right, shift, loss]
+                    for expand_left, expand_right, shift, model_shift, loss in best
+                ],
+                columns=["expand.left", "expand.right", "shift", "loss"],
+            )
+            vprint(best_df.sort_values("loss"))
+            # print('\n history len')
+            next_expand_left, next_expand_right, next_position, next_model, next_loss = best[0]
+            if verbose != 0:
+                print("action: %s\n" % str((next_expand_left, next_expand_right, next_position)))
+
+            if next_position != 0:
+                next_model.loss_history = model.loss_history + next_model.loss_history
+                next_model.r2_history = model.r2_history + next_model.r2_history
+                next_model.loss_color = model.loss_color + next_model.loss_color
+
+            model = copy.deepcopy(next_model)
+    return model
 
 def train_modified_kernel(
     model,
@@ -709,7 +695,7 @@ def train_modified_kernel(
     if criterion is None:
         criterion = mb.tl.PoissonLoss()
 
-    train_network(
+    optimize_simple(
         model,
         train,
         device,
