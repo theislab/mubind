@@ -287,6 +287,8 @@ def optimize_iterative(
     exp_max=40,
     shift_max=3,
     shift_step=2,
+    use_mono=False,
+    use_dinuc=False,
     r2_per_epoch=False,
     **kwargs,
 ):
@@ -310,7 +312,7 @@ def optimize_iterative(
         n_batches = train.dataset.n_batches
         enr_series = train.dataset.enr_series
 
-        vprint("# rounds", n_rounds)
+        vprint("# rounds", set(n_rounds))
         vprint("# batches", n_batches)
         vprint("# kernels", n_kernels)
         vprint("# initial w", w)
@@ -377,161 +379,198 @@ def optimize_iterative(
     for i in range(0, n_kernels):
         vprint("\nKernel to optimize %i" % i)
         vprint("\nFREEZING KERNELS")
-        for ki in range(n_kernels):
+
+        for feat_i in ['mono', 'dinuc']:
+
+            vprint('optimizing feature type', feat_i)
+            if i != 0:
+                if feat_i == 'dinuc' and not use_dinuc:
+                    vprint('the optimization of dinucleotide features is skipped...')
+                    continue
+                elif feat_i == 'mono' and not use_mono:
+                    vprint('the optimization of mononucleotide features is skipped...')
+                    continue
+
+
+            # block kernels that we do not require to optimize
+            for ki in range(n_kernels):
+                mask_mono = (ki == i) and (feat_i == 'mono')
+                mask_dinuc = (ki == i) and (feat_i == 'dinuc')
+                if verbose != 0:
+                    print("setting grad status of kernel mono at %i to %i" % (ki, mask_mono))
+                    print("setting grad status of kernel dinuc at %i to %i" % (ki, mask_dinuc))
+
+                model.binding_modes.update_grad_mono(ki, mask_mono)
+                model.binding_modes.update_grad_di(ki, mask_dinuc)
+
+            print("\n")
+
+            if show_logo:
+                vprint("before kernel optimization.")
+                mb.pl.plot_activities(model, train)
+                mb.pl.conv_mono(model)
+                # mb.pl.conv_mono(model, flip=False, log=False)
+                mb.pl.conv_di(model_shift, mode='triangle')
+
+            next_lr = lr if not isinstance(lr, list) else lr[i]
+            next_weight_decay = weight_decay if not isinstance(weight_decay, list) else weight_decay[i]
+            next_early_stopping = early_stopping if not isinstance(early_stopping, list) else early_stopping[i]
+
+            next_optimiser = (
+                topti.Adam(model.parameters(), lr=next_lr, weight_decay=next_weight_decay)
+                if optimiser is None
+                else optimiser(model.parameters(), lr=next_lr)
+            )
+
+            # mask kernels to avoid using weights from further steps into early ones.
+            if ignore_kernel:
+
+                model.set_ignore_kernel(np.array([0 for i in range(i + 1)] + [1 for i in range(i + 1, n_kernels)]))
+
             if verbose != 0:
-                print("setting grad status of kernel at %i to %i" % (ki, ki == i))
-            model.update_grad(ki, ki == i)
-        print("\n")
+                print("kernels mask", model.get_ignore_kernel())
 
-        if show_logo:
-            vprint("before kernel optimization.")
-            mb.pl.plot_activities(model, train)
-            mb.pl.conv_mono(model)
-            mb.pl.conv_mono(model, flip=True, log=False)
+            # assert False
+            optimize_simple(
+                model,
+                train,
+                device,
+                next_optimiser,
+                criterion,
+                num_epochs=num_epochs,
+                early_stopping=next_early_stopping,
+                log_each=log_each,
+                dirichlet_regularization=dirichlet_regularization,
+                exp_max=exp_max,
+                verbose=verbose,
+            )
 
-        next_lr = lr if not isinstance(lr, list) else lr[i]
-        next_weight_decay = weight_decay if not isinstance(weight_decay, list) else weight_decay[i]
-        next_early_stopping = early_stopping if not isinstance(early_stopping, list) else early_stopping[i]
+            vprint('grad')
+            vprint(model.binding_modes.conv_mono[1].weight.grad)
+            vprint(model.binding_modes.conv_di[1].weight.grad)
+            vprint('')
 
-        next_optimiser = (
-            topti.Adam(model.parameters(), lr=next_lr, weight_decay=next_weight_decay)
-            if optimiser is None
-            else optimiser(model.parameters(), lr=next_lr)
-        )
 
-        # mask kernels to avoid using weights from further steps into early ones.
-        if ignore_kernel:
-            model.set_ignore_kernel(np.array([0 for i in range(i + 1)] + [1 for i in range(i + 1, n_kernels)]))
+            model.loss_color += list(np.repeat(colors[i], len(model.loss_history) - len(model.loss_color)))
+            # probably here load the state of the best epoch and save
+            model.load_state_dict(model.best_model_state)
+            # store model parameters and fit for later visualization
+            model = copy.deepcopy(model)
+            # optimizer for left / right flanks
+            best_loss = model.best_loss
 
-        if verbose != 0:
-            print("kernels mask", model.get_ignore_kernel())
+            if show_logo:
+                print("\n##After kernel opt / before shift optim.")
+                mb.pl.plot_activities(model, train)
+                mb.pl.conv_mono(model)
+                # mb.pl.conv_mono(model, flip=True, log=False)
+                mb.pl.conv_di(model, mode='triangle')
+                mb.pl.plot_loss(model)
 
-        # assert False
-        optimize_simple(
-            model,
-            train,
-            device,
-            next_optimiser,
-            criterion,
-            num_epochs=num_epochs,
-            early_stopping=next_early_stopping,
-            log_each=log_each,
-            dirichlet_regularization=dirichlet_regularization,
-            exp_max=exp_max,
-            verbose=verbose,
-        )
+            # print(model_by_k[k_parms].loss_color)
+            #######
+            # optimize the flanks through +1/-1 shifts
+            #######
+            if (opt_kernel_shift or opt_kernel_length) and i != 0:
+                model = optimize_width_and_length(train,
+                                                  model,
+                                                  device,
+                                                  expand_length_max,
+                                                  expand_length_step,
+                                                  shift_max,
+                                                  shift_step,
+                                                  i,
+                                                  feat_i=feat_i,
+                                                  colors=colors,
+                                                  verbose=verbose,
+                                                  lr=next_lr,
+                                                  weight_decay=next_weight_decay,
+                                                  optimiser=optimiser,
+                                                  log_each=log_each,
+                                                  exp_max=exp_max,
+                                                  dirichlet_regularization=dirichlet_regularization,
+                                                  early_stopping=next_early_stopping, criterion=criterion,
+                                                  show_logo=show_logo,
+                                                  n_kernels=n_kernels,
+                                                  w=w,
+                                                  max_w=max_w,
+                                                  num_epochs=num_epochs,
+                                                  **kwargs)
 
-        model.loss_color += list(np.repeat(colors[i], len(model.loss_history) - len(model.loss_color)))
-        # probably here load the state of the best epoch and save
-        model.load_state_dict(model.best_model_state)
-        # store model parameters and fit for later visualization
-        model = copy.deepcopy(model)
-        # optimizer for left / right flanks
-        best_loss = model.best_loss
+            if show_logo:
+                vprint("after shift optimz model")
+                mb.pl.plot_activities(model, train)
+                mb.pl.conv_mono(model)
+                # mb.pl.conv_mono(model, log=False)
+                mb.pl.conv_di(model, mode='triangle')
+                mb.pl.plot_loss(model)
+                print("")
 
-        if show_logo:
-            print("\n##After kernel opt / before shift optim.")
-            mb.pl.plot_activities(model, train)
-            mb.pl.conv_mono(model)
-            mb.pl.conv_mono(model, flip=True, log=False)
-            mb.pl.plot_loss(model)
+            # the first kernel does not require an additional fit.
+            if i == 0:
+                continue
 
-        # print(model_by_k[k_parms].loss_color)
-        #######
-        # optimize the flanks through +1/-1 shifts
-        #######
-        if (opt_kernel_shift or opt_kernel_length) and i != 0:
-            model = optimize_width_and_length(train,
-                                              model,
-                                              device,
-                                              expand_length_max,
-                                              expand_length_step,
-                                              shift_max,
-                                              shift_step,
-                                              i,
-                                              colors=colors,
-                                              verbose=verbose,
-                                              lr=next_lr,
-                                              weight_decay=next_weight_decay,
-                                              optimiser=optimiser,
-                                              log_each=log_each,
-                                              exp_max=exp_max,
-                                              dirichlet_regularization=dirichlet_regularization,
-                                              early_stopping=next_early_stopping, criterion=criterion,
-                                              show_logo=show_logo,
-                                              n_kernels=n_kernels,
-                                              w=w,
-                                              max_w=max_w,
-                                              num_epochs=num_epochs,
-                                              **kwargs)
+            vprint("\n\nfinal refinement step (after shift)...")
+            vprint("\nunfreezing all layers for final refinement")
 
-        if show_logo:
-            vprint("after shift optimz model")
-            mb.pl.plot_activities(model, train)
-            mb.pl.conv_mono(model)
-            mb.pl.conv_mono(model, flip=True, log=False)
-            mb.pl.plot_loss(model)
-            print("")
+            for ki in range(n_kernels):
+                vprint("kernel grad (%i) = %i \n" % (ki, True), sep=", ", end="")
+                model.update_grad(ki, ki == i)
+            vprint("")
 
-        # the first kernel does not require an additional fit.
-        if i == 0:
-            continue
+            # define the optimizer for final refinement of the model
+            next_optimiser = (
+                topti.Adam(model.parameters(), lr=next_lr, weight_decay=next_weight_decay)
+                if optimiser is None
+                else optimiser(model.parameters(), lr=next_lr)
+            )
+            # mask kernels to avoid using weights from further steps into early ones.
+            if ignore_kernel:
+                model.set_ignore_kernel(np.array([0 for i in range(i + 1)] + [1 for i in range(i + 1, n_kernels)]))
 
-        vprint("\n\nfinal refinement step (after shift)...")
-        vprint("\nunfreezing all layers for final refinement")
+            vprint("kernels mask", model.get_ignore_kernel())
+            vprint("kernels mask", model.get_ignore_kernel())
 
-        for ki in range(n_kernels):
-            vprint("kernel grad (%i) = %i \n" % (ki, True), sep=", ", end="")
-            model.update_grad(ki, ki == i)
-        vprint("")
+            # final refinement of weights
+            optimize_simple(
+                model,
+                train,
+                device,
+                next_optimiser,
+                criterion,
+                num_epochs=num_epochs,
+                early_stopping=next_early_stopping,
+                log_each=log_each,
+                dirichlet_regularization=dirichlet_regularization,
+                verbose=verbose,
+            )
 
-        # define the optimizer for final refinement of the model
-        next_optimiser = (
-            topti.Adam(model.parameters(), lr=next_lr, weight_decay=next_weight_decay)
-            if optimiser is None
-            else optimiser(model.parameters(), lr=next_lr)
-        )
-        # mask kernels to avoid using weights from further steps into early ones.
-        if ignore_kernel:
-            model.set_ignore_kernel(np.array([0 for i in range(i + 1)] + [1 for i in range(i + 1, n_kernels)]))
+            # load the best model after the final refinement
+            model.loss_color += list(np.repeat(colors[i], len(model.loss_history) - len(model.loss_color)))
+            model.load_state_dict(model.best_model_state)
 
-        vprint("kernels mask", model.get_ignore_kernel())
-        vprint("kernels mask", model.get_ignore_kernel())
+            if stop_at_kernel is not None and stop_at_kernel == i:
+                break
 
-        # final refinement of weights
-        optimize_simple(
-            model,
-            train,
-            device,
-            next_optimiser,
-            criterion,
-            num_epochs=num_epochs,
-            early_stopping=next_early_stopping,
-            log_each=log_each,
-            dirichlet_regularization=dirichlet_regularization,
-            verbose=verbose,
-        )
+            if show_logo:
+                vprint("\n##final motif signal (after final refinement)")
+                mb.pl.plot_activities(model, train)
+                mb.pl.conv_mono(model)
+                mb.pl.conv_di(model, mode='triangle')
+                # mb.pl.conv_mono(model, flip=True, log=False)
 
-        # load the best model after the final refinement
-        model.loss_color += list(np.repeat(colors[i], len(model.loss_history) - len(model.loss_color)))
-        model.load_state_dict(model.best_model_state)
+            vprint('best loss', model.best_loss)
 
-        if stop_at_kernel is not None and stop_at_kernel == i:
-            break
-
-        if show_logo:
-            vprint("\n##final motif signal (after final refinement)")
-            mb.pl.plot_activities(model, train)
-            mb.pl.conv_mono(model)
-            mb.pl.conv_mono(model, flip=True, log=False)
-
-        vprint('best loss', model.best_loss)
+            vprint('grad')
+            vprint(model.binding_modes.conv_mono[1].weight.grad)
+            vprint(model.binding_modes.conv_di[1].weight.grad)
+            vprint('')
 
     return model, model.best_loss
 
 def optimize_width_and_length(train, model, device, expand_length_max, expand_length_step, shift_max, shift_step, i,
                            colors=None, verbose=False, lr=0.01, weight_decay=0.001, optimiser=None, log_each=10, exp_max=40,
-                           dirichlet_regularization=0, early_stopping=15, criterion=None, show_logo=False,
+                           dirichlet_regularization=0, early_stopping=15, criterion=None, show_logo=False, feat_i=None,
                            n_kernels=4, w=15, max_w=20, num_epochs=100, **kwargs):
     """
     A variation of the main optimization routine that attempts expanding the kernel of the model at position i, and refines
@@ -609,6 +648,7 @@ def optimize_width_and_length(train, model, device, expand_length_max, expand_le
                     early_stopping=early_stopping,
                     log_each=log_each,
                     update_grad_i=i,
+                    feat_i=feat_i,
                     lr=lr,
                     weight_decay=weight_decay,
                     optimiser=optimiser,
@@ -626,6 +666,7 @@ def optimize_width_and_length(train, model, device, expand_length_max, expand_le
                 vprint("after opt.")
                 if show_logo:
                     mb.pl.conv_mono(model_shift)
+                    mb.pl.conv_di(model_shift, mode='triangle')
 
             # for shift, model_shift, loss in all_shifts:
             #     print('shift=%i' % shift, 'loss=%.4f' % loss)
@@ -666,7 +707,9 @@ def train_modified_kernel(
     num_epochs=500,
     early_stopping=15,
     log_each=-1,
+    feat_i='mono',
     update_grad_i=None,
+    use_dinuc=False,
     kernel_i=None,
     lr=0.01,
     weight_decay=0.001,
@@ -683,7 +726,8 @@ def train_modified_kernel(
     # requires grad update
     n_kernels = len(model.binding_modes)
     for ki in range(n_kernels):
-        model.update_grad(ki, ki == update_grad_i)
+        model.binding_modes.update_grad_mono(ki, (ki == update_grad_i) and (feat_i == 'mono'))
+        model.binding_modes.update_grad_di(ki, (ki == update_grad_i) and (feat_i == 'dinuc'))
 
     # finally the optimiser has to be initialized again.
     optimiser = (
@@ -918,8 +962,7 @@ def kmer_enrichment(model, train, k=None, base_round=0, enr_round=-1, pseudo_cou
         p = pd.DataFrame(pred, index = seqs,
                          columns=pred_labels)
         for i in range(max(train.dataset.n_rounds)):
-
-            print(train.dataset.n_rounds - 1)
+            # print(train.dataset.n_rounds - 1)
             p['p' + str(i)] = np.where(~(train.dataset.n_rounds - 1 < i), p['p' + str(i)], np.nan)
             t['t' + str(i)] = np.where(~(train.dataset.n_rounds - 1 < i), t['t' + str(i)], np.nan)
         counts = pd.concat([t, p], axis=1)
