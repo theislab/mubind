@@ -469,24 +469,23 @@ class ActivitiesLayer(tnn.Module):
         if batch is None:
             batch = kwargs.get("protein_id", None)
         if batch is None:
-            batch = torch.zeros([binding_per_mode.shape[0]]).to(device=binding_per_mode.device)
-        scores = torch.zeros([binding_per_mode.shape[0], self.target_dim]).to(device=binding_per_mode.device)
+            batch = torch.zeros([binding_per_mode.shape[0]], device=binding_per_mode.device)
+        scores = torch.zeros([binding_per_mode.shape[0], self.target_dim], device=binding_per_mode.device)
         for i in range(self.n_batches):
             a = torch.exp(torch.stack(list(self.log_activities), dim=1)[i, :, :])
+            batch_mask = batch == i
+            b = binding_per_mode[batch_mask]
+
             if self.ignore_kernel is not None:
                 mask = self.ignore_kernel != 1  # == False
-                scores[batch == i] = torch.matmul(binding_per_mode[batch == i][:, mask], a[mask, :])
+                scores[batch_mask] = torch.matmul(b[:, mask], a[mask, :])
             else:
-                scores[batch == i] = torch.matmul(binding_per_mode[batch == i], a)
+                print(scores[batch_mask].shape)
+                print(b.shape, a.shape)
+                # assert False
+                assert false
+                scores[batch_mask] = torch.matmul(b, a)
 
-        # print('log activities')
-        # print(self.log_activities)
-        # print(self.log_activities[0])
-        # print(self.log_activities[1])
-        #
-        # print('')
-        # print('scores after activities')
-        # print(scores)
 
         return scores
 
@@ -525,7 +524,7 @@ class SelexModule(tnn.Module):
     def forward(self, binding_scores, countsum, **kwargs):
         batch = kwargs.get("batch", None)
         if batch is None:
-            batch = torch.zeros([binding_scores.shape[0]]).to(device=binding_scores.device)
+            batch = torch.zeros([binding_scores.shape[0]], device=binding_scores.device)
 
         if self.enr_series:
             predictions_ = [binding_scores[:, 0]]
@@ -535,14 +534,16 @@ class SelexModule(tnn.Module):
         else:
             out = binding_scores
 
-        for i in range(self.n_batches):
-            eta = torch.exp(self.log_etas[i, :])
-            out[batch == i] = out[batch == i] * eta
+        # iterative multiplication
+        # for i in range(self.n_batches):
+        #     eta = torch.exp(self.log_etas[i, :])
+        #     out[batch == i] = out[batch == i] * eta
 
+        # multiplication in one step
+        etas = torch.exp(self.log_etas)
+        out = out * etas[batch, :]
 
         results = out.T / torch.sum(out, dim=1)
-
-
         return (results * countsum).T
 
     def get_log_etas(self):
