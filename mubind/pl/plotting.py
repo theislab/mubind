@@ -32,7 +32,7 @@ def create_logo(net):
     crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5)
 
 
-def conv_mono(model, figsize=None, flip=False, log=True):
+def conv_mono(model, figsize=None, flip=False, log=True, show=True):
 
     activities = np.exp(model.get_log_activities().cpu().detach().numpy())
 
@@ -62,39 +62,12 @@ def conv_mono(model, figsize=None, flip=False, log=True):
 
         crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5, ax=ax)
         plt.title(i)
-    plt.show()
+
+    if show:
+        plt.show()
 
 
-def _heatmap_triangle_horizontal(C, axes):
-    N = len(C)
-    print(N)
-    # Transformation matrix for rotating the heatmap.
-    A = np.array([(y, x) for x in range(N, -1, -1) for y in range(N + 1)])
-    a = .5
-    b = 1
-    # t = np.array([[a, b], [a, -b]])
-    t = np.array([[.5, -.25], [-.5, -.25]])
-    A = np.dot(A, t)
-    # -1.0 correlation is blue, 0.0 is white, 1.0 is red.
-    cmap = plt.cm.coolwarm
-    # norm = matplotlib.colors.BoundaryNorm(np.linspace(-1, 1, 14), cmap.N)
-    # This MUST be before the call to pl.pcolormesh() to align properly.
-    axes.set_xticks([])
-    axes.set_yticks([])
-    # Plot the correlation heatmap triangle.
-    X = A[:, 1].reshape(N + 1, N + 1)
-    Y = A[:, 0].reshape(N + 1, N + 1)
-    caxes = plt.pcolormesh(X, Y, np.flipud(C), axes=axes, cmap=cmap) #  norm=norm)
-    # Remove the ticks and reset the x limit.
-    axes.set_xlim(right=0)
-    # Add a colorbar below the heatmap triangle.
-    cb = plt.colorbar(caxes, ax=axes, orientation='horizontal', shrink=0.9825,
-                     fraction=0.05, pad=-0.035, ticks=np.linspace(-1, 1, 5),
-                     use_gridspec=True)
-    cb.set_label("weight")
-    return caxes
-
-def conv_di(model, figsize=None, mode='complex'): # modes include simple/complex/triangle
+def conv_di(model, figsize=None, mode='complex', show=True, ax=None): # modes include simple/complex/triangle
     n_cols = len(model.binding_modes)
     if figsize is not None:
         plt.figure(figsize=figsize)
@@ -167,7 +140,157 @@ def conv_di(model, figsize=None, mode='complex'): # modes include simple/complex
         else:
             sns.heatmap(weights, cmap="coolwarm", center=0, ax=ax)
 
-    plt.show()
+    if show:
+        plt.show()
+
+
+def conv(model, figsize=None, flip=False, log=True, mode='triangle', show=True, **kwargs):
+    activities = np.exp(model.get_log_activities().cpu().detach().numpy())
+    if log:
+        print("\n#activities")
+        print(activities)
+        print("\n#log_etas")
+        print(model.get_log_etas())
+    n_cols = len(model.binding_modes)
+    if figsize is not None:
+        plt.figure(figsize=figsize)
+
+
+    # mono
+    for i in range(n_cols):
+        weights = model.get_kernel_weights(i)
+        if weights is None:
+            continue
+        weights = weights.squeeze().cpu().detach().numpy()
+        weights = pd.DataFrame(weights)
+        weights.index = "A", "C", "G", "T"
+
+        ax = plt.subplot2grid((2, (n_cols - 1)), (0, i - 1), frame_on=False)
+        if flip:
+            weights = weights.loc[::-1, ::-1].copy()
+            weights.columns = range(weights.shape[1])
+            weights.index = "A", "C", "G", "T"
+        print(weights.shape)
+        crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5, ax=ax)
+        print(type(weights.T.shape[1]))
+        xticks = [i for i in list(range(0, weights.T.shape[0], 5))]
+        print(xticks)
+        plt.xticks(xticks)
+        plt.title(i)
+
+    # dinuc
+    for i, m in enumerate(model.binding_modes.conv_di):
+        # print(i, m)
+        weights = model.get_kernel_weights(i, dinucleotide=True)
+        if weights is None:
+            continue
+        ax = plt.subplot2grid((2, (n_cols - 1)), (1, i - 1), frame_on=False)
+        weights = weights.squeeze().cpu().detach().numpy()
+        weights = pd.DataFrame(weights)
+        weights.index = (
+            "AA",
+            "AC",
+            "AG",
+            "AT",
+            "CA",
+            "CC",
+            "CG",
+            "CT",
+            "GA",
+            "GC",
+            "GG",
+            "GT",
+            "TA",
+            "TC",
+            "TG",
+            "TT",
+        )
+
+        if mode == 'complex':
+            df = []
+            for c in weights:
+                a = weights.index.str[0]
+                b = weights.index.str[1]
+                df2 = pd.DataFrame()
+                df2['a'] = a
+                df2['b'] = b
+                df2['weights'] = weights[c].values
+                df2['pos'] = c
+                # df.append(df2)
+                df.append(df2.pivot('a', 'b', 'weights'))
+
+            m = pd.concat(df, axis=1)
+
+            sns.heatmap(m, xticklabels=True, cmap="coolwarm", center=0)
+            plt.yticks(rotation=0, fontsize=5);
+            plt.xticks(rotation=45, ha='center', fontsize=5);
+
+        elif mode == 'triangle':
+            df = []
+
+            a = weights.index.str[0]
+            b = weights.index.str[1]
+            for c in weights:
+                # real values
+                df2 = pd.DataFrame()
+                df2['a'] = a + str(c)
+                df2['b'] = b + str(c + 1)
+                df2['weights'] = weights[c].values
+                df2['pos'] = c
+                df.append(df2.pivot('a', 'b', 'weights'))
+
+            C = pd.concat(df).fillna(np.nan)
+
+            # add border columns
+            df2 = pd.DataFrame(index=C.index)
+            for nt in ['A', 'C', 'G', 'T']:
+                df2[nt + str(0)] = np.nan
+            df3 = pd.DataFrame(index=C.index)
+            for nt in ['A', 'C', 'G', 'T']:
+                df3[nt + str(weights.shape[1] + 1)] = np.nan
+            C = pd.concat([df2, C, df3], axis=1)
+
+            C = np.array(C)
+            a = np.empty((4, C.shape[1]))
+            a[:] = np.nan
+            C = np.concatenate([a, C, a])
+
+            C = np.tril(C, k=8)
+            C = np.ma.masked_array(C, C == 0)
+            _heatmap_triangle_horizontal(C, ax)
+            # sns.heatmap(pd.concat(df), cmap='coolwarm', center=0)
+        else:
+            sns.heatmap(weights, cmap="coolwarm", center=0, ax=ax)
+
+    if show:
+        plt.show()
+
+def _heatmap_triangle_horizontal(C, axes):
+    N = len(C)
+    # Transformation matrix for rotating the heatmap.
+    A = np.array([(y, x) for x in range(N, -1, -1) for y in range(N + 1)])
+    a = .5
+    b = 1
+    # t = np.array([[a, b], [a, -b]])
+    t = np.array([[.5, -.25], [-.5, -.25]])
+    A = np.dot(A, t)
+    # -1.0 correlation is blue, 0.0 is white, 1.0 is red.
+    cmap = plt.cm.coolwarm
+    axes.set_xticks([])
+    axes.set_yticks([])
+    # Plot the correlation heatmap triangle.
+    X = A[:, 1].reshape(N + 1, N + 1)
+    Y = A[:, 0].reshape(N + 1, N + 1)
+    caxes = plt.pcolormesh(X, Y, np.flipud(C), axes=axes, cmap=cmap) #  norm=norm)
+    # Remove the ticks and reset the x limit.
+    axes.set_xlim(right=0)
+    # Add a colorbar below the heatmap triangle.
+    cb = plt.colorbar(caxes, ax=axes, orientation='horizontal', shrink=0.9825,
+                     fraction=0.05, pad=-0.035, ticks=np.linspace(-1, 1, 5),
+                     use_gridspec=True)
+    cb.set_label("weight")
+    return caxes
+
 
 
 def plot_activities(model, dataloader, figsize=None):

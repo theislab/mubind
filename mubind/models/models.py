@@ -51,7 +51,6 @@ class Multibind(tnn.Module):
         if self.datatype == "pbm":
             kwargs["target_dim"] = 1
         elif self.datatype == "selex":
-            print(kwargs)
             if "n_rounds" in kwargs:
                 kwargs["target_dim"] = kwargs["n_rounds"]
             elif "target_dim" in kwargs:
@@ -151,8 +150,8 @@ class Multibind(tnn.Module):
     def get_kernel_width(self, index):
         return self.binding_modes.get_kernel_width(index)
 
-    def get_kernel_weights(self, index):
-        return self.binding_modes.get_kernel_weights(index)
+    def get_kernel_weights(self, index, **kwargs):
+        return self.binding_modes.get_kernel_weights(index, **kwargs)
 
     def get_log_activities(self):
         return self.activities.get_log_activities()
@@ -231,7 +230,7 @@ class BindingModesSimple(tnn.Module):
 
                 next_di = tnn.Conv2d(1, 1, kernel_size=(16, k), padding=(0, 0), bias=False)
                 if not self.init_random:
-                    next_di.weight.data.uniform_(0, 0)
+                    next_di.weight.data.uniform_(-.5, .5) # problem with fitting  dinucleotides if (0, 0)
                 self.conv_di.append(next_di)
 
     def forward(self, mono, mono_rev, di=None, di_rev=None, **kwargs):
@@ -286,15 +285,21 @@ class BindingModesSimple(tnn.Module):
                 seed_params[:, i + shift] = torch.tensor([0, 0, 0, 0])
         self.conv_mono[index].weight = tnn.Parameter(torch.unsqueeze(torch.unsqueeze(seed_params, 0), 0))
 
-    def update_grad(self, index, value):
+    def update_grad_mono(self, index, value):
         if self.conv_mono[index] is not None:
             self.conv_mono[index].weight.requires_grad = value
             if not value:
                 self.conv_mono[index].weight.grad = None
+
+    def update_grad_di(self, index, value):
         if self.conv_di[index] is not None:
             self.conv_di[index].weight.requires_grad = value
             if not value:
                 self.conv_di[index].weight.grad = None
+
+    def update_grad(self, index, value):
+        self.update_grad_mono(index, value)
+        self.update_grad_di(index, value)
 
     def modify_kernel(self, index=None, shift=0, expand_left=0, expand_right=0, device=None):
         # shift mono
@@ -365,8 +370,9 @@ class BindingModesSimple(tnn.Module):
     def get_kernel_width(self, index):
         return self.conv_mono[index].weight.shape[-1] if self.conv_mono[index] is not None else 0
 
-    def get_kernel_weights(self, index):
-        return self.conv_mono[index].weight if self.conv_mono[index] is not None else None
+    def get_kernel_weights(self, index, dinucleotide=False):
+        values = self.conv_mono if not dinucleotide else self.conv_di
+        return values[index].weight if values[index] is not None else None
 
     def __len__(self):
         return len(self.conv_mono)
@@ -448,8 +454,6 @@ class ActivitiesLayer(tnn.Module):
     def __init__(self, n_kernels, target_dim, **kwargs):
         super().__init__()
         self.n_kernels = n_kernels
-
-        print(target_dim)
         # due to having multiple batches in some rounds, the max n_rounds is stored
         self.target_dim = max(target_dim) if not isinstance(target_dim, int) else target_dim
         self.n_batches = kwargs.get("n_batches", 1) if "n_batches" in kwargs else kwargs.get("n_proteins", 1)

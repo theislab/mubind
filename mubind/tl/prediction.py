@@ -410,7 +410,7 @@ def optimize_iterative(
                 mb.pl.plot_activities(model, train)
                 mb.pl.conv_mono(model)
                 # mb.pl.conv_mono(model, flip=False, log=False)
-                mb.pl.conv_di(model_shift, mode='triangle')
+                mb.pl.conv_di(model, mode='triangle')
 
             next_lr = lr if not isinstance(lr, list) else lr[i]
             next_weight_decay = weight_decay if not isinstance(weight_decay, list) else weight_decay[i]
@@ -445,10 +445,10 @@ def optimize_iterative(
                 verbose=verbose,
             )
 
-            vprint('grad')
-            vprint(model.binding_modes.conv_mono[1].weight.grad)
-            vprint(model.binding_modes.conv_di[1].weight.grad)
-            vprint('')
+            # vprint('grad')
+            # vprint(model.binding_modes.conv_mono[1].weight.grad)
+            # vprint(model.binding_modes.conv_di[1].weight.grad)
+            # vprint('')
 
 
             model.loss_color += list(np.repeat(colors[i], len(model.loss_history) - len(model.loss_color)))
