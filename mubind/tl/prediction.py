@@ -130,11 +130,14 @@ def optimize_simple(
     store_rev = train_dataloader.dataset.store_rev
 
     t0 = time.time()
+    n_batches = len(list(enumerate(train_dataloader)))
+
     for epoch in range(num_epochs):
         running_loss = 0
         running_crit = 0
         running_rec = 0
         for i, batch in enumerate(train_dataloader):
+            # print(i, 'batches out of', n_batches)
             # Get a batch and potentially send it to GPU memory.
             mononuc = batch["mononuc"].to(device)
             b = batch["batch"].to(device) if "batch" in batch else None

@@ -470,22 +470,31 @@ class ActivitiesLayer(tnn.Module):
             batch = kwargs.get("protein_id", None)
         if batch is None:
             batch = torch.zeros([binding_per_mode.shape[0]], device=binding_per_mode.device)
-        scores = torch.zeros([binding_per_mode.shape[0], self.target_dim], device=binding_per_mode.device)
-        for i in range(self.n_batches):
-            a = torch.exp(torch.stack(list(self.log_activities), dim=1)[i, :, :])
-            batch_mask = batch == i
-            b = binding_per_mode[batch_mask]
 
-            if self.ignore_kernel is not None:
-                mask = self.ignore_kernel != 1  # == False
-                scores[batch_mask] = torch.matmul(b[:, mask], a[mask, :])
-            else:
-                print(scores[batch_mask].shape)
-                print(b.shape, a.shape)
-                # assert False
-                assert false
-                scores[batch_mask] = torch.matmul(b, a)
+        # print(scores.shape)
+        # print(torch.stack(list(self.log_activities), dim=1).shape)
 
+
+        # this is to compare old/new implementation of relevant low-level operations
+        scores = None
+        option = 1
+        if option == 1:
+            b = binding_per_mode.unsqueeze(1)
+            a = torch.exp(torch.stack(list(self.log_activities), dim=1))
+            result = torch.matmul(b, a[batch, :, :])
+            scores = result.squeeze(1)
+        else:
+            scores = torch.zeros([binding_per_mode.shape[0], self.target_dim], device=binding_per_mode.device)
+            for i in range(self.n_batches):
+                a = torch.exp(torch.stack(list(self.log_activities), dim=1)[i, :, :])
+                batch_mask = batch == i
+                b = binding_per_mode[batch_mask]
+
+                if self.ignore_kernel is not None:
+                    mask = self.ignore_kernel != 1  # == False
+                    scores[batch_mask] = torch.matmul(b[:, mask], a[mask, :])
+                else:
+                    scores[batch_mask] = torch.matmul(b, a)
 
         return scores
 
