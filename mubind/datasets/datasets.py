@@ -45,7 +45,8 @@ class SelexDataset(tdata.Dataset):
         self.batch = np.array(df["batch"])
         self.n_batches = len(set(df["batch"]))
 
-        if use_sparse:
+        self.use_sparse = use_sparse
+        if self.use_sparse:
             self.rounds = sparse.csr_matrix(self.rounds)
 
         if "batch" in df.columns:
@@ -81,7 +82,7 @@ class SelexDataset(tdata.Dataset):
         sample = {
             "mononuc": self.mononuc[index],
             "batch": self.batch[index],
-            "rounds": self.rounds[index],
+            "rounds": self.rounds[index] if not self.use_sparse else self.rounds[index].A,
             "n_rounds": self.n_rounds[index],
             "seq": self.seq[index],
             "countsum": self.countsum[index],
