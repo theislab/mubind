@@ -27,4 +27,5 @@ from mubind.tl.prediction import (  # SelexDataset,; ChipSeqDataset,; create_dat
     scores,
     predict
 )
+from mubind.tl.aggregation import load_model, combine_models
 from mubind.tl.probound import load_probound
