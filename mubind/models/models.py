@@ -239,7 +239,7 @@ class BindingModesSimple(tnn.Module):
             # print(i)
             if self.kernels[i] == 0:
                 # intercept (will be scaled by the activity of the non-specific binding)
-                temp = torch.Tensor([1.0] * mono.shape[0]).to(device=mono.device)
+                temp = torch.tensor([1.0] * mono.shape[0], device=mono.device)
                 bm_pred.append(temp)
             else:
                 # check devices match
@@ -312,13 +312,13 @@ class BindingModesSimple(tnn.Module):
             # update the weight
             if shift >= 1:
                 self.conv_mono[i].weight = torch.nn.Parameter(
-                    torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 4, shift).to(device)], dim=3)
+                    torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 4, shift, device=device)], dim=3)
                 )
             elif shift <= -1:
                 self.conv_mono[i].weight = torch.nn.Parameter(
                     torch.cat(
                         [
-                            torch.zeros(1, 1, 4, -shift).to(device),
+                            torch.zeros(1, 1, 4, -shift, device=device),
                             m.weight[:, :, :, :shift],
                         ],
                         dim=3,
@@ -327,11 +327,11 @@ class BindingModesSimple(tnn.Module):
             # adding more positions left and right
             if expand_left > 0:
                 self.conv_mono[i].weight = torch.nn.Parameter(
-                    torch.cat([torch.zeros(1, 1, 4, expand_left).to(device), m.weight[:, :, :, :]], dim=3)
+                    torch.cat([torch.zeros(1, 1, 4, expand_left, device=device), m.weight[:, :, :, :]], dim=3)
                 )
             if expand_right > 0:
                 self.conv_mono[i].weight = torch.nn.Parameter(
-                    torch.cat([m.weight[:, :, :, :], torch.zeros(1, 1, 4, expand_right).to(device)], dim=3)
+                    torch.cat([m.weight[:, :, :, :], torch.zeros(1, 1, 4, expand_right, device=device)], dim=3)
                 )
             after_w = m.weight.shape[-1]
             if after_w != (before_w + expand_left + expand_right):
@@ -345,11 +345,11 @@ class BindingModesSimple(tnn.Module):
             # update the weight
             if shift >= 1:
                 m.weight = torch.nn.Parameter(
-                    torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 16, shift).to(device)], dim=3)
+                    torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 16, shift, device=device)], dim=3)
                 )
             elif shift <= -1:
                 m.weight = torch.nn.Parameter(
-                    torch.cat([torch.zeros(1, 1, 16, -shift).to(device), m.weight[:, :, :, :-shift]], dim=3)
+                    torch.cat([torch.zeros(1, 1, 16, -shift, device=device), m.weight[:, :, :, :-shift]], dim=3)
                 )
 
     def dirichlet_regularization(self):
@@ -632,7 +632,7 @@ class MultibindFlexibleWeights(tnn.Module):
         mono_rev = torch.unsqueeze(mono_rev, 1)
 
         x_ = []
-        temp = torch.Tensor([1.0] * mono.shape[0]).to(device=mono.device)
+        temp = torch.Tensor([1.0] * mono.shape[0], device=mono.device)
         x_.append(temp)
 
         # Transposing batch dim and channels
@@ -757,13 +757,13 @@ class BMCollection(tnn.Module):
                     # update the weight
                     if shift >= 1:
                         m.weight = torch.nn.Parameter(
-                            torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 4, shift).to(device)], dim=3)
+                            torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 4, shift, device=device)], dim=3)
                         )
                     elif shift <= -1:
                         m.weight = torch.nn.Parameter(
                             torch.cat(
                                 [
-                                    torch.zeros(1, 1, 4, -shift).to(device),
+                                    torch.zeros(1, 1, 4, -shift, device=device),
                                     m.weight[:, :, :, :shift],
                                 ],
                                 dim=3,
@@ -772,11 +772,11 @@ class BMCollection(tnn.Module):
                     # adding more positions left and right
                     if expand_left > 0:
                         m.weight = torch.nn.Parameter(
-                            torch.cat([torch.zeros(1, 1, 4, expand_left).to(device), m.weight[:, :, :, :]], dim=3)
+                            torch.cat([torch.zeros(1, 1, 4, expand_left, device=device), m.weight[:, :, :, :]], dim=3)
                         )
                     if expand_right > 0:
                         m.weight = torch.nn.Parameter(
-                            torch.cat([m.weight[:, :, :, :], torch.zeros(1, 1, 4, expand_right).to(device)], dim=3)
+                            torch.cat([m.weight[:, :, :, :], torch.zeros(1, 1, 4, expand_right, device=device)], dim=3)
                         )
                     after_w = m.weight.shape[-1]
                     if after_w != (before_w + expand_left + expand_right):
