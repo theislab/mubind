@@ -21,7 +21,7 @@ from mubind.tl.prediction import (  # SelexDataset,; ChipSeqDataset,; create_dat
     create_simulated_data,
     test_network,
     optimize_iterative,
-    train_modified_kernel,
+    optimize_modified_kernel,
     optimize_simple,
     kmer_enrichment,
     scores,
