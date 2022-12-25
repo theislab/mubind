@@ -1,5 +1,6 @@
 import copy
 import time
+import datetime
 
 import numpy as np
 import pandas as pd
@@ -108,13 +109,13 @@ def optimize_simple(
     best_epoch = -1
     if verbose != 0:
         print(
-            "optimizing using",
+            "optimizer: ",
             str(type(optimiser)),
-            "and",
+            "\ncriterion:",
             str(type(criterion)),
-            "n_epochs",
+            "\n# epochs:",
             num_epochs,
-            "early_stopping",
+            "\nearly_stopping:",
             early_stopping,
         )
 
@@ -132,6 +133,9 @@ def optimize_simple(
 
     t0 = time.time()
     n_batches = len(list(enumerate(dataloader)))
+
+    # the total number of trials
+    n_trials = sum([d.dataset.rounds.shape[0] for d in (dataloader if isinstance(dataloader, list) else [dataloader])])
 
     for epoch in range(num_epochs):
         running_loss = 0
@@ -265,9 +269,12 @@ def optimize_simple(
     total_time = time.time() - t0
     model.total_time += total_time
     if verbose:
-        print(f'total time: {model.total_time}s')
-        print("Time per epoch (total): %.3f s" % (model.total_time / max(epoch, 1)))
-        print("Time per epoch (observed): %.3f s" % ((time.time() - t0) / max(epoch, 1)))
+        print('Final loss: %.10f' % loss_final)
+        print(f'Total time (model/function): (%.3fs / %.3fs)' % (model.total_time, total_time))
+        print("Time per epoch (model/function): (%.3fs/ %.3fs)" %
+              ((model.total_time / max(epoch, 1)), (total_time / max(epoch, 1))))
+        print('Time per epoch per 1k trials: %.3fs' % (total_time / max(epoch, 1) / n_trials * 1e3))
+        print('Current time:', datetime.datetime.now())
 
     model.loss_history += loss_history
     model.r2_history += r2_history
@@ -299,8 +306,8 @@ def optimize_iterative(
     dirichlet_regularization=0,
     verbose=2,
     exp_max=40,
-    shift_max=3,
-    shift_step=2,
+    shift_max=2,
+    shift_step=1,
     use_mono=True,
     use_dinuc=False,
     r2_per_epoch=False,
@@ -422,8 +429,7 @@ def optimize_iterative(
                 mask_mono = (ki == i) and (feat_i == 'mono')
                 mask_dinuc = (ki == i) and (feat_i == 'dinuc')
                 if verbose != 0:
-                    print("setting grad status of kernel mono at %i to %i" % (ki, mask_mono))
-                    print("setting grad status of kernel dinuc at %i to %i" % (ki, mask_dinuc))
+                    vprint("setting grad status of kernel (mono, dinuc) at %i to (%i, %i)" % (ki, mask_mono, mask_dinuc))
 
                 model.binding_modes.update_grad_mono(ki, mask_mono)
                 model.binding_modes.update_grad_di(ki, mask_dinuc)
@@ -594,8 +600,9 @@ def optimize_iterative(
 
 def optimize_width_and_length(train, model, device, expand_length_max, expand_length_step, shift_max, shift_step, i,
                            colors=None, verbose=False, lr=0.01, weight_decay=0.001, optimiser=None, log_each=10, exp_max=40,
+                              num_epochs_shift_factor=3,
                            dirichlet_regularization=0, early_stopping=15, criterion=None, show_logo=False, feat_i=None,
-                           n_kernels=4, w=15, max_w=20, num_epochs=100, **kwargs):
+                           n_kernels=4, w=15, max_w=20, num_epochs=100, loss_thr_pct=0.005, **kwargs,):
     """
     A variation of the main optimization routine that attempts expanding the kernel of the model at position i, and refines
     the weights and loss in order to find a better convergence.
@@ -609,23 +616,24 @@ def optimize_width_and_length(train, model, device, expand_length_max, expand_le
         vprint = lambda *a, **k: None  # do-nothing function
 
     n_attempts = 0  # to keep a log of overall attempts
-    opt_expand_left = range(1, expand_length_max, expand_length_step)
-    opt_expand_right = range(1, expand_length_max, expand_length_step)
-    opt_shift = [0] + list(range(-shift_max, shift_max + 1, shift_step))
+    opt_expand_left = range(0, expand_length_max, expand_length_step)
+    opt_expand_right = range(0, expand_length_max, expand_length_step)
+    opt_shift = list(range(-shift_max, shift_max + 1, shift_step))
     for opt_option_text, opt_option_next in zip(
-        ["FLANKS", "SHIFT"], [[opt_expand_left, opt_expand_right, [0]], [[0], [0], opt_shift]]
+        ["WIDTH", "SHIFT"], [[opt_expand_left, opt_expand_right, [0]], [[0], [0], opt_shift]]
     ):
         next_loss = None
-        while next_loss is None or next_loss < best_loss:
+        loss_diff_pct = 0
+        while next_loss is None or (next_loss < best_loss and loss_diff_pct > loss_thr_pct):
             n_attempts += 1
 
+            vprint("\n%s OPTIMIZATION (%s)..." % (opt_option_text, "first" if next_loss is None else "again"), end="")
+            vprint("")
             curr_w = model.get_kernel_width(i)
             if curr_w >= max_w:
-                print("stop. Reached maximum w...")
-                break
-
-            vprint("\nFILTER SHIFT OPTIMIZATION (%s)..." % ("first" if next_loss is None else "again"), end="")
-            vprint("")
+                if opt_option_text == 'WIDTH':
+                    print("Reached maximum w. Stop...")
+                    break
 
             model = copy.deepcopy(model)
             best_loss = model.best_loss
@@ -640,12 +648,14 @@ def optimize_width_and_length(train, model, device, expand_length_max, expand_le
                 for shift in opt_option_next[2]
             ]
 
+            print('options to try', options)
+
             for expand_left, expand_right, shift in options:
 
-                if abs(expand_left) + abs(expand_right) + abs(shift) == 0:
-                    continue
-                if abs(shift) > 0:  # skip shift for now.
-                    continue
+                # if abs(expand_left) + abs(expand_right) + abs(shift) == 0:
+                #     continue
+                # if abs(shift) > 0:  # skip shift for now.
+                #     continue
                 if curr_w + expand_left + expand_right > max_w:
                     continue
 
@@ -660,7 +670,7 @@ def optimize_width_and_length(train, model, device, expand_length_max, expand_le
                 model_shift.r2_history = []
                 model_shift.loss_color = []
 
-                mb.tl.train_modified_kernel(
+                mb.tl.optimize_modified_kernel(
                     model_shift,
                     train,
                     kernel_i=i,
@@ -668,9 +678,9 @@ def optimize_width_and_length(train, model, device, expand_length_max, expand_le
                     expand_left=expand_left,
                     expand_right=expand_right,
                     device=device,
-                    num_epochs=num_epochs,
+                    num_epochs=num_epochs if opt_option_text == 'WIDTH' else num_epochs * num_epochs_shift_factor,
                     early_stopping=early_stopping,
-                    log_each=log_each,
+                    log_each=num_epochs if opt_option_text == 'WIDTH' else num_epochs * num_epochs_shift_factor, # log_each,
                     update_grad_i=i,
                     feat_i=feat_i,
                     lr=lr,
@@ -682,46 +692,68 @@ def optimize_width_and_length(train, model, device, expand_length_max, expand_le
                     verbose=verbose,
                     **kwargs,
                 )
+                vprint('')
+
                 model_shift.loss_color += list(np.repeat(next_color, len(model_shift.loss_history)))
                 # print('history left', len(model_left.loss_history))
-                all_options.append([expand_left, expand_right, shift, model_shift, model_shift.best_loss])
-                # print('\n')
+                weight_mono_i = model_shift.binding_modes.conv_mono[i].weight
+                pos_w_sum = float(weight_mono_i[weight_mono_i > 0].sum())
 
-                vprint("after opt.")
+                loss_diff_pct = (best_loss - model_shift.best_loss) / best_loss * 100
+                all_options.append([expand_left, expand_right, shift, model_shift,
+                                    pos_w_sum, weight_mono_i.shape[-1], loss_diff_pct, model_shift.best_loss])
+                # print('\n')
+                # vprint("after opt.")
+
                 if show_logo:
                     mb.pl.conv_mono(model_shift)
                     mb.pl.conv_di(model_shift, mode='triangle')
 
             # for shift, model_shift, loss in all_shifts:
             #     print('shift=%i' % shift, 'loss=%.4f' % loss)
+            weight_ref_mono_i = model_shift.binding_modes.conv_mono[i].weight
+            pos_w_ref_mono_i_sum = float(weight_ref_mono_i[weight_ref_mono_i > 0].sum())
+
+
             best = sorted(
-                all_options + [[0, 0, 0, model, best_loss]],
+                all_options + [[0, 0, 0, model,
+                                pos_w_ref_mono_i_sum, weight_ref_mono_i.shape[-1], 0, model.best_loss]],
                 key=lambda x: x[-1],
             )
             if verbose != 0:
                 print("sorted")
-            best_df = pd.DataFrame(
-                [
-                    [expand_left, expand_right, shift, loss]
-                    for expand_left, expand_right, shift, model_shift, loss in best
-                ],
-                columns=["expand.left", "expand.right", "shift", "loss"],
+            best_df = pd.DataFrame(best, columns=["expand.left", "expand.right", "shift", "model",
+                                                  'pos_w_sum', 'width', "loss_diff_pct", "loss"],
             )
-            vprint(best_df.sort_values("loss"))
-            # print('\n history len')
-            next_expand_left, next_expand_right, next_position, next_model, next_loss = best[0]
-            if verbose != 0:
-                print("action: %s\n" % str((next_expand_left, next_expand_right, next_position)))
+            best_df['last_loss'] = best_loss
+            best_df = best_df.sort_values('loss')
 
-            if next_position != 0:
+            vprint(best_df[[c for c in best_df if c != 'model']])
+            # print('\n history len')
+            next_expand_left, next_expand_right, next_position, next_model, next_pos_w, w,\
+            loss_diff_pct, next_loss = best_df.values[0][:-1]
+
+            print(next_expand_left, next_expand_right, next_position, next_pos_w, w,
+                  loss_diff_pct, next_loss)
+
+            if verbose != 0:
+                print("action (expand left, expand right, shift): (%i, %i, %i)\n" %
+                      (next_expand_left, next_expand_right, next_position))
+
+            if loss_diff_pct >= loss_thr_pct:
                 next_model.loss_history = model.loss_history + next_model.loss_history
                 next_model.r2_history = model.r2_history + next_model.r2_history
                 next_model.loss_color = model.loss_color + next_model.loss_color
 
             model = copy.deepcopy(next_model)
+
+            if next_expand_left == 0 and next_expand_right == 0 and next_position == 0 and opt_option_text == 'SHIFT':
+                print('Done width kernel shift optimization...')
+                break
+
     return model
 
-def train_modified_kernel(
+def optimize_modified_kernel(
     model,
     train,
     shift=0,
