@@ -144,7 +144,7 @@ def conv_di(model, figsize=None, mode='complex', show=True, ax=None): # modes in
         plt.show()
 
 
-def conv(model, figsize=None, flip=False, log=True, mode='triangle', show=True, **kwargs):
+def conv(model, figsize=None, flip=False, log=False, mode='triangle', show=True, **kwargs):
     activities = np.exp(model.get_log_activities().cpu().detach().numpy())
     if log:
         print("\n#activities")
@@ -170,11 +170,11 @@ def conv(model, figsize=None, flip=False, log=True, mode='triangle', show=True, 
             weights = weights.loc[::-1, ::-1].copy()
             weights.columns = range(weights.shape[1])
             weights.index = "A", "C", "G", "T"
-        print(weights.shape)
+        # print(weights.shape)
         crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5, ax=ax)
-        print(type(weights.T.shape[1]))
+        # print(type(weights.T.shape[1]))
         xticks = [i for i in list(range(0, weights.T.shape[0], 5))]
-        print(xticks)
+        # print(xticks)
         plt.xticks(xticks)
         plt.title(i)
 
@@ -330,18 +330,19 @@ def kmer_enrichment(model, train, k=None, base_round=0, enr_round=-1, show=True,
     pearson_fc = scores['pearson_foldchange']
 
     hue = hue if hue in counts else None
+    # plotting
+    p = None
+    if style == 'distplot':
+        p = sns.displot(counts, x=xlab, y=ylab, cbar=True, hue=hue)
+    elif style == 'scatter':
+        p = sns.scatterplot(counts, x=xlab, y=ylab, hue=hue)
+    if log_scale:
+        p.set(xscale='log', yscale='log')
+    plt.title('k-mer length = %i, n=%i\n' % (k if k is not None else -1, counts.shape[0]) +
+              r'$R^2 (counts)$ = %.2f' % (r2_counts) +
+              r', $R^2 (fc)$ = %.2f' % r2_fc + ', Pearson\'s R(fc) = %.2f' % pearson_fc)
+    # plt.plot([0.1, 10], [0.1, 10], linewidth=2)
     if show:
-        # plotting
-        p = None
-        if style == 'distplot':
-            p = sns.displot(counts, x=xlab, y=ylab, cbar=True, hue=hue)
-        elif style == 'scatter':
-            p = sns.scatterplot(counts, x=xlab, y=ylab, hue=hue)
-        if log_scale:
-            p.set(xscale='log', yscale='log')
-        plt.title('k-mer length = %i\n' % (k if k is not None else -1) + r'$R^2 (counts)$ = %.2f' % (r2_counts) +
-                  r', $R^2 (fc)$ = %.2f' % r2_fc + ', Pearson\'s R(fc) = %.2f' % pearson_fc)
-        # plt.plot([0.1, 10], [0.1, 10], linewidth=2)
         plt.show()
     return scores
 

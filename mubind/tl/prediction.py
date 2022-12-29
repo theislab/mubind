@@ -1,5 +1,6 @@
 import copy
 import time
+import datetime
 
 import numpy as np
 import pandas as pd
@@ -88,7 +89,7 @@ def test_network(model, dataloader, device):
 # num_epochs is reached.
 def optimize_simple(
     model,
-    train_dataloader,
+    dataloader,
     device,
     optimiser,
     criterion,
@@ -108,13 +109,13 @@ def optimize_simple(
     best_epoch = -1
     if verbose != 0:
         print(
-            "optimizing using",
+            "optimizer: ",
             str(type(optimiser)),
-            "and",
+            "\ncriterion:",
             str(type(criterion)),
-            "n_epochs",
+            "\n# epochs:",
             num_epochs,
-            "early_stopping",
+            "\nearly_stopping:",
             early_stopping,
         )
 
@@ -127,95 +128,107 @@ def optimize_simple(
         print("dir weight=", dirichlet_regularization)
 
     is_LBFGS = "LBFGS" in str(optimiser)
-    store_rev = train_dataloader.dataset.store_rev
+
+    store_rev = dataloader.dataset.store_rev if not isinstance(dataloader, list) else dataloader[0].dataset.store_rev
 
     t0 = time.time()
-    n_batches = len(list(enumerate(train_dataloader)))
+    n_batches = len(list(enumerate(dataloader)))
+
+    # the total number of trials
+    n_trials = sum([d.dataset.rounds.shape[0] for d in (dataloader if isinstance(dataloader, list) else [dataloader])])
 
     for epoch in range(num_epochs):
         running_loss = 0
         running_crit = 0
         running_rec = 0
-        for i, batch in enumerate(train_dataloader):
-            # print(i, 'batches out of', n_batches)
-            # Get a batch and potentially send it to GPU memory.
-            mononuc = batch["mononuc"].to(device)
-            b = batch["batch"].to(device) if "batch" in batch else None
-            rounds = batch["rounds"].to(device) if "rounds" in batch else None
-            n_rounds = batch["n_rounds"].to(device) if "n_rounds" in batch else None
-            countsum = batch["countsum"].to(device) if "countsum" in batch else None
-            residues = batch["residues"].to(device) if "residues" in batch else None
-            protein_id = batch["protein_id"].to(device) if "protein_id" in batch else None
-            inputs = {"mono": mononuc, "batch": b, "countsum": countsum}
-            if store_rev:
-                mononuc_rev = batch["mononuc_rev"].to(device)
-                inputs["mono_rev"] = mononuc_rev
-            if residues is not None:
-                inputs["residues"] = residues
-            if protein_id is not None:
-                inputs["protein_id"] = protein_id
 
-            loss = None
-            if not is_LBFGS:
-                # PyTorch calculates gradients by accumulating contributions to them (useful for
-                # RNNs).  Hence we must manully set them to zero before calculating them.
-                optimiser.zero_grad(set_to_none=None)
+        # if dataloader is a list of dataloaders, we have to iterate through those
+        dataloader_queries = dataloader if isinstance(dataloader, list) else [dataloader]
 
-                # outputs, reconstruction = model(inputs)  # Forward pass through the network.
-                outputs = model(**inputs)  # Forward pass through the network.
+        # print(len(dataloader_queries))
+        for data_i, next_dataloader in enumerate(dataloader_queries):
+            # print(data_i, next_dataloader)
+            for i, batch in enumerate(next_dataloader):
+                # print(i, 'batches out of', n_batches)
+                # Get a batch and potentially send it to GPU memory.
+                mononuc = batch["mononuc"].to(device)
+                b = batch["batch"].to(device) if "batch" in batch else None
 
-                # weight_dist = model.weight_distances_min_k()
-                if dirichlet_regularization == 0:
-                    dir_weight = 0
-                else:
-                    dir_weight = dirichlet_regularization * model.dirichlet_regularization()
+                rounds = batch["rounds"].to(device) if "rounds" in batch else None
+                if next_dataloader.dataset.use_sparse:
+                    rounds = rounds.squeeze(1)
 
-                # print(outputs.shape, rounds.shape)
+                n_rounds = batch["n_rounds"].to(device) if "n_rounds" in batch else None
+                countsum = batch["countsum"].to(device) if "countsum" in batch else None
+                residues = batch["residues"].to(device) if "residues" in batch else None
+                protein_id = batch["protein_id"].to(device) if "protein_id" in batch else None
+                inputs = {"mono": mononuc, "batch": b, "countsum": countsum}
+                if store_rev:
+                    mononuc_rev = batch["mononuc_rev"].to(device)
+                    inputs["mono_rev"] = mononuc_rev
+                if residues is not None:
+                    inputs["residues"] = residues
+                if protein_id is not None:
+                    inputs["protein_id"] = protein_id
 
-                # define a mask to remove items on a rounds specific manner
-                mask = torch.zeros((n_rounds.shape[0], outputs.shape[1]), dtype=torch.bool).to(device=device)
+                loss = None
+                if not is_LBFGS:
+                    # PyTorch calculates gradients by accumulating contributions to them (useful for
+                    # RNNs).  Hence we must manully set them to zero before calculating them.
+                    optimiser.zero_grad(set_to_none=None)
 
-                for i in range(mask.shape[1]):
-                    mask[:, i] = ~(n_rounds - 1 < i)
-
-                loss = criterion(outputs[mask], rounds[mask]) + dir_weight
-
-                # loss = criterion(outputs, rounds) + 0.01*reconstruction_crit(reconstruction, residues) + dir_weight
-
-                if exp_max >= 0:
-                    loss += model.exp_barrier(exp_max)
-                loss.backward()  # Calculate gradients.
-                optimiser.step()
-                outputs = model(**inputs)  # Forward pass through the network.
-            else:
-
-                def closure():
-                    optimiser.zero_grad()
-                    # this statement here is mandatory to
-                    outputs = model(**inputs)
+                    # outputs, reconstruction = model(inputs)  # Forward pass through the network.
+                    outputs = model(**inputs)  # Forward pass through the network.
 
                     # weight_dist = model.weight_distances_min_k()
                     if dirichlet_regularization == 0:
                         dir_weight = 0
                     else:
                         dir_weight = dirichlet_regularization * model.dirichlet_regularization()
-
-                    # loss = criterion(outputs, rounds) + weight_dist + dir_weight
-                    loss = criterion(outputs, rounds) + dir_weight
-
+                    # if the dataloader is a list, then we know the output shape directly by rounds
+                    if isinstance(dataloader, list):
+                        loss = criterion(outputs[:, :rounds.shape[1]], rounds)
+                    else:
+                        # define a mask to remove items on a rounds specific manner
+                        mask = torch.zeros((n_rounds.shape[0], outputs.shape[1]), dtype=torch.bool, device=device)
+                        for i in range(mask.shape[1]):
+                            mask[:, i] = ~(n_rounds - 1 < i)
+                        loss = criterion(outputs[mask], rounds[mask])
+                    loss += dir_weight
+                    # loss = criterion(outputs, rounds) + 0.01*reconstruct_crit(reconstruction, residues) + dir_weight
                     if exp_max >= 0:
                         loss += model.exp_barrier(exp_max)
-                    loss.backward()  # retain_graph=True)
-                    return loss
+                    loss.backward()  # Calculate gradients.
+                    optimiser.step()
+                    outputs = model(**inputs)  # Forward pass through the network.
+                else:
+                    def closure():
+                        optimiser.zero_grad()
+                        # this statement here is mandatory to
+                        outputs = model(**inputs)
 
-                loss = optimiser.step(closure)  # Step to minimise the loss according to the gradient.
-            running_loss += loss.item()
-            running_crit += criterion(outputs, rounds).item()
-            # running_rec += reconstruction_crit(reconstruction, residues).item()
+                        # weight_dist = model.weight_distances_min_k()
+                        if dirichlet_regularization == 0:
+                            dir_weight = 0
+                        else:
+                            dir_weight = dirichlet_regularization * model.dirichlet_regularization()
 
-        loss_final = running_loss / len(train_dataloader)
-        crit_final = running_crit / len(train_dataloader)
-        rec_final = running_rec / len(train_dataloader)
+                        # loss = criterion(outputs, rounds) + weight_dist + dir_weight
+                        loss = criterion(outputs, rounds) + dir_weight
+
+                        if exp_max >= 0:
+                            loss += model.exp_barrier(exp_max)
+                        loss.backward()  # retain_graph=True)
+                        return loss
+
+                    loss = optimiser.step(closure)  # Step to minimise the loss according to the gradient.
+
+                running_loss += loss.item()
+                # running_crit += criterion(outputs, rounds).item()
+                # running_rec += reconstruction_crit(reconstruction, residues).item()
+
+        loss_final = running_loss / len(dataloader)
+        rec_final = running_rec / len(dataloader)
         if log_each != -1 and epoch > 0 and (epoch % log_each == 0):
             if verbose != 0:
                 print(
@@ -234,7 +247,7 @@ def optimize_simple(
         loss_history.append(loss_final)
 
         if r2_per_epoch:
-            r2_history.append(mb.pl.kmer_enrichment(model, train_dataloader, k=8, show=False))
+            r2_history.append(mb.pl.kmer_enrichment(model, dataloader, k=8, show=False))
         # model.crit_history.append(crit_final)
         # model.rec_history.append(rec_final)
 
@@ -255,8 +268,13 @@ def optimize_simple(
     # prof.export_chrome_trace(f'profile_{epoch}.json')
     total_time = time.time() - t0
     model.total_time += total_time
-    print(f'total time: {total_time}s {len(loss_history)}')
-    print("secs per epoch: %.3f s" % ((time.time() - t0) / max(epoch, 1)))
+    if verbose:
+        print('Final loss: %.10f' % loss_final)
+        print(f'Total time (model/function): (%.3fs / %.3fs)' % (model.total_time, total_time))
+        print("Time per epoch (model/function): (%.3fs/ %.3fs)" %
+              ((model.total_time / max(epoch, 1)), (total_time / max(epoch, 1))))
+        print('Time per epoch per 1k trials: %.3fs' % (total_time / max(epoch, 1) / n_trials * 1e3))
+        print('Current time:', datetime.datetime.now())
 
     model.loss_history += loss_history
     model.r2_history += r2_history
@@ -288,9 +306,9 @@ def optimize_iterative(
     dirichlet_regularization=0,
     verbose=2,
     exp_max=40,
-    shift_max=3,
-    shift_step=2,
-    use_mono=False,
+    shift_max=2,
+    shift_step=1,
+    use_mono=True,
     use_dinuc=False,
     r2_per_epoch=False,
     **kwargs,
@@ -307,15 +325,23 @@ def optimize_iterative(
 
     vprint("next w", w, type(w))
 
-    if isinstance(train.dataset, mb.datasets.SelexDataset):
+    if (isinstance(train, list) and 'SelexDataset' in str(type(train[0].dataset))) or 'SelexDataset' in str(type(train.dataset)):
         if criterion is None:
             criterion = mb.tl.PoissonLoss()
 
-        n_rounds = train.dataset.n_rounds
-        n_batches = train.dataset.n_batches
-        enr_series = train.dataset.enr_series
+        if not isinstance(train, list):
+            n_rounds = train.dataset.n_rounds
+            n_batches = train.dataset.n_batches
+            enr_series = train.dataset.enr_series
+        else:
+            n_rounds = max([max(t.dataset.n_rounds) for t in train])
+            n_batches = len(train)
+            enr_series = True
 
-        vprint("# rounds", set(n_rounds))
+        vprint("# rounds", set(n_rounds) if not isinstance(n_rounds, int) else n_rounds)
+        vprint("# rounds", set(n_rounds) if not isinstance(n_rounds, int) else n_rounds)
+        vprint('# use_mono', use_mono)
+        vprint('# use_dinuc', use_dinuc)
         vprint("# batches", n_batches)
         vprint("# kernels", n_kernels)
         vprint("# initial w", w)
@@ -384,6 +410,9 @@ def optimize_iterative(
         vprint("\nFREEZING KERNELS")
 
         for feat_i in ['mono', 'dinuc']:
+            if i == 0 and feat_i == 'dinuc':
+                vprint('optimization of dinuc is not necessary for the intercepts (kernel=0). Skip...')
+                continue
 
             vprint('optimizing feature type', feat_i)
             if i != 0:
@@ -400,8 +429,7 @@ def optimize_iterative(
                 mask_mono = (ki == i) and (feat_i == 'mono')
                 mask_dinuc = (ki == i) and (feat_i == 'dinuc')
                 if verbose != 0:
-                    print("setting grad status of kernel mono at %i to %i" % (ki, mask_mono))
-                    print("setting grad status of kernel dinuc at %i to %i" % (ki, mask_dinuc))
+                    vprint("setting grad status of kernel (mono, dinuc) at %i to (%i, %i)" % (ki, mask_mono, mask_dinuc))
 
                 model.binding_modes.update_grad_mono(ki, mask_mono)
                 model.binding_modes.update_grad_di(ki, mask_dinuc)
@@ -564,17 +592,17 @@ def optimize_iterative(
 
             vprint('best loss', model.best_loss)
 
-            vprint('grad')
-            vprint(model.binding_modes.conv_mono[1].weight.grad)
-            vprint(model.binding_modes.conv_di[1].weight.grad)
-            vprint('')
+    vprint('\noptimization finished:')
+    vprint(f'total time: {model.total_time}s')
+    vprint("Time per epoch (total): %.3f s" % (model.total_time / max(num_epochs, 1)))
 
     return model, model.best_loss
 
 def optimize_width_and_length(train, model, device, expand_length_max, expand_length_step, shift_max, shift_step, i,
                            colors=None, verbose=False, lr=0.01, weight_decay=0.001, optimiser=None, log_each=10, exp_max=40,
+                              num_epochs_shift_factor=3,
                            dirichlet_regularization=0, early_stopping=15, criterion=None, show_logo=False, feat_i=None,
-                           n_kernels=4, w=15, max_w=20, num_epochs=100, **kwargs):
+                           n_kernels=4, w=15, max_w=20, num_epochs=100, loss_thr_pct=0.005, **kwargs,):
     """
     A variation of the main optimization routine that attempts expanding the kernel of the model at position i, and refines
     the weights and loss in order to find a better convergence.
@@ -588,23 +616,24 @@ def optimize_width_and_length(train, model, device, expand_length_max, expand_le
         vprint = lambda *a, **k: None  # do-nothing function
 
     n_attempts = 0  # to keep a log of overall attempts
-    opt_expand_left = range(1, expand_length_max, expand_length_step)
-    opt_expand_right = range(1, expand_length_max, expand_length_step)
-    opt_shift = [0] + list(range(-shift_max, shift_max + 1, shift_step))
+    opt_expand_left = range(0, expand_length_max, expand_length_step)
+    opt_expand_right = range(0, expand_length_max, expand_length_step)
+    opt_shift = list(range(-shift_max, shift_max + 1, shift_step))
     for opt_option_text, opt_option_next in zip(
-        ["FLANKS", "SHIFT"], [[opt_expand_left, opt_expand_right, [0]], [[0], [0], opt_shift]]
+        ["WIDTH", "SHIFT"], [[opt_expand_left, opt_expand_right, [0]], [[0], [0], opt_shift]]
     ):
         next_loss = None
-        while next_loss is None or next_loss < best_loss:
+        loss_diff_pct = 0
+        while next_loss is None or (next_loss < best_loss and loss_diff_pct > loss_thr_pct):
             n_attempts += 1
 
+            vprint("\n%s OPTIMIZATION (%s)..." % (opt_option_text, "first" if next_loss is None else "again"), end="")
+            vprint("")
             curr_w = model.get_kernel_width(i)
             if curr_w >= max_w:
-                print("stop. Reached maximum w...")
-                break
-
-            vprint("\nFILTER SHIFT OPTIMIZATION (%s)..." % ("first" if next_loss is None else "again"), end="")
-            vprint("")
+                if opt_option_text == 'WIDTH':
+                    print("Reached maximum w. Stop...")
+                    break
 
             model = copy.deepcopy(model)
             best_loss = model.best_loss
@@ -619,12 +648,14 @@ def optimize_width_and_length(train, model, device, expand_length_max, expand_le
                 for shift in opt_option_next[2]
             ]
 
+            print('options to try', options)
+
             for expand_left, expand_right, shift in options:
 
-                if abs(expand_left) + abs(expand_right) + abs(shift) == 0:
-                    continue
-                if abs(shift) > 0:  # skip shift for now.
-                    continue
+                # if abs(expand_left) + abs(expand_right) + abs(shift) == 0:
+                #     continue
+                # if abs(shift) > 0:  # skip shift for now.
+                #     continue
                 if curr_w + expand_left + expand_right > max_w:
                     continue
 
@@ -639,7 +670,7 @@ def optimize_width_and_length(train, model, device, expand_length_max, expand_le
                 model_shift.r2_history = []
                 model_shift.loss_color = []
 
-                mb.tl.train_modified_kernel(
+                mb.tl.optimize_modified_kernel(
                     model_shift,
                     train,
                     kernel_i=i,
@@ -647,9 +678,9 @@ def optimize_width_and_length(train, model, device, expand_length_max, expand_le
                     expand_left=expand_left,
                     expand_right=expand_right,
                     device=device,
-                    num_epochs=num_epochs,
+                    num_epochs=num_epochs if opt_option_text == 'WIDTH' else num_epochs * num_epochs_shift_factor,
                     early_stopping=early_stopping,
-                    log_each=log_each,
+                    log_each=num_epochs if opt_option_text == 'WIDTH' else num_epochs * num_epochs_shift_factor, # log_each,
                     update_grad_i=i,
                     feat_i=feat_i,
                     lr=lr,
@@ -661,46 +692,68 @@ def optimize_width_and_length(train, model, device, expand_length_max, expand_le
                     verbose=verbose,
                     **kwargs,
                 )
+                vprint('')
+
                 model_shift.loss_color += list(np.repeat(next_color, len(model_shift.loss_history)))
                 # print('history left', len(model_left.loss_history))
-                all_options.append([expand_left, expand_right, shift, model_shift, model_shift.best_loss])
-                # print('\n')
+                weight_mono_i = model_shift.binding_modes.conv_mono[i].weight
+                pos_w_sum = float(weight_mono_i[weight_mono_i > 0].sum())
 
-                vprint("after opt.")
+                loss_diff_pct = (best_loss - model_shift.best_loss) / best_loss * 100
+                all_options.append([expand_left, expand_right, shift, model_shift,
+                                    pos_w_sum, weight_mono_i.shape[-1], loss_diff_pct, model_shift.best_loss])
+                # print('\n')
+                # vprint("after opt.")
+
                 if show_logo:
                     mb.pl.conv_mono(model_shift)
                     mb.pl.conv_di(model_shift, mode='triangle')
 
             # for shift, model_shift, loss in all_shifts:
             #     print('shift=%i' % shift, 'loss=%.4f' % loss)
+            weight_ref_mono_i = model_shift.binding_modes.conv_mono[i].weight
+            pos_w_ref_mono_i_sum = float(weight_ref_mono_i[weight_ref_mono_i > 0].sum())
+
+
             best = sorted(
-                all_options + [[0, 0, 0, model, best_loss]],
+                all_options + [[0, 0, 0, model,
+                                pos_w_ref_mono_i_sum, weight_ref_mono_i.shape[-1], 0, model.best_loss]],
                 key=lambda x: x[-1],
             )
             if verbose != 0:
                 print("sorted")
-            best_df = pd.DataFrame(
-                [
-                    [expand_left, expand_right, shift, loss]
-                    for expand_left, expand_right, shift, model_shift, loss in best
-                ],
-                columns=["expand.left", "expand.right", "shift", "loss"],
+            best_df = pd.DataFrame(best, columns=["expand.left", "expand.right", "shift", "model",
+                                                  'pos_w_sum', 'width', "loss_diff_pct", "loss"],
             )
-            vprint(best_df.sort_values("loss"))
-            # print('\n history len')
-            next_expand_left, next_expand_right, next_position, next_model, next_loss = best[0]
-            if verbose != 0:
-                print("action: %s\n" % str((next_expand_left, next_expand_right, next_position)))
+            best_df['last_loss'] = best_loss
+            best_df = best_df.sort_values('loss')
 
-            if next_position != 0:
+            vprint(best_df[[c for c in best_df if c != 'model']])
+            # print('\n history len')
+            next_expand_left, next_expand_right, next_position, next_model, next_pos_w, w,\
+            loss_diff_pct, next_loss = best_df.values[0][:-1]
+
+            print(next_expand_left, next_expand_right, next_position, next_pos_w, w,
+                  loss_diff_pct, next_loss)
+
+            if verbose != 0:
+                print("action (expand left, expand right, shift): (%i, %i, %i)\n" %
+                      (next_expand_left, next_expand_right, next_position))
+
+            if loss_diff_pct >= loss_thr_pct:
                 next_model.loss_history = model.loss_history + next_model.loss_history
                 next_model.r2_history = model.r2_history + next_model.r2_history
                 next_model.loss_color = model.loss_color + next_model.loss_color
 
             model = copy.deepcopy(next_model)
+
+            if next_expand_left == 0 and next_expand_right == 0 and next_position == 0 and opt_option_text == 'SHIFT':
+                print('Done width kernel shift optimization...')
+                break
+
     return model
 
-def train_modified_kernel(
+def optimize_modified_kernel(
     model,
     train,
     shift=0,
@@ -920,7 +973,6 @@ def scores(model, train, **kwargs):
     # print(counts)
     r2_enr = sklearn.metrics.r2_score(counts["enr_obs"], counts["enr_pred"])
 
-
     try:
         r2_f = sklearn.metrics.r2_score(counts["f_obs"], counts["f_pred"])
     except:
@@ -976,17 +1028,33 @@ def kmer_enrichment(model, train, k=None, base_round=0, enr_round=-1, pseudo_cou
             counts['batch'] = train.dataset.batch
         counts['n_rounds'] = train.dataset.n_rounds
 
-
     if model.datatype == 'selex':
         if enr_round == -1:
             enr_round = max(train.dataset.n_rounds) - 1
 
-        # print(counts.head())
         # print(enr_round)
-        # print(pred_labels[enr_round])
+        # print((pseudo_count + counts[pred_labels[train.dataset.n_rounds]]))
+        # assert False
+        # print('iterative assignment of scores in last round...')
+        # last_target = (~pd.isnull(counts[counts.columns[:9]])).sum(axis=1).values
+        target_last_round = np.nan
+        pred_last_round = np.nan
+        for c in counts.columns:
+            if c.startswith('p'):
+                pred_last_round = np.where(~pd.isnull(counts[c]), counts[c], pred_last_round)
+            if c.startswith('t'):
+                target_last_round = np.where(~pd.isnull(counts[c]), counts[c], target_last_round)
 
-        counts["enr_pred"] = (pseudo_count + counts[pred_labels[enr_round]]) / (pseudo_count + counts[pred_labels[base_round]])
-        counts["enr_obs"] = (pseudo_count + counts[target_labels[enr_round]]) / (pseudo_count + counts[target_labels[base_round]])
+        # label_last_round = ('p' + (counts['n_rounds'] - 1).astype(str))
+        # pred_last_round = np.array([r[label_last_round[ri]] for ri, r in counts.iterrows()])
+        # label_last_round = ('t' + (counts['n_rounds'] - 1).astype(str))
+        # target_last_round = np.array([r[label_last_round[ri]] for ri, r in counts.iterrows()])
+
+        counts["enr_pred"] = (pseudo_count + pred_last_round) / (pseudo_count + counts[pred_labels[base_round]])
+        # counts["enr_pred"] = (pseudo_count + counts[pred_labels[enr_round]]) / (pseudo_count + counts[pred_labels[base_round]])
+        counts["enr_obs"] = (pseudo_count + target_last_round) / (pseudo_count + counts[target_labels[base_round]])
+        # counts["enr_obs"] = (pseudo_count + counts[target_labels[enr_round]]) / (pseudo_count + counts[target_labels[base_round]])
+
         counts["f_pred"] = (1 / (enr_round - base_round)) * np.log10(counts["enr_pred"])
         counts["f_obs"] = (1 / (enr_round - base_round)) * np.log10(counts["enr_obs"])
     elif model.datatype == 'pbm':  # assuming only one column of numbers to be modeled
