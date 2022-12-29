@@ -6,8 +6,11 @@ from numba import jit
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 
 
-def mono2revmono(x):
-    return torch.flip(x, [2])[:, [3, 2, 1, 0], :]
+def mono2revmono(x, fast=True):
+    rev = torch.flip(x, [2])
+    # rev = rev[:, [3, 2, 1, 0], :]
+    rev = torch.flip(rev, [1]) # this 2nd flip only works if the indices are encoding AT in [0, 3] and/or CG in [1, 2]
+    return rev
 
 
 def mono2dinuc(mono):
