@@ -90,6 +90,7 @@ class Multibind(tnn.Module):
             mono_rev = mb.tl.mono2revmono(mono)
         else:
             mono_rev = self.padding(mono_rev)
+            del kwargs['mono_rev'] # for later function calls, and to avoid duplicates
 
         # prepare the dinucleotide objects if we need them
         if self.use_dinuc:
@@ -218,10 +219,15 @@ class BindingModesSimple(tnn.Module):
 
         self.conv_mono = tnn.ModuleList()
         self.conv_di = tnn.ModuleList()
+
+        self.ones = None # aux ones tensor, for intercept init.
+
         for k in self.kernels:
             if k == 0:
                 self.conv_mono.append(None)
                 self.conv_di.append(None)
+
+
             else:
                 next_mono = tnn.Conv2d(1, 1, kernel_size=(4, k), padding=(0, 0), bias=False)
                 if not self.init_random:
@@ -233,13 +239,22 @@ class BindingModesSimple(tnn.Module):
                     next_di.weight.data.uniform_(-.5, .5) # problem with fitting  dinucleotides if (0, 0)
                 self.conv_di.append(next_di)
 
+
+
+
     def forward(self, mono, mono_rev, di=None, di_rev=None, **kwargs):
         bm_pred = []
         for i in range(len(self.kernels)):
             # print(i)
             if self.kernels[i] == 0:
                 # intercept (will be scaled by the activity of the non-specific binding)
-                temp = torch.tensor([1.0] * mono.shape[0], device=mono.device)
+                # print(mono.shape[0])
+                # temp = torch.tensor([1.0] * mono.shape[0], device=mono.device)
+                if self.ones is None or self.ones.shape[0] < mono.shape[0]: # aux ones tensor, to avoid memory init delay
+                    self.ones =  torch.ones(mono.shape[0], device=mono.device) # torch.ones is much faster
+
+                temp = self.ones[:mono.shape[0]] # subsetting of ones to fit batch
+
                 bm_pred.append(temp)
             else:
                 # check devices match
@@ -257,9 +272,11 @@ class BindingModesSimple(tnn.Module):
                         dim=3,
                     )
                 else:
-                    temp = torch.cat((self.conv_mono[i](mono), self.conv_mono[i](mono_rev)), dim=3)
+                    out_mono = self.conv_mono[i](mono)
+                    out_mono_rev = self.conv_mono[i](mono_rev)
+                    temp = torch.cat((out_mono, out_mono_rev), dim=3)
 
-                # this particular step can generate out of bounds due to the exponentail cost
+                # this particular step can generate out of bounds due to the exponential cost
                 temp = torch.exp(temp)
                 temp = temp.view(temp.shape[0], -1)
                 temp = torch.sum(temp, dim=1)
@@ -303,12 +320,18 @@ class BindingModesSimple(tnn.Module):
 
     def modify_kernel(self, index=None, shift=0, expand_left=0, expand_right=0, device=None):
         # shift mono
+
+        shape_mono_before = None
+        shape_di_before = None
+
         for i, m in enumerate(self.conv_mono):
             if index is not None and index != i:
                 continue
             if m is None:
                 continue
             before_w = m.weight.shape[-1]
+            shape_mono_before = m.weight.shape
+
             # update the weight
             if shift >= 1:
                 self.conv_mono[i].weight = torch.nn.Parameter(
@@ -324,6 +347,8 @@ class BindingModesSimple(tnn.Module):
                         dim=3,
                     )
                 )
+
+
             # adding more positions left and right
             if expand_left > 0:
                 self.conv_mono[i].weight = torch.nn.Parameter(
@@ -336,6 +361,8 @@ class BindingModesSimple(tnn.Module):
             after_w = m.weight.shape[-1]
             if after_w != (before_w + expand_left + expand_right):
                 assert after_w != (before_w + expand_left + expand_right)
+
+
         # shift di
         for i, m in enumerate(self.conv_di):
             if index is not None and index != i:
@@ -343,14 +370,30 @@ class BindingModesSimple(tnn.Module):
             if m is None:
                 continue
             # update the weight
+            shape_di_before = m.weight.shape
+
             if shift >= 1:
                 m.weight = torch.nn.Parameter(
                     torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 16, shift, device=device)], dim=3)
                 )
             elif shift <= -1:
                 m.weight = torch.nn.Parameter(
-                    torch.cat([torch.zeros(1, 1, 16, -shift, device=device), m.weight[:, :, :, :-shift]], dim=3)
+                    torch.cat([torch.zeros(1, 1, 16, -shift, device=device), m.weight[:, :, :, :shift]], dim=3)
                 )
+
+            # adding more positions left and right
+            if expand_left > 0:
+                self.conv_di[i].weight = torch.nn.Parameter(
+                    torch.cat([torch.zeros(1, 1, 16, expand_left, device=device), m.weight[:, :, :, :]], dim=3)
+                )
+            if expand_right > 0:
+                self.conv_di[i].weight = torch.nn.Parameter(
+                    torch.cat([m.weight[:, :, :, :], torch.zeros(1, 1, 16, expand_right, device=device)], dim=3)
+                )
+
+            # check that the differences between kernels are the same before and after updates
+            diff_width_after = self.conv_di[i].weight.shape[-1] - self.conv_mono[i].weight.shape[-1]
+            assert diff_width_after == (shape_di_before[-1] - shape_mono_before[-1])
 
     def dirichlet_regularization(self):
         out = 0
@@ -535,18 +578,11 @@ class SelexModule(tnn.Module):
         if batch is None:
             batch = torch.zeros([binding_scores.shape[0]], device=binding_scores.device)
 
+        out = None
         if self.enr_series:
-            predictions_ = [binding_scores[:, 0]]
-            for i in range(1, self.n_rounds):
-                predictions_.append(predictions_[-1] * binding_scores[:, i])
-            out = torch.stack(predictions_).T
+            out = torch.cumprod(binding_scores, dim=1) # cum product between rounds 0 and N
         else:
             out = binding_scores
-
-        # iterative multiplication
-        # for i in range(self.n_batches):
-        #     eta = torch.exp(self.log_etas[i, :])
-        #     out[batch == i] = out[batch == i] * eta
 
         # multiplication in one step
         etas = torch.exp(self.log_etas)

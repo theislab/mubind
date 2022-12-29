@@ -648,6 +648,29 @@ def optimize_width_and_length(train, model, device, expand_length_max, expand_le
                 for shift in opt_option_next[2]
             ]
 
+            if opt_option_text == 'SHIFT' and False: # include shifts to center weights
+                m = torch.tensor(model.get_kernel_weights(i))
+                # print(m)
+                m[m < 0] = 0
+                m = m.reshape(m.shape[-2:])
+                col_pos_means = m.mean(axis=0).cpu()
+                w = int(m.shape[-1] / 2)
+                # print(w)
+                col_means = []
+                for j in range(m.shape[-1]):
+                    a, b = max(j - w, 0), min(j + w, m.shape[-1])
+                    ci = m[:, a:b].mean()
+                    col_means.append(j)
+                pos_max = torch.argmax(torch.tensor(col_means))
+
+                # mb.pl.conv(model)
+                shift_center = (w - pos_max).cpu()
+                # print(shift)
+                # print('adding option', shift_center)
+                options = [[0, 0, -shift_center], [0, 0, shift_center]] + options
+                # assert False
+
+
             print('options to try', options)
 
             for expand_left, expand_right, shift in options:
