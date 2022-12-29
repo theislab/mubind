@@ -748,7 +748,7 @@ def optimize_width_and_length(train, model, device, expand_length_max, expand_le
             model = copy.deepcopy(next_model)
 
             if next_expand_left == 0 and next_expand_right == 0 and next_position == 0 and opt_option_text == 'SHIFT':
-                print('Done width kernel shift optimization...')
+                print('This was the last iteration. Done with kernel shift optimization...')
                 break
 
     return model
