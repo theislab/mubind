@@ -251,7 +251,7 @@ class BindingModesSimple(tnn.Module):
                 # print(mono.shape[0])
                 # temp = torch.tensor([1.0] * mono.shape[0], device=mono.device)
                 if self.ones is None or self.ones.shape[0] < mono.shape[0]: # aux ones tensor, to avoid memory init delay
-                    self.ones =  torch.ones(mono.shape[0], device=mono.device) # torch.ones is much faster
+                    self.ones = torch.ones(mono.shape[0], device=mono.device) # torch.ones is much faster
 
                 temp = self.ones[:mono.shape[0]] # subsetting of ones to fit batch
 

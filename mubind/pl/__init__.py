@@ -5,7 +5,7 @@ from mubind.pl.plotting import (
     create_heatmap,
     create_logo,
     kmer_enrichment,
-    plot_activities,
+    activities,
     plot_loss,
     scatter,
     alignment_protein,

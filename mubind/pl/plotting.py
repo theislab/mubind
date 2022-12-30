@@ -32,27 +32,41 @@ def create_logo(net):
     crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5)
 
 
-def conv_mono(model, figsize=None, flip=False, log=True, show=True):
-
-    activities = np.exp(model.get_log_activities().cpu().detach().numpy())
+def conv_mono(model=None, weights_list=None, n_cols=None, n_rows=None,
+              figsize=None, flip=False, log=False, show=True):
 
     if log:
+        activities = np.exp(model.get_log_activities().cpu().detach().numpy())
         print("\n#activities")
         print(activities)
         print("\n#log_etas")
         print(model.get_log_etas())
-    n_cols = len(model.binding_modes)
+
+    if n_cols is None:
+        n_cols = len(model.binding_modes) if model is not None else len(weights_list)
+    if n_rows is None:
+        n_rows = 1
+
     if figsize is not None:
         plt.figure(figsize=figsize)
-    for i in range(n_cols):
-        weights = model.get_kernel_weights(i)
-        if weights is None:
-            continue
-        weights = weights.squeeze().cpu().detach().numpy()
+    for i in range(max(n_cols, n_rows)):
+        weights = None
+        if model is not None:
+            weights = model.get_kernel_weights(i)
+            if weights is None:
+                continue
+            weights = weights.squeeze().cpu().detach().numpy()
+        else:
+            weights = weights_list[i]
+            if weights is None:
+                continue
+            weights = weights.squeeze()
+
         weights = pd.DataFrame(weights)
         weights.index = "A", "C", "G", "T"
 
-        ax = plt.subplot(1, n_cols - 1, i, frame_on=False)
+        ax = plt.subplot2grid((n_rows, n_cols),
+                              (i if n_rows != 1 else 0, i if n_cols != 1 else 0), frame_on=False)
 
         if flip:
             weights = weights.loc[::-1, ::-1].copy()
@@ -145,27 +159,35 @@ def conv_di(model, figsize=None, mode='complex', show=True, ax=None): # modes in
 
 
 def conv(model, figsize=None, flip=False, log=False, mode='triangle', show=True, **kwargs):
-    activities = np.exp(model.get_log_activities().cpu().detach().numpy())
     if log:
+        activities = np.exp(model.get_log_activities().cpu().detach().numpy())
         print("\n#activities")
         print(activities)
         print("\n#log_etas")
         print(model.get_log_etas())
-    n_cols = len(model.binding_modes)
+
+    is_multibind = isinstance(model, mb.models.Multibind)
+    binding_modes = model.binding_modes if is_multibind else model # model can be a list of binding modes
+
+    n_cols = len(binding_modes)
     if figsize is not None:
         plt.figure(figsize=figsize)
 
-
+    print(n_cols)
     # mono
-    for i in range(n_cols):
-        weights = model.get_kernel_weights(i)
+    for i, m in enumerate(binding_modes.conv_mono):
+        # weights = model.get_kernel_weights(i)
+        if m is None:
+            continue
+
+        weights = m.weight
         if weights is None:
             continue
         weights = weights.squeeze().cpu().detach().numpy()
         weights = pd.DataFrame(weights)
         weights.index = "A", "C", "G", "T"
 
-        ax = plt.subplot2grid((2, (n_cols - 1)), (0, i - 1), frame_on=False)
+        ax = plt.subplot2grid((2, (n_cols)), (0, i), frame_on=False)
         if flip:
             weights = weights.loc[::-1, ::-1].copy()
             weights.columns = range(weights.shape[1])
@@ -179,12 +201,16 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle', show=True,
         plt.title(i)
 
     # dinuc
-    for i, m in enumerate(model.binding_modes.conv_di):
+    for i, m in enumerate(binding_modes.conv_di):
+        if m is None:
+            continue
+
         # print(i, m)
-        weights = model.get_kernel_weights(i, dinucleotide=True)
+        # weights = model.get_kernel_weights(i, dinucleotide=True)
+        weights = m.weight
         if weights is None:
             continue
-        ax = plt.subplot2grid((2, (n_cols - 1)), (1, i - 1), frame_on=False)
+        ax = plt.subplot2grid((2, (n_cols)), (1, i), frame_on=False)
         weights = weights.squeeze().cpu().detach().numpy()
         weights = pd.DataFrame(weights)
         weights.index = (
@@ -292,19 +318,19 @@ def _heatmap_triangle_horizontal(C, axes):
     return caxes
 
 
-
-def plot_activities(model, dataloader, figsize=None):
+def activities(model, n_rows=None, n_cols=None, batch_i=0, batch_names=None, figsize=None):
     # shape of activities: [n_libraries, len(kernels), n_rounds+1]
     activities = np.exp(model.get_log_activities().cpu().detach().numpy())
-    n_cols = activities.shape[0]
-    batch_names = dataloader.dataset.batch_names
+    if n_cols is None:
+        n_cols = activities.shape[0]
     if figsize is not None:
         plt.figure(figsize=figsize)
-    for i in range(n_cols):
-        ax = plt.subplot(1, n_cols, i + 1)
+    for i in range(activities.shape[0]):
+        print(i)
+        ax = plt.subplot(n_cols, n_cols, i + 1)
         rel_activity = activities[i, :, :] / np.sum(activities[i, :, :])
         sns.heatmap(rel_activity.T, cmap="Reds", ax=ax)
-        plt.title("rel contrib. to batch " + str(batch_names[i]))
+        plt.title("rel contrib. to batch " + str(batch_names[i] if batch_names is not None else i))
         plt.ylabel("selection round")
         plt.xlabel("binding mode rel activity")
     plt.show()
@@ -325,12 +351,14 @@ def kmer_enrichment(model, train, k=None, base_round=0, enr_round=-1, show=True,
     # getting the targets and predictions from the model
     counts = mb.tl.kmer_enrichment(model, train, k, base_round, enr_round)
     scores = mb.tl.scores(model, train)
+
     r2_counts = scores['r2_counts']
     r2_fc = scores['r2_fc']
     pearson_fc = scores['pearson_foldchange']
 
     hue = hue if hue in counts else None
     # plotting
+
     p = None
     if style == 'distplot':
         p = sns.displot(counts, x=xlab, y=ylab, cbar=True, hue=hue)
@@ -344,6 +372,7 @@ def kmer_enrichment(model, train, k=None, base_round=0, enr_round=-1, show=True,
     # plt.plot([0.1, 10], [0.1, 10], linewidth=2)
     if show:
         plt.show()
+
     return scores
 
 

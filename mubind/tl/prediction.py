@@ -984,32 +984,55 @@ def create_multi_data(n_chip=100, n_selex=100, n_batch_selex=3):
 
     return train_loader, test_loader
 
-def scores(model, train, **kwargs):
+def scores(model, train, by=None, **kwargs):
     counts = mb.tl.kmer_enrichment(model, train, **kwargs)
 
-    targets = counts[[c for c in counts if c.startswith('t')]]
-    pred = counts[[c for c in counts if c.startswith('p')]]
-    mask = np.isnan(targets)
+    if by is not None and by == 'batch':
+        results_by_batch = {}
+        for batch_id, grp in counts.groupby('batch'):
+            counts_batch = counts[counts['batch'] == batch_id]
+            targets = counts_batch[[c for c in counts_batch if c.startswith('t')]]
+            pred = counts_batch[[c for c in counts_batch if c.startswith('p')]]
+            mask = np.isnan(targets)
 
-    r2_counts = sklearn.metrics.r2_score(targets.to_numpy()[~mask], pred.to_numpy()[~mask])
+            r2_counts = sklearn.metrics.r2_score(targets.to_numpy()[~mask], pred.to_numpy()[~mask])
+            # print(counts)
+            r2_enr = sklearn.metrics.r2_score(counts_batch["enr_obs"], counts_batch["enr_pred"])
+            try:
+                r2_f = sklearn.metrics.r2_score(counts_batch["f_obs"], counts_batch["f_pred"])
+            except:
+                r2_f = np.nan
+            try:
+                r_f = scipy.stats.pearsonr(counts_batch["f_obs"], counts_batch["f_pred"])[0]
+            except:
+                r_f = np.nan
+            result = {'r2_counts': r2_counts,
+                    'r2_foldchange': r2_f, 'r2_enr': r2_enr,
+                    'r2_fc': r_f ** 2,
+                    'pearson_foldchange': r_f}
+            results_by_batch[batch_id] = result
+        return results_by_batch
 
-    # print(counts)
-    r2_enr = sklearn.metrics.r2_score(counts["enr_obs"], counts["enr_pred"])
+    else:
+        targets = counts[[c for c in counts if c.startswith('t')]]
+        pred = counts[[c for c in counts if c.startswith('p')]]
+        mask = np.isnan(targets)
 
-    try:
-        r2_f = sklearn.metrics.r2_score(counts["f_obs"], counts["f_pred"])
-    except:
-        r2_f = np.nan
-
-    try:
-        r_f = scipy.stats.pearsonr(counts["f_obs"], counts["f_pred"])[0]
-    except:
-        r_f = np.nan
-
-    return {'r2_counts': r2_counts,
-            'r2_foldchange': r2_f, 'r2_enr': r2_enr,
-            'r2_fc': r_f ** 2,
-            'pearson_foldchange': r_f}
+        r2_counts = sklearn.metrics.r2_score(targets.to_numpy()[~mask], pred.to_numpy()[~mask])
+        # print(counts)
+        r2_enr = sklearn.metrics.r2_score(counts["enr_obs"], counts["enr_pred"])
+        try:
+            r2_f = sklearn.metrics.r2_score(counts["f_obs"], counts["f_pred"])
+        except:
+            r2_f = np.nan
+        try:
+            r_f = scipy.stats.pearsonr(counts["f_obs"], counts["f_pred"])[0]
+        except:
+            r_f = np.nan
+        return {'r2_counts': r2_counts,
+                'r2_foldchange': r2_f, 'r2_enr': r2_enr,
+                'r2_fc': r_f ** 2,
+                'pearson_foldchange': r_f}
 
 def kmer_enrichment(model, train, k=None, base_round=0, enr_round=-1, pseudo_count=1):
     # getting the targets and predictions from the model
