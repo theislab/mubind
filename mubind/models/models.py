@@ -415,7 +415,7 @@ class BindingModesSimple(tnn.Module):
 
     def get_kernel_weights(self, index, dinucleotide=False):
         values = self.conv_mono if not dinucleotide else self.conv_di
-        return values[index].weight if values[index] is not None else None
+        return values[index].weight if len(values) >= (index + 1) and values[index] is not None else None
 
     def __len__(self):
         return len(self.conv_mono)

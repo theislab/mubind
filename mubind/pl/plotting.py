@@ -32,8 +32,8 @@ def create_logo(net):
     crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5)
 
 
-def conv_mono(model=None, weights_list=None, n_cols=None, n_rows=None,
-              figsize=None, flip=False, log=False, show=True):
+def conv_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=True,
+              figsize=None, flip=False, log=False, show=True, title=True):
 
     if log:
         activities = np.exp(model.get_log_activities().cpu().detach().numpy())
@@ -49,24 +49,30 @@ def conv_mono(model=None, weights_list=None, n_cols=None, n_rows=None,
 
     if figsize is not None:
         plt.figure(figsize=figsize)
-    for i in range(max(n_cols, n_rows)):
+
+    fig, axs = plt.subplots(n_rows, n_cols)
+    print(axs.shape)
+
+    for i in range(n_rows * n_cols):
+        ax = axs.flatten()[i]
+        ax.set_frame_on(False)
+
         weights = None
         if model is not None:
             weights = model.get_kernel_weights(i)
             if weights is None:
+                fig.delaxes(ax)
                 continue
             weights = weights.squeeze().cpu().detach().numpy()
         else:
             weights = weights_list[i]
             if weights is None:
+                fig.delaxes(ax)
                 continue
             weights = weights.squeeze()
 
         weights = pd.DataFrame(weights)
         weights.index = "A", "C", "G", "T"
-
-        ax = plt.subplot2grid((n_rows, n_cols),
-                              (i if n_rows != 1 else 0, i if n_cols != 1 else 0), frame_on=False)
 
         if flip:
             weights = weights.loc[::-1, ::-1].copy()
@@ -75,7 +81,10 @@ def conv_mono(model=None, weights_list=None, n_cols=None, n_rows=None,
         # print(weights)
 
         crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5, ax=ax)
-        plt.title(i)
+        if title:
+            ax.set_title(i)
+        if not xticks:
+            ax.set_xticks([])
 
     if show:
         plt.show()
@@ -347,33 +356,58 @@ def plot_loss(model):
 
 # enr_round=-1 means that the last round is used
 def kmer_enrichment(model, train, k=None, base_round=0, enr_round=-1, show=True, hue='batch',
-                    log_scale=True, style='distplot', xlab='enr_pred', ylab='enr_obs'):
+                    log_scale=True, style='distplot', xlab='enr_pred', ylab='enr_obs', by=None):
     # getting the targets and predictions from the model
     counts = mb.tl.kmer_enrichment(model, train, k, base_round, enr_round)
-    scores = mb.tl.scores(model, train)
+    scores = mb.tl.scores(model, train, by=by)
 
-    r2_counts = scores['r2_counts']
-    r2_fc = scores['r2_fc']
-    pearson_fc = scores['pearson_foldchange']
+    if by != 'batch':
+        r2_counts = scores['r2_counts']
+        r2_fc = scores['r2_fc']
+        pearson_fc = scores['pearson_foldchange']
 
-    hue = hue if hue in counts else None
-    # plotting
+        hue = hue if hue in counts else None
+        # plotting
 
-    p = None
-    if style == 'distplot':
-        p = sns.displot(counts, x=xlab, y=ylab, cbar=True, hue=hue)
-    elif style == 'scatter':
-        p = sns.scatterplot(counts, x=xlab, y=ylab, hue=hue)
-    if log_scale:
-        p.set(xscale='log', yscale='log')
-    plt.title('k-mer length = %i, n=%i\n' % (k if k is not None else -1, counts.shape[0]) +
-              r'$R^2 (counts)$ = %.2f' % (r2_counts) +
-              r', $R^2 (fc)$ = %.2f' % r2_fc + ', Pearson\'s R(fc) = %.2f' % pearson_fc)
-    # plt.plot([0.1, 10], [0.1, 10], linewidth=2)
-    if show:
-        plt.show()
-
-    return scores
+        p = None
+        if style == 'distplot':
+            p = sns.displot(counts, x=xlab, y=ylab, cbar=True, hue=hue)
+        elif style == 'scatter':
+            p = sns.scatterplot(counts, x=xlab, y=ylab, hue=hue)
+        if log_scale:
+            p.set(xscale='log', yscale='log')
+        plt.title('k-mer length = %i, n=%i\n' % (k if k is not None else -1, counts.shape[0]) +
+                  r'$R^2 (counts)$ = %.2f' % (r2_counts) +
+                  r', $R^2 (fc)$ = %.2f' % r2_fc + ', Pearson\'s R(fc) = %.2f' % pearson_fc)
+        # plt.plot([0.1, 10], [0.1, 10], linewidth=2)
+        if show:
+            plt.show()
+        return scores
+    else:
+        scores_by_batch = mb.tl.scores(model, train, by='batch')
+        for batch in scores_by_batch:
+            print(batch)
+            scores = scores_by_batch[batch]
+            r2_counts = scores['r2_counts']
+            r2_fc = scores['r2_fc']
+            pearson_fc = scores['pearson_foldchange']
+            counts_batch = counts[counts['batch'] == batch]
+            hue = hue if hue in counts_batch else None
+            # plotting
+            p = None
+            if style == 'distplot':
+                p = sns.displot(counts_batch, x=xlab, y=ylab, cbar=True, hue=hue)
+            elif style == 'scatter':
+                p = sns.scatterplot(counts_batch, x=xlab, y=ylab, hue=hue)
+            if log_scale:
+                p.set(xscale='log', yscale='log')
+            plt.title('k-mer length = %i, n=%i\n' % (k if k is not None else -1, counts_batch.shape[0]) +
+                      r'$R^2 (counts)$ = %.2f' % (r2_counts) +
+                      r', $R^2 (fc)$ = %.2f' % r2_fc + ', Pearson\'s R(fc) = %.2f' % pearson_fc)
+            # plt.plot([0.1, 10], [0.1, 10], linewidth=2)
+            if show:
+                plt.show()
+        return scores_by_batch
 
 
 def get_dism(words):
