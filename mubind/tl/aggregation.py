@@ -31,6 +31,7 @@ def _get_models(outdir_glob, extension='.pkl', device=None, stop_at=None):
     models = []
     # matches all files with `extension` under `output_dir`
     for next_path in glob.glob(outdir_glob):
+        print(next_path)
         p = Path(next_path)
         if extension in p.name:
             with open(p, 'rb') as f:

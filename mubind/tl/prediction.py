@@ -110,9 +110,9 @@ def optimize_simple(
     if verbose != 0:
         print(
             "optimizer: ",
-            str(type(optimiser)),
+            str(type(optimiser)).split('.')[-1].split('\'>')[0],
             "\ncriterion:",
-            str(type(criterion)),
+            str(type(criterion)).split('.')[-1].split('\'>')[0],
             "\n# epochs:",
             num_epochs,
             "\nearly_stopping:",
@@ -229,12 +229,16 @@ def optimize_simple(
 
         loss_final = running_loss / len(dataloader)
         rec_final = running_rec / len(dataloader)
+
         if log_each != -1 and epoch > 0 and (epoch % log_each == 0):
             if verbose != 0:
+                total_time = time.time() - t0
+                time_epoch_1k = (total_time / max(epoch, 1) / n_trials * 1e3)
                 print(
-                    "Epoch: %2d, Loss: %.6f" % (epoch + 1, loss_final),
-                    ", best epoch: %i" % best_epoch,
-                    "secs per epoch: %.3f s" % ((time.time() - t0) / max(epoch, 1)),
+                    "Epoch: %2d, Loss: %.6f, " % (epoch + 1, loss_final),
+                    "best epoch: %i, " % best_epoch,
+                    "secs per epoch: %.3f s, " % ((time.time() - t0) / max(epoch, 1)),
+                    "secs epoch*1k trials: %.3fs" % time_epoch_1k
                 )
 
         if best_loss is None or loss_final < best_loss:
@@ -253,10 +257,13 @@ def optimize_simple(
 
         if early_stopping > 0 and epoch >= best_epoch + early_stopping:
             if verbose != 0:
+                total_time = time.time() - t0
+                time_epoch_1k = (total_time / max(epoch, 1) / n_trials * 1e3)
                 print(
-                    "Epoch: %2d, Loss: %.4f" % (epoch + 1, loss_final),
-                    ", best epoch: %i" % best_epoch,
-                    "secs per epoch: %.3f s" % ((time.time() - t0) / max(epoch, 1)),
+                    "Epoch: %2d, Loss: %.4f, " % (epoch + 1, loss_final),
+                    "best epoch: %i, " % best_epoch,
+                    "secs per epoch: %.3fs, " % ((time.time() - t0) / max(epoch, 1)),
+                    "secs epoch*1k trials: %.3fs" % time_epoch_1k
                 )
             if verbose != 0:
                 print("early stop!")
@@ -308,8 +315,6 @@ def optimize_iterative(
     exp_max=40,
     shift_max=2,
     shift_step=1,
-    use_mono=True,
-    use_dinuc=False,
     r2_per_epoch=False,
     **kwargs,
 ):
@@ -338,10 +343,16 @@ def optimize_iterative(
             n_batches = len(train)
             enr_series = True
 
+        use_mono = kwargs.get('use_mono', True)
+        use_dinuc = kwargs.get('use_dinuc', True)
+
+        dinuc_mode = kwargs.get('dinuc_mode', 'local')
+
         vprint("# rounds", set(n_rounds) if not isinstance(n_rounds, int) else n_rounds)
         vprint("# rounds", set(n_rounds) if not isinstance(n_rounds, int) else n_rounds)
         vprint('# use_mono', use_mono)
         vprint('# use_dinuc', use_dinuc)
+        vprint('# dinuc_mode', dinuc_mode)
         vprint("# batches", n_batches)
         vprint("# kernels", n_kernels)
         vprint("# initial w", w)
@@ -703,7 +714,7 @@ def optimize_width_and_length(train, model, device, expand_length_max, expand_le
                     device=device,
                     num_epochs=num_epochs if opt_option_text == 'WIDTH' else num_epochs * num_epochs_shift_factor,
                     early_stopping=early_stopping,
-                    log_each=num_epochs if opt_option_text == 'WIDTH' else num_epochs * num_epochs_shift_factor, # log_each,
+                    log_each=log_each if opt_option_text == 'WIDTH' else log_each * num_epochs_shift_factor, # log_each,
                     update_grad_i=i,
                     feat_i=feat_i,
                     lr=lr,

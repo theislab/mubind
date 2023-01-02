@@ -7,7 +7,7 @@ import warnings
 import unittest
 
 class ModelTests(unittest.TestCase):
-    N_EPOCHS = 10
+    N_EPOCHS = 2
 
     @classmethod
     def setUpClass(cls):
@@ -27,9 +27,26 @@ class ModelTests(unittest.TestCase):
         cls.train = tdata.DataLoader(dataset=dataset, batch_size=256, shuffle=True)
 
         cls.model, _ = mb.tl.optimize_iterative(cls.train, device, num_epochs=cls.N_EPOCHS, show_logo=False,
-                                                    early_stopping=early_stopping, log_each=50,
-                                                    verbose=0)
+                                                early_stopping=early_stopping, log_each=50,
+                                                opt_kernel_shift=0, opt_kernel_length=0,
+                                                dinuc_mode='local',
+                                                verbose=0)
 
+        # setting dinuc to false
+        cls.model, _ = mb.tl.optimize_iterative(cls.train, device, num_epochs=cls.N_EPOCHS, show_logo=False,
+                                                early_stopping=early_stopping, log_each=50,
+                                                dinuc_mode='local',
+                                                opt_kernel_shift=0, opt_kernel_length=0,
+                                                verbose=0,
+                                                use_dinuc=False)
+
+        # using dinuc full
+        cls.model, _ = mb.tl.optimize_iterative(cls.train, device, num_epochs=cls.N_EPOCHS, show_logo=False,
+                                                early_stopping=early_stopping, log_each=50,
+                                                dinuc_mode='full',
+                                                opt_kernel_shift=0, opt_kernel_length=0,
+                                                verbose=0,
+                                                use_dinuc=True,)
 
     # just to formalize that the code above raises no errors
     #   if it does, this method won't be called anyways

@@ -3,7 +3,7 @@ import itertools
 import torch
 import torch.nn as tnn
 import torch.nn.functional as F
-
+import numpy as np
 from torch.autograd import Variable
 
 import mubind as mb
@@ -37,7 +37,7 @@ class Multibind(tnn.Module):
         self.datatype = datatype.lower()
         assert self.datatype in ["selex", "pbm"]
         self.padding_const = kwargs.get("padding_const", 0.25)
-        self.use_dinuc = kwargs.get("use_dinuc", False)
+        self.use_dinuc = kwargs.get("use_dinuc", True)
         if "kernels" not in kwargs and "n_kernels" not in kwargs:
             kwargs["kernels"] = [0, 15]
             kwargs["n_kernels"] = len(kwargs["kernels"])
@@ -215,35 +215,39 @@ class BindingModesSimple(tnn.Module):
         super().__init__()
         self.kernels = kwargs.get("kernels", [0, 15])
         self.init_random = kwargs.get("init_random", True)
-        self.use_dinuc = kwargs.get("use_dinuc", False)
-
+        self.use_dinuc = kwargs.get("use_dinuc", True)
+        self.dinuc_mode = kwargs.get("dinuc_mode", 'local') # local or full
         self.conv_mono = tnn.ModuleList()
         self.conv_di = tnn.ModuleList()
-
         self.ones = None # aux ones tensor, for intercept init.
 
         for k in self.kernels:
             if k == 0:
                 self.conv_mono.append(None)
                 self.conv_di.append(None)
-
-
             else:
                 next_mono = tnn.Conv2d(1, 1, kernel_size=(4, k), padding=(0, 0), bias=False)
                 if not self.init_random:
                     next_mono.weight.data.uniform_(0, 0)
                 self.conv_mono.append(next_mono)
 
-                next_di = tnn.Conv2d(1, 1, kernel_size=(16, k), padding=(0, 0), bias=False)
-                if not self.init_random:
-                    next_di.weight.data.uniform_(-.5, .5) # problem with fitting  dinucleotides if (0, 0)
-                self.conv_di.append(next_di)
-
-
-
+                # create the conv_di layers. These are skipped during forward unless use_dinuc is True
+                if self.dinuc_mode == 'local':
+                    # the number of contiguous dinucleotides for k positions is k - 1
+                    next_di = tnn.Conv2d(1, 1, kernel_size=(16, k - 1), padding=(0, 0), bias=False)
+                    if not self.init_random:
+                        next_di.weight.data.uniform_(-.5, .5) # problem with fitting  dinucleotides if (0, 0)
+                    self.conv_di.append(next_di)
+                # a matrix of conv2d
+                elif self.dinuc_mode == 'full':
+                    conv_di_next = tnn.ModuleList()
+                    for i in range(1, k):
+                        conv_di_next.append(tnn.Conv2d(1, 1, kernel_size=(16, k - i)))
+                    self.conv_di.append(conv_di_next)
 
     def forward(self, mono, mono_rev, di=None, di_rev=None, **kwargs):
         bm_pred = []
+
         for i in range(len(self.kernels)):
             # print(i)
             if self.kernels[i] == 0:
@@ -261,7 +265,10 @@ class BindingModesSimple(tnn.Module):
                 if self.conv_mono[i].weight.device != mono.device:
                     self.conv_mono[i].weight.to(mono.device)
 
-                if self.use_dinuc:
+                # print('here...')
+                # print(self.conv_di[i])
+
+                if self.use_dinuc and self.dinuc_mode == 'local':
                     temp = torch.cat(
                         (
                             self.conv_mono[i](mono),
@@ -271,17 +278,65 @@ class BindingModesSimple(tnn.Module):
                         ),
                         dim=3,
                     )
+                elif self.use_dinuc and self.dinuc_mode == 'full':
+                    next_conv_di = self.conv_di[i]
+
+                    k = self.conv_mono[i].weight.shape[-1] # this is to infer the number of conv2d for dinuc
+                    pi = -1  # the overall counter of the conv2d
+                    # iterating in this way, we go from the largest axis i.e. diagonal to the corner
+                    out_di = []
+                    # print(next_conv_di)
+                    # for pi, di_ij in enumerate(next_conv_di):
+                    #     print(pi)
+                    for ki in range(0, k):  # ki indicates the delta between positions i.e. the diagonal index
+                        # print('\nI = %i' % ki)
+                        p = mono[:, :, :, :mono.shape[-1] - ki]
+                        q = mono[:, :, :, ki:]
+                        assert p.shape[-1] == q.shape[-1]
+                        p_max = torch.argmax(p, axis=2)
+                        p_max = torch.mul(p_max, 4)
+                        q_max = torch.argmax(q, axis=2)
+
+                        mask = p_max + q_max
+                        mask_flatten = mask.flatten()
+                        one_hot = torch.nn.functional.one_hot(mask_flatten, num_classes=16)
+                        m = one_hot.reshape(mono.shape[0], mono.shape[-1] - ki, 16)
+                        m = m.float()
+                        m = m.reshape(mono.shape[0], 16, mono.shape[-1] - ki)
+                        m = torch.unsqueeze(m, 1)
+                        di_ij = next_conv_di[pi]
+                        next_out = di_ij(m)
+                        # print(next_out.shape)
+                        out_di.append(next_out)
+                        # assert False
+
+                    temp_mono = torch.cat(
+                        (
+                            self.conv_mono[i](mono),
+                            self.conv_mono[i](mono_rev),
+                        ),
+                        dim=3,
+                    )
+                    temp_di = torch.cat(out_di, dim=3)
+
+                    temp = torch.cat((temp_mono, temp_di), axis=3)
+                    # print(temp.shape)
+                    # print('here....')
+                    # assert False
                 else:
                     out_mono = self.conv_mono[i](mono)
                     out_mono_rev = self.conv_mono[i](mono_rev)
                     temp = torch.cat((out_mono, out_mono_rev), dim=3)
 
                 # this particular step can generate out of bounds due to the exponential cost
+                # print(temp_mono.type())
+                # print(temp.shape, temp.type())
+                # assert False
+
                 temp = torch.exp(temp)
                 temp = temp.view(temp.shape[0], -1)
                 temp = torch.sum(temp, dim=1)
                 bm_pred.append(temp)
-
 
         return torch.stack(bm_pred).T
 
@@ -310,9 +365,15 @@ class BindingModesSimple(tnn.Module):
 
     def update_grad_di(self, index, value):
         if self.conv_di[index] is not None:
-            self.conv_di[index].weight.requires_grad = value
-            if not value:
-                self.conv_di[index].weight.grad = None
+            if isinstance(self.conv_di[index], tnn.ModuleList):
+                for conv_di in self.conv_di[index]:
+                    conv_di.weight.requires_grad = value
+                    if not value:
+                        conv_di.weight.grad = None
+            else:
+                self.conv_di[index].weight.requires_grad = value
+                if not value:
+                    self.conv_di[index].weight.grad = None
 
     def update_grad(self, index, value):
         self.update_grad_mono(index, value)
@@ -370,30 +431,43 @@ class BindingModesSimple(tnn.Module):
             if m is None:
                 continue
             # update the weight
-            shape_di_before = m.weight.shape
+            if self.dinuc_mode == 'local':
+                shape_di_before = m.weight.shape
+                if shift >= 1:
+                    m.weight = torch.nn.Parameter(
+                        torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 16, shift, device=device)], dim=3)
+                    )
+                elif shift <= -1:
+                    m.weight = torch.nn.Parameter(
+                        torch.cat([torch.zeros(1, 1, 16, -shift, device=device), m.weight[:, :, :, :shift]], dim=3)
+                    )
 
-            if shift >= 1:
-                m.weight = torch.nn.Parameter(
-                    torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 16, shift, device=device)], dim=3)
-                )
-            elif shift <= -1:
-                m.weight = torch.nn.Parameter(
-                    torch.cat([torch.zeros(1, 1, 16, -shift, device=device), m.weight[:, :, :, :shift]], dim=3)
-                )
+                # adding more positions left and right
+                if expand_left > 0:
+                    self.conv_di[i].weight = torch.nn.Parameter(
+                        torch.cat([torch.zeros(1, 1, 16, expand_left, device=device), m.weight[:, :, :, :]], dim=3)
+                    )
+                if expand_right > 0:
+                    self.conv_di[i].weight = torch.nn.Parameter(
+                        torch.cat([m.weight[:, :, :, :], torch.zeros(1, 1, 16, expand_right, device=device)], dim=3)
+                    )
 
-            # adding more positions left and right
-            if expand_left > 0:
-                self.conv_di[i].weight = torch.nn.Parameter(
-                    torch.cat([torch.zeros(1, 1, 16, expand_left, device=device), m.weight[:, :, :, :]], dim=3)
-                )
-            if expand_right > 0:
-                self.conv_di[i].weight = torch.nn.Parameter(
-                    torch.cat([m.weight[:, :, :, :], torch.zeros(1, 1, 16, expand_right, device=device)], dim=3)
-                )
+                # check that the differences between kernels are the same before and after updates
+                diff_width_after = self.conv_di[i].weight.shape[-1] - self.conv_mono[i].weight.shape[-1]
+                assert diff_width_after == (shape_di_before[-1] - shape_mono_before[-1])
+            elif self.dinuc_mode == 'full': # reset the dinuc weights to match the shape of the new conv2d for mononuc
+                if shape_mono_before[-1] != self.conv_mono[i].weight.shape[-1]:
+                    if False:
+                        k = self.conv_mono[i].weight.shape[-1]
+                        print('updating convdi triangle to have %i positions' % k)
+                        conv_di_next = tnn.ModuleList()
+                        for i in range(1, k + 1):
+                            for j in range(k - i + 1):
+                                # pi += 1
+                                conv_di_next.append(tnn.Conv2d(1, 1, kernel_size=(16, i)))
+                        self.conv_di[i] = conv_di_next
+                        # print(len(self.conv_di))
 
-            # check that the differences between kernels are the same before and after updates
-            diff_width_after = self.conv_di[i].weight.shape[-1] - self.conv_mono[i].weight.shape[-1]
-            assert diff_width_after == (shape_di_before[-1] - shape_mono_before[-1])
 
     def dirichlet_regularization(self):
         out = 0
@@ -524,6 +598,8 @@ class ActivitiesLayer(tnn.Module):
         if option == 1:
             b = binding_per_mode.unsqueeze(1)
             a = torch.exp(torch.stack(list(self.log_activities), dim=1))
+            # print(b.shape, a.shape, batch.shape)
+            # print(b.type(), a.type(), batch.type())
             result = torch.matmul(b, a[batch, :, :])
             scores = result.squeeze(1)
         else:
