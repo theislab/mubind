@@ -5,6 +5,8 @@ from pathlib import Path
 import mubind as mb
 import itertools
 import glob
+import numpy as np
+import pandas as pd
 
 
 def get_model_paths(output_path, extension='.pkl'):
@@ -37,8 +39,30 @@ def get_binding_modes(items):
         binding_modes.append(model.binding_modes)
         activations.append(model.activities.log_activities)
         etas.append(model.selex_module._parameters['log_etas'])
-        etas 
     return binding_modes, activations, etas
+
+
+# binding_modes is a list of binding modes, extend each one to the model.
+def binding_modes_to_multibind(binding_modes, dataloader, device=None):
+    n_rounds = dataloader.dataset.n_rounds
+    n_batches = dataloader.dataset.n_batches
+    enr_series = dataloader.dataset.enr_series
+
+    model = mb.models.Multibind(
+        datatype='selex',
+        kernels = [0] + [m.weight.shape[-1] for m in binding_modes.conv_mono], 
+        n_rounds=n_rounds,
+        n_batches=n_batches,
+        enr_series=enr_series,
+        use_dinuc_full=True,
+        init_random=False
+    ).to(device)
+    del model.binding_modes.conv_mono[0:]
+    del model.binding_modes.conv_di[0:] # clear the initialized layers
+
+    model.binding_modes = binding_modes
+    
+    return model
 
 
 def concatanate(binding_modes, activations, etas):
@@ -279,13 +303,13 @@ def min_distance(w1, w2):
 def distances(w1, w2):
     return distances_dataframe(w1, w2)
 
-        for k in range(5, min_w): 
-            for i in range(0, a_width - k + 1): 
-                ai = a[:, :, :, i : i + k]
-                for j in range(0, b_width - k + 1):
-                    bi = b[:, :, :, j : j + k]
-                    bi_rev = torch.flip(bi, [3])[:, :, [3, 2, 1, 0], :]
-                    d.append(((ai-bi)**2).sum() / ai.shape[-1])
-                    d.append(((ai-bi_rev)**2).sum() / ai.shape[-1])
+    #     for k in range(5, min_w): 
+    #         for i in range(0, a_width - k + 1): 
+    #             ai = a[:, :, :, i : i + k]
+    #             for j in range(0, b_width - k + 1):
+    #                 bi = b[:, :, :, j : j + k]
+    #                 bi_rev = torch.flip(bi, [3])[:, :, [3, 2, 1, 0], :]
+    #                 d.append(((ai-bi)**2).sum() / ai.shape[-1])
+    #                 d.append(((ai-bi_rev)**2).sum() / ai.shape[-1])
 
-    return min(d)
+    # return min(d)
