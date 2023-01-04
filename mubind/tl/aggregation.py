@@ -50,7 +50,7 @@ def binding_modes_to_multibind(binding_modes, dataloader, device=None):
 
     model = mb.models.Multibind(
         datatype='selex',
-        kernels = [0] + [m.weight.shape[-1] for m in binding_modes.conv_mono], 
+        kernels = [0] + [m.weight.shape[-1] for m in binding_modes.conv_mono if m is not None], 
         n_rounds=n_rounds,
         n_batches=n_batches,
         enr_series=enr_series,
