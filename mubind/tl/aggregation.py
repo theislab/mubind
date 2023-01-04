@@ -50,17 +50,18 @@ def binding_modes_to_multibind(binding_modes, dataloader, device=None):
 
     model = mb.models.Multibind(
         datatype='selex',
-        kernels = [0] + [m.weight.shape[-1] for m in binding_modes.conv_mono if m is not None], 
+        kernels = [0] + [m.shape[-1] for m in binding_modes], 
         n_rounds=n_rounds,
         n_batches=n_batches,
         enr_series=enr_series,
         use_dinuc_full=True,
         init_random=False
     ).to(device)
-    del model.binding_modes.conv_mono[0:]
-    del model.binding_modes.conv_di[0:] # clear the initialized layers
 
-    model.binding_modes = binding_modes
+    for idx, m in enumerate(binding_modes):
+        # change new model filter weights
+        new_w = m.reshape([1, 1] + list(m.shape))
+        model.binding_modes.conv_mono[idx + 1].weight = torch.nn.Parameter(torch.tensor(new_w, dtype=torch.float))
     
     return model
 
