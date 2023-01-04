@@ -32,27 +32,47 @@ def create_logo(net):
     crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5)
 
 
-def conv_mono(model, figsize=None, flip=False, log=True, show=True):
-
-    activities = np.exp(model.get_log_activities().cpu().detach().numpy())
+def conv_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=True,
+              figsize=None, flip=False, log=False, show=True, title=True):
 
     if log:
+        activities = np.exp(model.get_log_activities().cpu().detach().numpy())
         print("\n#activities")
         print(activities)
         print("\n#log_etas")
         print(model.get_log_etas())
-    n_cols = len(model.binding_modes)
+
+    if n_cols is None:
+        n_cols = len(model.binding_modes) if model is not None else len(weights_list)
+    if n_rows is None:
+        n_rows = 1
+
     if figsize is not None:
         plt.figure(figsize=figsize)
-    for i in range(n_cols):
-        weights = model.get_kernel_weights(i)
-        if weights is None:
-            continue
-        weights = weights.squeeze().cpu().detach().numpy()
+
+    fig, axs = plt.subplots(n_rows, n_cols)
+    print(axs.shape)
+
+    for i in range(n_rows * n_cols):
+        ax = axs.flatten()[i]
+        ax.set_frame_on(False)
+
+        weights = None
+        if model is not None:
+            weights = model.get_kernel_weights(i)
+            if weights is None:
+                fig.delaxes(ax)
+                continue
+            weights = weights.squeeze().cpu().detach().numpy()
+        else:
+            weights = weights_list[i]
+            if weights is None:
+                fig.delaxes(ax)
+                continue
+            weights = weights.squeeze()
+
         weights = pd.DataFrame(weights)
         weights.index = "A", "C", "G", "T"
-
-        ax = plt.subplot(1, n_cols - 1, i, frame_on=False)
 
         if flip:
             weights = weights.loc[::-1, ::-1].copy()
@@ -61,7 +81,10 @@ def conv_mono(model, figsize=None, flip=False, log=True, show=True):
         # print(weights)
 
         crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5, ax=ax)
-        plt.title(i)
+        if title:
+            ax.set_title(i)
+        if not xticks:
+            ax.set_xticks([])
 
     if show:
         plt.show()
@@ -145,27 +168,42 @@ def conv_di(model, figsize=None, mode='complex', show=True, ax=None): # modes in
 
 
 def conv(model, figsize=None, flip=False, log=False, mode='triangle', show=True, **kwargs):
-    activities = np.exp(model.get_log_activities().cpu().detach().numpy())
+    import matplotlib.pyplot as plt
+    import numpy as np
     if log:
+        activities = np.exp(model.get_log_activities().cpu().detach().numpy())
         print("\n#activities")
         print(activities)
         print("\n#log_etas")
         print(model.get_log_etas())
-    n_cols = len(model.binding_modes)
+
+    is_multibind = not isinstance(model, list) # mb.models.Multibind)
+    binding_modes = model.binding_modes if is_multibind else model # model can be a list of binding modes
+
+    print(is_multibind)
+    n_cols = len(binding_modes) if not is_multibind else len(model.binding_modes.conv_mono)
     if figsize is not None:
         plt.figure(figsize=figsize)
 
-
+    print(n_cols)
     # mono
-    for i in range(n_cols):
-        weights = model.get_kernel_weights(i)
+    ci = 0
+    for i, m in enumerate(binding_modes.conv_mono):
+        # weights = model.get_kernel_weights(i)
+
+        # print('mono', i, m)
+        if m is None:
+            continue
+
+        ax = plt.subplot2grid((2, (n_cols)), (0, ci), frame_on=False)
+        ci += 1
+
+        weights = m.weight
         if weights is None:
             continue
         weights = weights.squeeze().cpu().detach().numpy()
         weights = pd.DataFrame(weights)
         weights.index = "A", "C", "G", "T"
-
-        ax = plt.subplot2grid((2, (n_cols - 1)), (0, i - 1), frame_on=False)
         if flip:
             weights = weights.loc[::-1, ::-1].copy()
             weights.columns = range(weights.shape[1])
@@ -179,34 +217,41 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle', show=True,
         plt.title(i)
 
     # dinuc
-    for i, m in enumerate(model.binding_modes.conv_di):
-        # print(i, m)
-        weights = model.get_kernel_weights(i, dinucleotide=True)
-        if weights is None:
+    ci = 0
+    for i, m in enumerate(binding_modes.conv_di):
+        if m is None:
             continue
-        ax = plt.subplot2grid((2, (n_cols - 1)), (1, i - 1), frame_on=False)
-        weights = weights.squeeze().cpu().detach().numpy()
-        weights = pd.DataFrame(weights)
-        weights.index = (
-            "AA",
-            "AC",
-            "AG",
-            "AT",
-            "CA",
-            "CC",
-            "CG",
-            "CT",
-            "GA",
-            "GC",
-            "GG",
-            "GT",
-            "TA",
-            "TC",
-            "TG",
-            "TT",
-        )
+
+        ax = plt.subplot2grid((2, (n_cols)), (1, ci), frame_on=False)
+        ci += 1
 
         if mode == 'complex':
+            # print(i, m)
+            # weights = model.get_kernel_weights(i, dinucleotide=True)
+            weights = m.weight
+            if weights is None:
+                continue
+            weights = weights.squeeze().cpu().detach().numpy()
+            weights = pd.DataFrame(weights)
+            weights.index = (
+                "AA",
+                "AC",
+                "AG",
+                "AT",
+                "CA",
+                "CC",
+                "CG",
+                "CT",
+                "GA",
+                "GC",
+                "GG",
+                "GT",
+                "TA",
+                "TC",
+                "TG",
+                "TT",
+            )
+
             df = []
             for c in weights:
                 a = weights.index.str[0]
@@ -226,40 +271,164 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle', show=True,
             plt.xticks(rotation=45, ha='center', fontsize=5);
 
         elif mode == 'triangle':
-            df = []
+            df_final = []
+            for ki, m in enumerate(binding_modes.conv_di[i]):
+                if m is None:
+                    continue
+                # print(i, m)
+                # weights = model.get_kernel_weights(i, dinucleotide=True)
+                weights = m.weight
 
-            a = weights.index.str[0]
-            b = weights.index.str[1]
-            for c in weights:
-                # real values
-                df2 = pd.DataFrame()
-                df2['a'] = a + str(c)
-                df2['b'] = b + str(c + 1)
-                df2['weights'] = weights[c].values
-                df2['pos'] = c
-                df.append(df2.pivot('a', 'b', 'weights'))
+                if weights is None:
+                    continue
+                weights = weights.squeeze().cpu().detach().numpy()
+                weights = pd.DataFrame(weights)
+                weights.index = (
+                    "AA",
+                    "AC",
+                    "AG",
+                    "AT",
+                    "CA",
+                    "CC",
+                    "CG",
+                    "CT",
+                    "GA",
+                    "GC",
+                    "GG",
+                    "GT",
+                    "TA",
+                    "TC",
+                    "TG",
+                    "TT",
+                )
 
-            C = pd.concat(df).fillna(np.nan)
+                j = weights.columns.shape[0]
+                # weights.columns = range(i, weights.columns.shape[0] + i)
+                # if i > j:
+                #     continue
+
+                # print(weights.shape)
+                a = weights.index.str[0]
+                b = weights.index.str[1]
+                # print(weights.shape)
+                df = []
+                for c in range(0, j):
+                    # real values
+                    df2 = pd.DataFrame()
+                    df2['a'] = a + str(c)
+                    df2['b'] = b + str(c + 1 + ki)
+                    df2['weights'] = weights[c].values if c in weights.columns else np.nan
+                    df2['pos'] = c
+                    df.append(df2.pivot('b', 'a', 'weights'))
+
+                # print(ki, len(df))
+                if len(df) != 0:
+                    df_concat = pd.concat(df).fillna(np.nan)
+                    # sns.heatmap(df_concat)
+                    # plt.show()
+                    df_final.append(df_concat)
+
+            df = df_final[0].copy()
+            for df2 in df_final:
+                df[~pd.isnull(df2)] = df2
+
+            # sns.heatmap(df)
+            # plt.show()
+
+            C = df.copy()
 
             # add border columns
-            df2 = pd.DataFrame(index=C.index)
-            for nt in ['A', 'C', 'G', 'T']:
-                df2[nt + str(0)] = np.nan
-            df3 = pd.DataFrame(index=C.index)
-            for nt in ['A', 'C', 'G', 'T']:
-                df3[nt + str(weights.shape[1] + 1)] = np.nan
-            C = pd.concat([df2, C, df3], axis=1)
-
+            # df2 = pd.DataFrame(index=C.index)
+            # for nt in ['A', 'C', 'G', 'T']:
+            #     df2[nt + str(0)] = np.nan
+            # df3 = pd.DataFrame(index=C.index)
+            # for nt in ['A', 'C', 'G', 'T']:
+            #     df3[nt + str(weights.shape[1] + 1)] = np.nan
+            # C = pd.concat([df2, C, df3], axis=1)
             C = np.array(C)
-            a = np.empty((4, C.shape[1]))
-            a[:] = np.nan
-            C = np.concatenate([a, C, a])
 
-            C = np.tril(C, k=8)
-            C = np.ma.masked_array(C, C == 0)
-            _heatmap_triangle_horizontal(C, ax)
+            # assert False
+            #
+            # a = np.empty((4, C.shape[1]))
+            # a[:] = np.nan
+            # C = np.concatenate([a, C, a])
+            #
+            # C = np.tril(C, k=8)
+            # C = np.ma.masked_array(C, C == 0)
+            # assert False
+            # print(C.shape)
+
+            # sns.heatmap(C, ax=ax)
+            # plt.show()
+            # assert False
+            # _heatmap_triangle_horizontal(C, ax)
+            import numpy as np
+            import matplotlib.pyplot as plt
+            import matplotlib.patches as patches
+            import matplotlib as mpl
+            cmap = mpl.cm.get_cmap('RdBu_r')
+            norm = mpl.colors.Normalize(vmin=np.nanmin(C), vmax=np.nanmax(C))
+            size = 20
+            delta = 10
+            min_x, max_x = None, None
+            min_y, max_y = None, None
+            for i in range(C.shape[0]):
+                for j in range(C.shape[1]):
+                    if int(j / 4) > int(i / 4):
+                        continue
+                    # print(i, j, int(i / 4), int(j / 4))
+                    color = cmap(norm(C[i, j]))
+                    # print(C[i, j], norm(C[i, j]), color)
+                    r2 = patches.Rectangle((-j * size, -i * size), size - delta, size - delta,
+                                           color=color, edgecolor=None)
+                    t2 = mpl.transforms.Affine2D().rotate_deg(-45) + ax.transData
+                    r2.set_transform(t2)
+
+                    # x
+                    min_x = r2.get_x() if min_x is None else min(min_x, r2.get_x())
+                    max_x = r2.get_x() if max_x is None else max(max_x, r2.get_x())
+                    # y
+                    min_y = r2.get_y() if min_y is None else min(min_y, r2.get_y())
+                    max_y = r2.get_y() if max_y is None else max(max_y, r2.get_y())
+
+                    # print(r2.xy)
+                    ax.add_patch(r2)
+            plt.xlim(-C.shape[0] * size * 1.41421, 1.41421 * size)
+            plt.ylim(-C.shape[0] * size * .70710, 1.41421 * size * 8 / 4)
+            # ax.get_xaxis().set_ticks([])
+            ax.get_yaxis().set_ticks([])
+            # ax.axis('off')
+            # plt.show()
+
             # sns.heatmap(pd.concat(df), cmap='coolwarm', center=0)
         else:
+            # print(i, m)
+            # weights = model.get_kernel_weights(i, dinucleotide=True)
+            weights = m.weight
+            if weights is None:
+                continue
+            ax = plt.subplot2grid((2, (n_cols)), (1, i), frame_on=False)
+            weights = weights.squeeze().cpu().detach().numpy()
+            weights = pd.DataFrame(weights)
+            weights.index = (
+                "AA",
+                "AC",
+                "AG",
+                "AT",
+                "CA",
+                "CC",
+                "CG",
+                "CT",
+                "GA",
+                "GC",
+                "GG",
+                "GT",
+                "TA",
+                "TC",
+                "TG",
+                "TT",
+            )
+
             sns.heatmap(weights, cmap="coolwarm", center=0, ax=ax)
 
     if show:
@@ -292,19 +461,19 @@ def _heatmap_triangle_horizontal(C, axes):
     return caxes
 
 
-
-def plot_activities(model, dataloader, figsize=None):
+def activities(model, n_rows=None, n_cols=None, batch_i=0, batch_names=None, figsize=None):
     # shape of activities: [n_libraries, len(kernels), n_rounds+1]
     activities = np.exp(model.get_log_activities().cpu().detach().numpy())
-    n_cols = activities.shape[0]
-    batch_names = dataloader.dataset.batch_names
+    if n_cols is None:
+        n_cols = activities.shape[0]
     if figsize is not None:
         plt.figure(figsize=figsize)
-    for i in range(n_cols):
-        ax = plt.subplot(1, n_cols, i + 1)
+    for i in range(activities.shape[0]):
+        print(i)
+        ax = plt.subplot(n_cols, n_cols, i + 1)
         rel_activity = activities[i, :, :] / np.sum(activities[i, :, :])
         sns.heatmap(rel_activity.T, cmap="Reds", ax=ax)
-        plt.title("rel contrib. to batch " + str(batch_names[i]))
+        plt.title("rel contrib. to batch " + str(batch_names[i] if batch_names is not None else i))
         plt.ylabel("selection round")
         plt.xlabel("binding mode rel activity")
     plt.show()
@@ -321,30 +490,58 @@ def plot_loss(model):
 
 # enr_round=-1 means that the last round is used
 def kmer_enrichment(model, train, k=None, base_round=0, enr_round=-1, show=True, hue='batch',
-                    log_scale=True, style='distplot', xlab='enr_pred', ylab='enr_obs'):
+                    log_scale=True, style='distplot', xlab='enr_pred', ylab='enr_obs', by=None):
     # getting the targets and predictions from the model
     counts = mb.tl.kmer_enrichment(model, train, k, base_round, enr_round)
-    scores = mb.tl.scores(model, train)
-    r2_counts = scores['r2_counts']
-    r2_fc = scores['r2_fc']
-    pearson_fc = scores['pearson_foldchange']
+    scores = mb.tl.scores(model, train, by=by)
 
-    hue = hue if hue in counts else None
-    # plotting
-    p = None
-    if style == 'distplot':
-        p = sns.displot(counts, x=xlab, y=ylab, cbar=True, hue=hue)
-    elif style == 'scatter':
-        p = sns.scatterplot(counts, x=xlab, y=ylab, hue=hue)
-    if log_scale:
-        p.set(xscale='log', yscale='log')
-    plt.title('k-mer length = %i, n=%i\n' % (k if k is not None else -1, counts.shape[0]) +
-              r'$R^2 (counts)$ = %.2f' % (r2_counts) +
-              r', $R^2 (fc)$ = %.2f' % r2_fc + ', Pearson\'s R(fc) = %.2f' % pearson_fc)
-    # plt.plot([0.1, 10], [0.1, 10], linewidth=2)
-    if show:
-        plt.show()
-    return scores
+    if by != 'batch':
+        r2_counts = scores['r2_counts']
+        r2_fc = scores['r2_fc']
+        pearson_fc = scores['pearson_foldchange']
+
+        hue = hue if hue in counts else None
+        # plotting
+
+        p = None
+        if style == 'distplot':
+            p = sns.displot(counts, x=xlab, y=ylab, cbar=True, hue=hue)
+        elif style == 'scatter':
+            p = sns.scatterplot(counts, x=xlab, y=ylab, hue=hue)
+        if log_scale:
+            p.set(xscale='log', yscale='log')
+        plt.title('k-mer length = %i, n=%i\n' % (k if k is not None else -1, counts.shape[0]) +
+                  r'$R^2 (counts)$ = %.2f' % (r2_counts) +
+                  r', $R^2 (fc)$ = %.2f' % r2_fc + ', Pearson\'s R(fc) = %.2f' % pearson_fc)
+        # plt.plot([0.1, 10], [0.1, 10], linewidth=2)
+        if show:
+            plt.show()
+        return scores
+    else:
+        scores_by_batch = mb.tl.scores(model, train, by='batch')
+        for batch in scores_by_batch:
+            print(batch)
+            scores = scores_by_batch[batch]
+            r2_counts = scores['r2_counts']
+            r2_fc = scores['r2_fc']
+            pearson_fc = scores['pearson_foldchange']
+            counts_batch = counts[counts['batch'] == batch]
+            hue = hue if hue in counts_batch else None
+            # plotting
+            p = None
+            if style == 'distplot':
+                p = sns.displot(counts_batch, x=xlab, y=ylab, cbar=True, hue=hue)
+            elif style == 'scatter':
+                p = sns.scatterplot(counts_batch, x=xlab, y=ylab, hue=hue)
+            if log_scale:
+                p.set(xscale='log', yscale='log')
+            plt.title('k-mer length = %i, n=%i\n' % (k if k is not None else -1, counts_batch.shape[0]) +
+                      r'$R^2 (counts)$ = %.2f' % (r2_counts) +
+                      r', $R^2 (fc)$ = %.2f' % r2_fc + ', Pearson\'s R(fc) = %.2f' % pearson_fc)
+            # plt.plot([0.1, 10], [0.1, 10], linewidth=2)
+            if show:
+                plt.show()
+        return scores_by_batch
 
 
 def get_dism(words):

@@ -27,5 +27,14 @@ from mubind.tl.prediction import (  # SelexDataset,; ChipSeqDataset,; create_dat
     scores,
     predict
 )
-from mubind.tl.aggregation import concatanate, get_model_paths, get_binding_modes
+from mubind.tl.aggregation import (
+    load_model,
+    combine_models,
+    binding_modes,
+    distances,
+    min_distance,
+    submatrix,
+    distances_dataframe,
+    reduce_filters,
+)
 from mubind.tl.probound import load_probound
