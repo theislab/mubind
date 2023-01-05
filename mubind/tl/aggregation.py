@@ -1,21 +1,83 @@
-import numpy as np
-import pandas as pd
 import itertools
-import sklearn.metrics
-import scipy
 import torch
-import torch.optim as topti
-import torch.utils.data as tdata
 import pickle
-import os
 from pathlib import Path
 import mubind as mb
 import itertools
 import glob
+import numpy as np
+import pandas as pd
 
-def load_model(path):
-    with open(path, 'rb') as f:
-        model = pickle.load(f)
+
+def get_model_paths(output_path, extension='.pkl'):
+    """
+    Given a path to a directory containing model pickle files, return a list of paths to those files.
+    output_path (str): path to a directory containing model pickle files
+    extension (str): of model files (.h5 or .pkl)
+    """
+    paths = []
+    path = Path(output_path)
+    # matches all files with `extension` under `output_path`
+    for p in path.rglob("*"):
+        if extension in p.name:
+            paths.append(str(p))
+    return paths
+
+
+def get_binding_modes(items):
+    """
+    Given a list of model objects or paths to model pickle files (or mixed), return a list of binding modes.
+    items (list): list of model objects or paths to model pickle files
+    """
+    binding_modes, activations, etas = [], [], []
+    for item in items:
+        if type(item) == str:
+            with open(item, 'rb') as f:
+                model = pickle.load(f)
+        else:
+            model = item
+        binding_modes.append(model.binding_modes)
+        activations.append(model.activities.log_activities)
+        etas.append(model.selex_module._parameters['log_etas'])
+    return binding_modes, activations, etas
+
+
+# binding_modes is a list of binding modes, extend each one to the model.
+def binding_modes_to_multibind(binding_modes, dataloader, device=None):
+    n_rounds = dataloader.dataset.n_rounds
+    n_batches = dataloader.dataset.n_batches
+    enr_series = dataloader.dataset.enr_series
+
+    model = mb.models.Multibind(
+        datatype='selex',
+        kernels = [0] + [m.shape[-1] for m in binding_modes], 
+        n_rounds=n_rounds,
+        n_batches=n_batches,
+        enr_series=enr_series,
+        use_dinuc_full=True,
+        init_random=False
+    ).to(device)
+
+    for idx, m in enumerate(binding_modes):
+        # change new model filter weights
+        new_w = m.reshape([1, 1] + list(m.shape))
+        model.binding_modes.conv_mono[idx + 1].weight = torch.nn.Parameter(torch.tensor(new_w, dtype=torch.float))
+    
+    return model
+
+
+def concatanate(binding_modes, activations, etas):
+    """
+    Combine given binding modes, activations, and etas into a single model.
+    """
+    model = mb.models.Multibind(n_rounds=1, datatype='selex')
+    del model.binding_modes.conv_mono[0:]
+    del model.binding_modes.conv_di[0:] # to remove Nones from module lists
+    for bm, a, e in zip(binding_modes, activations, etas):
+        model.binding_modes.conv_mono.extend(bm.conv_mono[1:])
+        model.binding_modes.conv_di.extend(bm.conv_di[1:])
+        model.activities.log_activities += a
+        model.selex_module._parameters['log_etas'] = model.selex_module._parameters['log_etas'].add(e)
     return model
 
 
@@ -25,8 +87,8 @@ def load_model(path):
 
 def _get_models(outdir_glob, extension='.pkl', device=None, stop_at=None):
     """
-    output_dir (str): some parent dir of the output directory
-    extension (str): of model files (.h5 or .pkl)
+    Given a path to a directory containing model pickle files, return a single model combining all of them.
+    output_path (str): path to a directory containing model pickle files
     """
     models = []
     # matches all files with `extension` under `output_dir`
@@ -242,3 +304,13 @@ def min_distance(w1, w2):
 def distances(w1, w2):
     return distances_dataframe(w1, w2)
 
+    #     for k in range(5, min_w): 
+    #         for i in range(0, a_width - k + 1): 
+    #             ai = a[:, :, :, i : i + k]
+    #             for j in range(0, b_width - k + 1):
+    #                 bi = b[:, :, :, j : j + k]
+    #                 bi_rev = torch.flip(bi, [3])[:, :, [3, 2, 1, 0], :]
+    #                 d.append(((ai-bi)**2).sum() / ai.shape[-1])
+    #                 d.append(((ai-bi_rev)**2).sum() / ai.shape[-1])
+
+    # return min(d)
