@@ -167,7 +167,8 @@ def conv_di(model, figsize=None, mode='complex', show=True, ax=None): # modes in
         plt.show()
 
 
-def conv(model, figsize=None, flip=False, log=False, mode='triangle', show=True, **kwargs):
+def conv(model, figsize=None, flip=False, log=False, mode='triangle',
+         show=True, rowspan_mono = 1, rowspan_dinuc = 1, **kwargs):
     import matplotlib.pyplot as plt
     import numpy as np
     if log:
@@ -188,6 +189,9 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle', show=True,
     print(n_cols)
     # mono
     ci = 0
+
+    n_rows = rowspan_mono + rowspan_dinuc
+
     for i, m in enumerate(binding_modes.conv_mono):
         # weights = model.get_kernel_weights(i)
 
@@ -195,7 +199,7 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle', show=True,
         if m is None:
             continue
 
-        ax = plt.subplot2grid((2, (n_cols)), (0, ci), frame_on=False)
+        ax = plt.subplot2grid((n_rows, (n_cols)), (0, ci), rowspan=rowspan_mono, frame_on=False)
         ci += 1
 
         weights = m.weight
@@ -221,8 +225,7 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle', show=True,
     for i, m in enumerate(binding_modes.conv_di):
         if m is None:
             continue
-
-        ax = plt.subplot2grid((2, (n_cols)), (1, ci), frame_on=False)
+        ax = plt.subplot2grid((n_rows, n_cols), (rowspan_mono, ci), rowspan=rowspan_dinuc, frame_on=False)
         ci += 1
 
         if mode == 'complex':
@@ -272,12 +275,31 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle', show=True,
 
         elif mode == 'triangle':
             df_final = []
-            for ki, m in enumerate(binding_modes.conv_di[i]):
+            next = binding_modes.conv_di[i]
+            rescale_y = False
+            if isinstance(next, torch.nn.modules.conv.Conv2d):
+                next = [next]
+                rescale_y = True
+                # print('this is a single array')
+                # m = next.weight
+                # print('initial weight', m.shape)
+                # conv_di_next = []
+                # k = binding_modes.conv_mono[i].weight.shape[-1]
+                # for i in range(1, k - i):
+                #     conv_di_next.append(torch.nn.Conv2d(1, 1, kernel_size=(4, 4)))
+                #     m_reshaped = m[:, :, :, i].reshape(conv_di_next[-1].weight.shape)
+                #     print(conv_di_next[-1].weight.shape, m_reshaped.shape)
+                #     conv_di_next[-1].weight = torch.nn.Parameter(torch.tensor(m_reshaped, dtype=torch.float))
+                # print(m, m.shape)
+                # next = conv_di_next
+            for ki, m in enumerate(next):
                 if m is None:
                     continue
-                # print(i, m)
                 # weights = model.get_kernel_weights(i, dinucleotide=True)
                 weights = m.weight
+
+                # print(weights)
+                # print(weights.shape)
 
                 if weights is None:
                     continue
@@ -319,7 +341,7 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle', show=True,
                     df2['b'] = b + str(c + 1 + ki)
                     df2['weights'] = weights[c].values if c in weights.columns else np.nan
                     df2['pos'] = c
-                    df.append(df2.pivot('b', 'a', 'weights'))
+                    df.append(df2.pivot(index='b', columns='a', values='weights'))
 
                 # print(ki, len(df))
                 if len(df) != 0:
@@ -332,36 +354,11 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle', show=True,
             for df2 in df_final:
                 df[~pd.isnull(df2)] = df2
 
-            # sns.heatmap(df)
-            # plt.show()
-
+            print(df.shape)
             C = df.copy()
-
-            # add border columns
-            # df2 = pd.DataFrame(index=C.index)
-            # for nt in ['A', 'C', 'G', 'T']:
-            #     df2[nt + str(0)] = np.nan
-            # df3 = pd.DataFrame(index=C.index)
-            # for nt in ['A', 'C', 'G', 'T']:
-            #     df3[nt + str(weights.shape[1] + 1)] = np.nan
-            # C = pd.concat([df2, C, df3], axis=1)
             C = np.array(C)
 
-            # assert False
-            #
-            # a = np.empty((4, C.shape[1]))
-            # a[:] = np.nan
-            # C = np.concatenate([a, C, a])
-            #
-            # C = np.tril(C, k=8)
-            # C = np.ma.masked_array(C, C == 0)
-            # assert False
-            # print(C.shape)
 
-            # sns.heatmap(C, ax=ax)
-            # plt.show()
-            # assert False
-            # _heatmap_triangle_horizontal(C, ax)
             import numpy as np
             import matplotlib.pyplot as plt
             import matplotlib.patches as patches
@@ -393,10 +390,18 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle', show=True,
 
                     # print(r2.xy)
                     ax.add_patch(r2)
-            plt.xlim(-C.shape[0] * size * 1.41421, 1.41421 * size)
-            plt.ylim(-C.shape[0] * size * .70710, 1.41421 * size * 8 / 4)
+
+
+            scale_x = 1.41421
+            n_pos = C.shape[0]
+            size_x = size * scale_x
+            plt.xlim(-(n_pos + 1) * size_x, size_x * 2.5)
+            plt.ylim(-n_pos * (size if not rescale_y else 1.5) * .70710, scale_x * size * 8 / 4)
             # ax.get_xaxis().set_ticks([])
             ax.get_yaxis().set_ticks([])
+            if not xticks:
+                plt.xticks([])
+
             # ax.axis('off')
             # plt.show()
 
