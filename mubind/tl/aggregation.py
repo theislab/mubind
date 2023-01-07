@@ -7,6 +7,7 @@ import itertools
 import glob
 import numpy as np
 import pandas as pd
+from numba import jit
 
 
 def get_model_paths(output_path, extension='.pkl'):
@@ -50,7 +51,7 @@ def binding_modes_to_multibind(binding_modes, dataloader, device=None):
 
     model = mb.models.Multibind(
         datatype='selex',
-        kernels = [0] + [m.shape[-1] for m in binding_modes], 
+        kernels = [0] + [m.shape[-1] for m in binding_modes],
         n_rounds=n_rounds,
         n_batches=n_batches,
         enr_series=enr_series,
@@ -62,7 +63,7 @@ def binding_modes_to_multibind(binding_modes, dataloader, device=None):
         # change new model filter weights
         new_w = m.reshape([1, 1] + list(m.shape))
         model.binding_modes.conv_mono[idx + 1].weight = torch.nn.Parameter(torch.tensor(new_w, dtype=torch.float))
-    
+
     return model
 
 
@@ -93,12 +94,12 @@ def _get_models(outdir_glob, extension='.pkl', device=None, stop_at=None):
     models = []
     # matches all files with `extension` under `output_dir`
     for next_path in glob.glob(outdir_glob):
-        print(next_path)
+        # print(next_path)
         p = Path(next_path)
         if extension in p.name:
             with open(p, 'rb') as f:
                 models.append(pickle.load(f))
-                print(f'Loaded model {p.name}')
+                # print(f'Loaded model {p.name}')
 
                 if stop_at is not None and len(models) >= stop_at:
                     break
@@ -107,26 +108,25 @@ def _get_models(outdir_glob, extension='.pkl', device=None, stop_at=None):
     return models
 
 
-def combine_models(output_dir, extension='.pkl', device=None):
-    models = _get_models(output_dir, extension=extension, device=device)
+def combine_models(output_dir, extension='.pkl', device=None, **kwargs):
+    models = _get_models(output_dir, extension=extension, device=device, **kwargs)
     combined_model = mb.models.Multibind(n_rounds=1, datatype='selex').to(device)
 
     del combined_model.binding_modes.conv_mono[0:]
     del combined_model.binding_modes.conv_di[0:] # to remove Nones from module lists
     for i, model in enumerate(models):
-        print(i, model)
+        # print(i, model)
         combined_model.binding_modes.conv_mono.extend(model.binding_modes.conv_mono[1:])
         combined_model.binding_modes.conv_di.extend(model.binding_modes.conv_di[1:])
         combined_model.activities.log_activities += model.activities.log_activities
-
-        print(combined_model.selex_module._parameters['log_etas'].shape)
-        print(model.selex_module._parameters['log_etas'].shape)
+        # print(combined_model.selex_module._parameters['log_etas'].shape)
+        # print(model.selex_module._parameters['log_etas'].shape)
         combined_model.selex_module._parameters['log_etas'] = combined_model.selex_module._parameters['log_etas'].add(model.selex_module._parameters['log_etas'])
 
     return combined_model
 
 
-def binding_modes(output_dir, extension='.pkl', device=None, **kwargs):
+def binding_modes(output_dir, extension='.pkl', device=None, pos_weight_thr=None, **kwargs):
     """
     output_dir (str): some parent dir of the output directory
     extension (str): of model files (.h5 or .pkl)
@@ -137,12 +137,21 @@ def binding_modes(output_dir, extension='.pkl', device=None, **kwargs):
     del combined_model.binding_modes.conv_di[0:] # to remove Nones from module lists
     for i, model in enumerate(models):
         # print(i, model)
-        combined_model.binding_modes.conv_mono.extend(model.binding_modes.conv_mono[1:])
-        combined_model.binding_modes.conv_di.extend(model.binding_modes.conv_di[1:])
+
+        next_mono = model.binding_modes.conv_mono[1:]
+        next_di = model.binding_modes.conv_di[1:]
+
+        mask = []
+        for m in next_mono:
+            mask.append((m.weight[m.weight > 0].sum() > pos_weight_thr) if pos_weight_thr is not None else True)
+
+        combined_model.binding_modes.conv_mono.extend([mono for j, mono in enumerate(next_mono) if mask[j]])
+        combined_model.binding_modes.conv_di.extend([di for j, di in enumerate(next_di) if mask[j]])
 
     return combined_model.binding_modes
 
 
+@jit
 def submatrix(m, start, length, flip, filter_neg_weights=True):
     sub_m = m[:, start: start + length]
     if flip:
@@ -155,48 +164,52 @@ def submatrix(m, start, length, flip, filter_neg_weights=True):
     return sub_m
 
 
+# @jit
 def distances_dataframe(a, b, min_w_sum=3):
     d = []
     min_w = min(a.shape[-1], b.shape[-1])
-    lowest_d = -1, -1
-    for k in range(5, min_w):
-        # print(k)
-        for i in range(0, a.shape[-1] - k + 1):
-            ai = submatrix(a, i, k, 0)
-            ai_sum = ai.sum()
-            if ai_sum < min_w_sum:
+    # lowest_d = -1, -1
+    # for k in np.arange(5, min_w):
+    # print(k)
+    k = min_w
+    for i in np.arange(0, a.shape[-1] - k + 1):
+        ai = submatrix(a, i, k, 0)
+        ai_sum = ai.sum()
+        if ai_sum < min_w_sum:
+            continue
+
+        if ai_sum == 0:
+            continue
+        for j in np.arange(0, b.shape[-1] - k + 1):
+            bi = submatrix(b, j, k, 0)
+            bi_sum = bi.sum()
+            if bi_sum < min_w_sum:
                 continue
 
-            if ai_sum == 0:
-                continue
-            for j in range(0, b.shape[-1] - k + 1):
+            # print(type(ai), type(bi), ai.shape, bi.shape)
+            d1 = ((bi - ai) ** 2).sum() / bi.shape[-1]
+            d.append([i, j, k, ai.shape[-1], bi.shape[-1],
+                      ai.sum(), bi.sum(), 0, d1])
+            # if lowest_d[-1] == -1 or d[-1] < lowest_d[-1] or d[-2] < lowest_d[-1]:
+            #     lowest_d = i, 0, d[-1]
 
-                bi = submatrix(b, j, k, 0)
-                bi_sum = bi.sum()
-                if bi_sum < min_w_sum:
-                    continue
-
-                # print(type(ai), type(bi), ai.shape, bi.shape)
-                d.append([i, j, k, ai.shape[-1], bi.shape[-1],
-                          ai.sum(), bi.sum(), 0, ((bi - ai) ** 2).sum() / bi.shape[-1]])
-                if lowest_d[-1] == -1 or d[-1] < lowest_d[-1] or d[-2] < lowest_d[-1]:
-                    lowest_d = i, 0, d[-1]
-
-                bi_rev = submatrix(b, j, k, 1)
-                # flipped version
-                d.append([i, j, k, ai.shape[-1], bi.shape[-1],
-                          ai.sum(), bi.sum(), 1, ((bi_rev - ai) ** 2).sum() / bi.shape[-1]])
-                if lowest_d[-1] == -1 or d[-1] < lowest_d[-1] or d[-2] < lowest_d[-1]:
-                    lowest_d = i, 1, d[-1]
+            bi_rev = submatrix(b, j, k, 1)
+            # flipped version
+            d2 = ((bi_rev - ai) ** 2).sum() / bi.shape[-1]
+            d.append([i, j, k, ai.shape[-1], bi.shape[-1],
+                      ai.sum(), bi.sum(), 1, d2])
+            # if lowest_d[-1] == -1 or d[-1] < lowest_d[-1] or d[-2] < lowest_d[-1]:
+            #     lowest_d = i, 1, d[-1]
 
     res = pd.DataFrame(d, columns=['a_start', 'b_start', 'k', 'a_shape', 'b_shape',
                                    'a_sum', 'b_sum', 'b_flip', 'distance']).sort_values('distance')
     return res
 
-def calculate_distances(mono_list):
+def calculate_distances(mono_list, full=False, best=False):
     res = []
     for a, b in itertools.product(enumerate(mono_list), repeat=2):
-        if a[0] > b[0]:
+        # print(a[0], b[0])
+        if not full and a[0] > b[0]:
             continue
         df2 = mb.tl.distances_dataframe(a[1], b[1])
         df2['a'] = a[0]
@@ -205,11 +218,20 @@ def calculate_distances(mono_list):
         df3 = mb.tl.distances_dataframe(b[1], a[1])
         df3['a'] = b[0]
         df3['b'] = a[0]
+        df3['id'] = df3['a'].astype(str) + '_' + df3['b'].astype(str)
+
+        if best:
+            if not full:
+                df3 = df3.sort_values('distance').drop_duplicates('id')
+            else:
+                df3 = df3[df3['a'] > df3['b']].sort_values('distance').drop_duplicates('id')
+
         res.append(df3)
         # print(res[-1])
+
     res = pd.concat(res)
     res = pd.concat([res[['a', 'b']], res[[c for c in res if not c in ['a', 'b']]]], axis=1)
-    res['id'] = res['a'].astype(str) + '_' + res['b'].astype(str)
+
     return res
 
 def reduce_filters(binding_modes, plot=False, thr_group=0.01):
@@ -231,7 +253,10 @@ def reduce_filters(binding_modes, plot=False, thr_group=0.01):
             sns.clustermap(hm, cmap='Reds_r', figsize=[5, 5]) #  annot=hm, fmt='.2f')
 
         best = res[res['a'] > res['b']].sort_values('distance').drop_duplicates('id')
-        best = best[(best['distance'] < thr_group)]
+
+        best['ignore'] = best['distance'] < thr_group
+        # print(best.head(10))
+        best = best[~best['ignore']]
         # define a mask to ignore grouping
         ignore = set()
         mask_ignore = []
@@ -240,6 +265,7 @@ def reduce_filters(binding_modes, plot=False, thr_group=0.01):
             ignore.add(r['a'])
             ignore.add(r['b'])
         best['ignore'] = mask_ignore
+
         best = best[~best['ignore']]
         print('# grouping', best.shape)
 
@@ -304,8 +330,8 @@ def min_distance(w1, w2):
 def distances(w1, w2):
     return distances_dataframe(w1, w2)
 
-    #     for k in range(5, min_w): 
-    #         for i in range(0, a_width - k + 1): 
+    #     for k in range(5, min_w):
+    #         for i in range(0, a_width - k + 1):
     #             ai = a[:, :, :, i : i + k]
     #             for j in range(0, b_width - k + 1):
     #                 bi = b[:, :, :, j : j + k]

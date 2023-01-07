@@ -28,6 +28,7 @@ from mubind.tl.prediction import (  # SelexDataset,; ChipSeqDataset,; create_dat
     predict
 )
 from mubind.tl.aggregation import (
+    calculate_distances,
     combine_models,
     binding_modes,
     distances,

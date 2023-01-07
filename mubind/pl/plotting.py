@@ -32,7 +32,7 @@ def create_logo(net):
     crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5)
 
 
-def conv_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=True,
+def conv_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=True, yticks=True,
               figsize=None, flip=False, log=False, show=True, title=True):
 
     if log:
