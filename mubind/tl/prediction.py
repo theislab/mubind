@@ -135,7 +135,13 @@ def optimize_simple(
     n_batches = len(list(enumerate(dataloader)))
 
     # the total number of trials
-    n_trials = sum([d.dataset.rounds.shape[0] for d in (dataloader if isinstance(dataloader, list) else [dataloader])])
+    n_trials = None
+    if isinstance(dataloader, list) and hasattr(dataloader[0].dasaset, 'signal'):
+        n_trials = sum([d.dataset.signal.shape[0] for d in dataloader])
+    elif isinstance(dataloader, list) and hasattr(dataloader[0].dataset, 'rounds'):
+        n_trials = sum([d.dataset.rounds.shape[0] for d in dataloader])
+    else:
+        n_trials = sum([d.dataset.rounds.shape[0] if hasattr(d.dataset, 'rounds') else d.dataset.signal.shape[0] for d in [dataloader]])
 
     for epoch in range(num_epochs):
         running_loss = 0
@@ -147,7 +153,7 @@ def optimize_simple(
 
         # print(len(dataloader_queries))
         for data_i, next_dataloader in enumerate(dataloader_queries):
-            # print(data_i, next_dataloader)
+            # print(data_i, next_dataloader, len(next_dataloader))
             for i, batch in enumerate(next_dataloader):
                 # print(i, 'batches out of', n_batches)
                 # Get a batch and potentially send it to GPU memory.
@@ -155,6 +161,8 @@ def optimize_simple(
                 b = batch["batch"].to(device) if "batch" in batch else None
 
                 rounds = batch["rounds"].to(device) if "rounds" in batch else None
+
+                # print(rounds.shape)
                 if next_dataloader.dataset.use_sparse:
                     rounds = rounds.squeeze(1)
 
@@ -179,7 +187,6 @@ def optimize_simple(
 
                     # outputs, reconstruction = model(inputs)  # Forward pass through the network.
                     outputs = model(**inputs)  # Forward pass through the network.
-
                     # weight_dist = model.weight_distances_min_k()
                     if dirichlet_regularization == 0:
                         dir_weight = 0
@@ -190,14 +197,19 @@ def optimize_simple(
                         loss = criterion(outputs[:, :rounds.shape[1]], rounds)
                     else:
                         # define a mask to remove items on a rounds specific manner
-                        mask = torch.zeros((n_rounds.shape[0], outputs.shape[1]), dtype=torch.bool, device=device)
-                        for i in range(mask.shape[1]):
-                            mask[:, i] = ~(n_rounds - 1 < i)
-                        loss = criterion(outputs[mask], rounds[mask])
+                        if n_rounds is not None:
+                            mask = torch.zeros((n_rounds.shape[0], outputs.shape[1]), dtype=torch.bool, device=device)
+                            for i in range(mask.shape[1]):
+                                mask[:, i] = ~(n_rounds - 1 < i)
+                            loss = criterion(outputs[mask], rounds[mask])
+                        else:
+                            loss = criterion(outputs, rounds)
+
                     loss += dir_weight
                     # loss = criterion(outputs, rounds) + 0.01*reconstruct_crit(reconstruction, residues) + dir_weight
                     if exp_max >= 0:
                         loss += model.exp_barrier(exp_max)
+
                     loss.backward()  # Calculate gradients.
                     optimiser.step()
                     outputs = model(**inputs)  # Forward pass through the network.
@@ -330,6 +342,7 @@ def optimize_iterative(
 
     vprint("next w", w, type(w))
 
+    print(train)
     if (isinstance(train, list) and 'SelexDataset' in str(type(train[0].dataset))) or 'SelexDataset' in str(type(train.dataset)):
         if criterion is None:
             criterion = mb.tl.PoissonLoss()
@@ -373,9 +386,8 @@ def optimize_iterative(
         if isinstance(train.dataset, mb.datasets.PBMDataset):
             n_proteins = train.dataset.n_proteins
         else:
-            n_proteins = train.dataset.n_cells
+            n_proteins = kwargs.get('n_proteins', train.dataset.n_cells)
         vprint("# proteins", n_proteins)
-
         if joint_learning or n_proteins == 1:
             model = mb.models.Multibind(
                 datatype="pbm",
@@ -442,8 +454,10 @@ def optimize_iterative(
                 if verbose != 0:
                     vprint("setting grad status of kernel (mono, dinuc) at %i to (%i, %i)" % (ki, mask_mono, mask_dinuc))
 
-                model.binding_modes.update_grad_mono(ki, mask_mono)
-                model.binding_modes.update_grad_di(ki, mask_dinuc)
+
+                if hasattr(model.binding_modes, 'update_grad_mono'):
+                    model.binding_modes.update_grad_mono(ki, mask_mono)
+                    model.binding_modes.update_grad_di(ki, mask_dinuc)
 
             print("\n")
 

@@ -156,6 +156,8 @@ class GenomicsDataset(tdata.Dataset):
         seq = df["seq"] if "seq" in df else df.index
         self.seq = np.array(seq)
 
+        self.use_sparse = False
+
         if single_encoding_step:
             assert len(set(seq.str.len())) == 1
             n_entries = df.shape[0]

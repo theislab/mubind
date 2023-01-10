@@ -49,7 +49,7 @@ class Multibind(tnn.Module):
             assert len(kwargs["kernels"]) == kwargs["n_kernels"]
         self.kernels = kwargs.get("kernels")
         if self.datatype == "pbm":
-            kwargs["target_dim"] = 1
+            kwargs["target_dim"] = kwargs.get('target_dim', 1)
         elif self.datatype == "selex":
             if "n_rounds" in kwargs:
                 kwargs["target_dim"] = kwargs["n_rounds"]
@@ -58,7 +58,8 @@ class Multibind(tnn.Module):
             else:
                 print("n_rounds must be provided.")
                 assert False
-        assert not ("n_batches" in kwargs and "n_proteins" in kwargs)
+
+        # assert not ("n_batches" in kwargs and "n_proteins" in kwargs)
 
         # only keep one padding equals to the length of the max kernel
         if self.kernels is None:
@@ -110,7 +111,6 @@ class Multibind(tnn.Module):
         # binding_per_mode: matrix of size [batchsize, number of binding modes]
         binding_per_mode = self.binding_modes(mono=mono, mono_rev=mono_rev, **kwargs)
         binding_scores = self.activities(binding_per_mode, **kwargs)
-
 
         # print('mode')
         # print(binding_per_mode)
@@ -591,7 +591,6 @@ class ActivitiesLayer(tnn.Module):
         # print(scores.shape)
         # print(torch.stack(list(self.log_activities), dim=1).shape)
 
-
         # this is to compare old/new implementation of relevant low-level operations
         scores = None
         option = 1
@@ -601,6 +600,11 @@ class ActivitiesLayer(tnn.Module):
             # print(b.shape, a.shape, batch.shape)
             # print(b.type(), a.type(), batch.type())
             result = torch.matmul(b, a[batch, :, :])
+
+            # print(a)
+            # print('b')
+            # print(b)
+
             scores = result.squeeze(1)
         else:
             scores = torch.zeros([binding_per_mode.shape[0], self.target_dim], device=binding_per_mode.device)
@@ -665,6 +669,7 @@ class SelexModule(tnn.Module):
         out = out * etas[batch, :]
 
         results = out.T / torch.sum(out, dim=1)
+
         return (results * countsum).T
 
     def get_log_etas(self):
