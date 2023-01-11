@@ -356,6 +356,13 @@ def optimize_iterative(
             n_batches = len(train)
             enr_series = True
 
+        n_batches = kwargs.get('n_batches', n_batches)
+        if 'n_batches' in kwargs:
+            del kwargs['n_batches']
+        n_rounds = kwargs.get('n_rounds', n_rounds)
+        if 'n_rounds' in kwargs:
+            del kwargs['n_rounds']
+
         use_mono = kwargs.get('use_mono', True)
         use_dinuc = kwargs.get('use_dinuc', True)
 
@@ -416,7 +423,6 @@ def optimize_iterative(
         ).to(device)
     else:
         assert False  # not implemented yet
-
 
     # this sets up the seed at the first position
     if seed is not None:
@@ -487,6 +493,7 @@ def optimize_iterative(
                 print("kernels mask", model.get_ignore_kernel())
 
             # assert False
+
             optimize_simple(
                 model,
                 train,

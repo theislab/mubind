@@ -236,7 +236,7 @@ class BindingModesSimple(tnn.Module):
                     # the number of contiguous dinucleotides for k positions is k - 1
                     next_di = tnn.Conv2d(1, 1, kernel_size=(16, k - 1), padding=(0, 0), bias=False)
                     if not self.init_random:
-                        next_di.weight.data.uniform_(-.5, .5) # problem with fitting  dinucleotides if (0, 0)
+                        next_di.weight.data.uniform_(-.01, .01) # problem with fitting  dinucleotides if (0, 0)
                     self.conv_di.append(next_di)
                 # a matrix of conv2d
                 elif self.dinuc_mode == 'full':
