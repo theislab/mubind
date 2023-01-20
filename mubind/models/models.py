@@ -1,15 +1,24 @@
 import itertools
-
+import time
+import datetime
 import torch
 import torch.nn as tnn
 import torch.nn.functional as F
 import numpy as np
 from torch.autograd import Variable
+import torch.optim as topti
+import pandas as pd
+import copy
 
 import mubind as mb
 
 
-class Multibind(tnn.Module):
+class Model():
+    def optimize(self):
+        raise NotImplementedError
+
+
+class Multibind(tnn.Module, Model):
     """
     Implements the Multibind model as flexible as possible.
 
@@ -32,11 +41,22 @@ class Multibind(tnn.Module):
         bm_generator (torch.nn.Module): PyTorch module which has a weight matrix as output.
         add_intercept (bool): Whether an intercept is used in addition to the predicted binding modes. Default: True
     """
+
     def __init__(self, datatype, **kwargs):
         super().__init__()
+
+        self.device = kwargs.get('device')
+        print('here... 2')
+        if self.device is None:
+            # Use a GPU if available, as it should be faster.
+            self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+            print("Using device: " + str(self.device))
+
+
         self.datatype = datatype.lower()
         assert self.datatype in ["selex", "pbm"]
         self.padding_const = kwargs.get("padding_const", 0.25)
+        self.use_mono = True
         self.use_dinuc = kwargs.get("use_dinuc", True)
         if "kernels" not in kwargs and "n_kernels" not in kwargs:
             kwargs["kernels"] = [0, 15]
@@ -44,12 +64,12 @@ class Multibind(tnn.Module):
         elif "n_kernels" not in kwargs:
             kwargs["n_kernels"] = len(kwargs["kernels"])
         elif "kernels" not in kwargs and "bm_generator" not in kwargs:
-            kwargs["kernels"] = [0] + [15]*(kwargs["n_kernels"]-1)
+            kwargs["kernels"] = [0] + [15] * (kwargs["n_kernels"] - 1)
         elif "bm_generator" not in kwargs:
             assert len(kwargs["kernels"]) == kwargs["n_kernels"]
         self.kernels = kwargs.get("kernels")
         if self.datatype == "pbm":
-            kwargs["target_dim"] = 1
+            kwargs["target_dim"] = kwargs.get('target_dim', 1)
         elif self.datatype == "selex":
             if "n_rounds" in kwargs:
                 kwargs["target_dim"] = kwargs["n_rounds"]
@@ -58,7 +78,8 @@ class Multibind(tnn.Module):
             else:
                 print("n_rounds must be provided.")
                 assert False
-        assert not ("n_batches" in kwargs and "n_proteins" in kwargs)
+
+        # assert not ("n_batches" in kwargs and "n_proteins" in kwargs)
 
         # only keep one padding equals to the length of the max kernel
         if self.kernels is None:
@@ -73,12 +94,116 @@ class Multibind(tnn.Module):
         if self.datatype == "selex":
             self.selex_module = SelexModule(**kwargs)
 
+        self.n_kernels = kwargs['n_kernels']
         self.best_model_state = None
         self.best_loss = None
         self.loss_history = []
         self.r2_history = []
         self.loss_color = []
         self.total_time = 0
+
+
+    @staticmethod
+    def make_model(train, n_kernels, criterion, **kwargs):
+        # verbose print declaration
+        if kwargs.get('verbose'):
+            def vprint(*args, **kwargs):
+                print(*args, **kwargs)
+        else:
+            vprint = lambda *a, **k: None  # do-nothing function
+
+        if (isinstance(train, list) and 'SelexDataset' in str(type(train[0].dataset))) or\
+            ('SelexDataset' in str(type(train.dataset))):
+            if criterion is None:
+                criterion = mb.tl.PoissonLoss()
+
+            if not isinstance(train, list):
+                n_rounds = train.dataset.n_rounds
+                n_batches = train.dataset.n_batches
+                enr_series = train.dataset.enr_series
+            else:
+                n_rounds = max([max(t.dataset.n_rounds) for t in train])
+                n_batches = len(train)
+                enr_series = True
+
+            n_batches = kwargs.get('n_batches', n_batches)
+            if 'n_batches' in kwargs:
+                del kwargs['n_batches']
+            n_rounds = kwargs.get('n_rounds', n_rounds)
+            if 'n_rounds' in kwargs:
+                del kwargs['n_rounds']
+
+            use_mono = kwargs.get('use_mono', True)
+            use_dinuc = kwargs.get('use_dinuc', True)
+
+            dinuc_mode = kwargs.get('dinuc_mode', 'local')
+
+            vprint("# rounds", set(n_rounds) if not isinstance(n_rounds, int) else n_rounds)
+            vprint("# rounds", set(n_rounds) if not isinstance(n_rounds, int) else n_rounds)
+            vprint('# use_mono', use_mono)
+            vprint('# use_dinuc', use_dinuc)
+            vprint('# dinuc_mode', dinuc_mode)
+            vprint("# batches", n_batches)
+            vprint("# kernels", n_kernels)
+            vprint("# initial w", kwargs.get('w', 20))
+            vprint("# enr_series", enr_series)
+            vprint('# opt kernel shift', kwargs.get('opt_kernel_shift', False))
+            vprint('# opt kernel length', kwargs.get('opt_kernel_length', False))
+            vprint("# custom kernels", kwargs.get('kernels'))
+
+            kwargs['kernels'] = kwargs.get('kernels', [0] + [kwargs.get('w', 20)] * (n_kernels - 1))
+            model = mb.models.Multibind(
+                datatype="selex",
+                n_rounds=n_rounds,
+                init_random=kwargs.get('init_random', False),
+                n_batches=n_batches,
+                enr_series=enr_series,
+                **kwargs,
+            ) # .to(self.device)
+        elif isinstance(train.dataset, mb.datasets.PBMDataset) or isinstance(train.dataset,
+                                                                             mb.datasets.GenomicsDataset):
+            if criterion is None:
+                criterion = mb.tl.MSELoss()
+            if isinstance(train.dataset, mb.datasets.PBMDataset):
+                n_proteins = train.dataset.n_proteins
+            else:
+                n_proteins = kwargs.get('n_proteins', train.dataset.n_cells)
+            vprint("# proteins", n_proteins)
+            if kwargs.get('joint_learning', False) or n_proteins == 1:
+                kwargs['kernels'] = kwargs.get('kernels', [0] + [w] * (n_kernels - 1))
+                model = mb.models.Multibind(
+                    datatype="pbm",
+                    init_random=kwargs.get('init_random', False),
+                    n_batches=n_proteins,
+                    **kwargs,
+                ) # .to(self.device)
+            else:
+                bm_generator = mb.models.BMCollection(n_proteins=n_proteins, n_kernels=n_kernels,
+                                                      init_random=kwargs.get('init_random', False))
+                model = mb.models.Multibind(
+                    datatype="pbm",
+                    init_random=kwargs.get('init_random', False),
+                    n_proteins=n_proteins,
+                    bm_generator=bm_generator,
+                    n_kernels=n_kernels,
+                    **kwargs,
+                ) # .to(self.device)
+        elif isinstance(train.dataset, mb.datasets.ResiduePBMDataset):
+            model = mb.models.Multibind(
+                datatype="pbm",
+                init_random=kwargs.get('init_random', False),
+                bm_generator=mb.models.BMPrediction(num_classes=1, input_size=21, hidden_size=2, num_layers=1,
+                                                    seq_length=train.dataset.get_max_residue_length()),
+                **kwargs,
+            ) # .to(self.device)
+        else:
+            assert False  # not implemented yet
+
+
+
+        # set criterion
+        model.criterion = criterion
+        return model
 
     def forward(self, mono, **kwargs):
         # mono_rev=None, di=None, di_rev=None, batch=None, countsum=None, residues=None, protein_id=None):
@@ -90,7 +215,7 @@ class Multibind(tnn.Module):
             mono_rev = mb.tl.mono2revmono(mono)
         else:
             mono_rev = self.padding(mono_rev)
-            del kwargs['mono_rev'] # for later function calls, and to avoid duplicates
+            del kwargs['mono_rev']  # for later function calls, and to avoid duplicates
 
         # prepare the dinucleotide objects if we need them
         if self.use_dinuc:
@@ -111,7 +236,6 @@ class Multibind(tnn.Module):
         binding_per_mode = self.binding_modes(mono=mono, mono_rev=mono_rev, **kwargs)
         binding_scores = self.activities(binding_per_mode, **kwargs)
 
-
         # print('mode')
         # print(binding_per_mode)
         # print('scores')
@@ -124,9 +248,9 @@ class Multibind(tnn.Module):
         else:
             return None  # this line should never be called
 
-    def set_seed(self, seed, index, max=0, min=-1):
+    def set_seed(self, seed, index, max_value=0, min_value=-1):
         if isinstance(self.binding_modes, BindingModesSimple):
-            self.binding_modes.set_seed(seed, index, max, min)
+            self.binding_modes.set_seed(seed, index, max_value, min_value)
         else:
             print("Setting a seed is not possible for that kind of model.")
             assert False
@@ -183,9 +307,9 @@ class Multibind(tnn.Module):
             for k in range(5, min_w):
                 # print(k)
                 for i in range(0, a.shape[-1] - k + 1):
-                    ai = a[:, :, :, i : i + k]
+                    ai = a[:, :, :, i: i + k]
                     for j in range(0, b.shape[-1] - k + 1):
-                        bi = b[:, :, :, j : j + k]
+                        bi = b[:, :, :, j: j + k]
                         bi_rev = torch.flip(bi, [3])[:, :, [3, 2, 1, 0], :]
                         d.append(((bi - ai) ** 2).sum().cpu().detach() / bi.shape[-1])
                         d.append(((bi_rev - ai) ** 2).sum().cpu().detach() / bi.shape[-1])
@@ -201,6 +325,694 @@ class Multibind(tnn.Module):
 
         return torch.exp(exp_delta - min(d))
 
+    # if early_stopping is positive, training is stopped if over the length of early_stopping no improvement happened or
+    # num_epochs is reached.
+    def optimize_simple(self,
+        dataloader,
+        optimiser,
+        # reconstruction_crit,
+        num_epochs=15,
+        early_stopping=-1,
+        dirichlet_regularization=0,
+        exp_max=40,  # if this value is negative, the exponential barrier will not be used.
+        log_each=-1,
+        verbose=0,
+        r2_per_epoch=False,
+    ):
+        # global loss_history
+        r2_history = []
+        loss_history = []
+        best_loss = None
+        best_epoch = -1
+        if verbose != 0:
+            print(
+                "optimizer: ",
+                str(type(optimiser)).split('.')[-1].split('\'>')[0],
+                "\ncriterion:",
+                str(type(self.criterion)).split('.')[-1].split('\'>')[0],
+                "\n# epochs:",
+                num_epochs,
+                "\nearly_stopping:",
+                early_stopping,
+            )
+
+        for f in ["lr", "weight_decay"]:
+            if f in optimiser.param_groups[0]:
+                if verbose != 0:
+                    print("%s=" % f, optimiser.param_groups[0][f], end=", ")
+
+        if verbose != 0:
+            print("dir weight=", dirichlet_regularization)
+
+        is_lbfgs = "LBFGS" in str(optimiser)
+
+        store_rev = dataloader.dataset.store_rev if not isinstance(dataloader, list) else dataloader[
+            0].dataset.store_rev
+
+        t0 = time.time()
+        n_batches = len(list(enumerate(dataloader)))
+
+        # the total number of trials
+        n_trials = None
+        if isinstance(dataloader, list) and hasattr(dataloader[0].dasaset, 'signal'):
+            n_trials = sum([d.dataset.signal.shape[0] for d in dataloader])
+        elif isinstance(dataloader, list) and hasattr(dataloader[0].dataset, 'rounds'):
+            n_trials = sum([d.dataset.rounds.shape[0] for d in dataloader])
+        else:
+            n_trials = sum(
+                [d.dataset.rounds.shape[0] if hasattr(d.dataset, 'rounds') else d.dataset.signal.shape[0] for d in
+                 [dataloader]])
+
+        for epoch in range(num_epochs):
+            running_loss = 0
+            running_crit = 0
+            running_rec = 0
+
+            # if dataloader is a list of dataloaders, we have to iterate through those
+            dataloader_queries = dataloader if isinstance(dataloader, list) else [dataloader]
+
+            # print(len(dataloader_queries))
+            for data_i, next_dataloader in enumerate(dataloader_queries):
+                # print(data_i, next_dataloader, len(next_dataloader))
+                for i, batch in enumerate(next_dataloader):
+                    # print(i, 'batches out of', n_batches)
+                    # Get a batch and potentially send it to GPU memory.
+                    mononuc = batch["mononuc"].to(self.device)
+                    b = batch["batch"].to(self.device) if "batch" in batch else None
+
+                    rounds = batch["rounds"].to(self.device) if "rounds" in batch else None
+
+                    # print(rounds.shape)
+                    if next_dataloader.dataset.use_sparse:
+                        rounds = rounds.squeeze(1)
+
+                    n_rounds = batch["n_rounds"].to(self.device) if "n_rounds" in batch else None
+                    countsum = batch["countsum"].to(self.device) if "countsum" in batch else None
+                    residues = batch["residues"].to(self.device) if "residues" in batch else None
+                    protein_id = batch["protein_id"].to(self.device) if "protein_id" in batch else None
+                    inputs = {"mono": mononuc, "batch": b, "countsum": countsum}
+                    if store_rev:
+                        mononuc_rev = batch["mononuc_rev"].to(self.device)
+                        inputs["mono_rev"] = mononuc_rev
+                    if residues is not None:
+                        inputs["residues"] = residues
+                    if protein_id is not None:
+                        inputs["protein_id"] = protein_id
+
+                    loss = None
+                    if not is_lbfgs:
+                        # PyTorch calculates gradients by accumulating contributions to them (useful for
+                        # RNNs).  Hence we must manully set them to zero before calculating them.
+                        optimiser.zero_grad(set_to_none=None)
+
+                        # outputs, reconstruction = model(inputs)  # Forward pass through the network.
+                        outputs = self.forward(**inputs)  # Forward pass through the network.
+                        # weight_dist = model.weight_distances_min_k()
+                        if dirichlet_regularization == 0:
+                            dir_weight = 0
+                        else:
+                            dir_weight = dirichlet_regularization * self.dirichlet_regularization()
+                        # if the dataloader is a list, then we know the output shape directly by rounds
+                        if isinstance(dataloader, list):
+                            loss = criterion(outputs[:, :rounds.shape[1]], rounds)
+                        else:
+                            # define a mask to remove items on a rounds specific manner
+                            if n_rounds is not None:
+                                mask = torch.zeros((n_rounds.shape[0], outputs.shape[1]), dtype=torch.bool,
+                                                   device=self.device)
+                                for i in range(mask.shape[1]):
+                                    mask[:, i] = ~(n_rounds - 1 < i)
+                                loss = self.criterion(outputs[mask], rounds[mask])
+                            else:
+                                loss = self.criterion(outputs, rounds)
+
+                        loss += dir_weight
+                        # loss = criterion(outputs, rounds) + .01*reconstruct_crit(reconstruction, residues) + dir_w
+                        if exp_max >= 0:
+                            loss += self.exp_barrier(exp_max)
+
+                        loss.backward()  # Calculate gradients.
+                        optimiser.step()
+                        outputs = self.forward(**inputs)  # Forward pass through the network.
+                    else:
+                        def closure():
+                            optimiser.zero_grad()
+                            # this statement here is mandatory to
+                            outputs = self.forward(**inputs)
+
+                            # weight_dist = model.weight_distances_min_k()
+                            if dirichlet_regularization == 0:
+                                dir_weight = 0
+                            else:
+                                dir_weight = dirichlet_regularization * self.dirichlet_regularization()
+
+                            # loss = criterion(outputs, rounds) + weight_dist + dir_weight
+                            loss = self.criterion(outputs, rounds) + dir_weight
+
+                            if exp_max >= 0:
+                                loss += self.exp_barrier(exp_max)
+                            loss.backward()  # retain_graph=True)
+                            return loss
+
+                        loss = optimiser.step(closure)  # Step to minimise the loss according to the gradient.
+
+                    running_loss += loss.item()
+                    # running_crit += criterion(outputs, rounds).item()
+                    # running_rec += reconstruction_crit(reconstruction, residues).item()
+
+            loss_final = running_loss / len(dataloader)
+            rec_final = running_rec / len(dataloader)
+
+            if log_each != -1 and epoch > 0 and (epoch % log_each == 0):
+                if verbose != 0:
+                    total_time = time.time() - t0
+                    time_epoch_1k = (total_time / max(epoch, 1) / n_trials * 1e3)
+                    print(
+                        "Epoch: %2d, Loss: %.6f, " % (epoch + 1, loss_final),
+                        "best epoch: %i, " % best_epoch,
+                        "secs per epoch: %.3f s, " % ((time.time() - t0) / max(epoch, 1)),
+                        "secs epoch*1k trials: %.3fs" % time_epoch_1k
+                    )
+
+            if best_loss is None or loss_final < best_loss:
+                best_loss = loss_final
+                best_epoch = epoch
+                self.best_model_state = copy.deepcopy(self.state_dict())
+                self.best_loss = best_loss
+
+            # print("Epoch: %2d, Loss: %.3f" % (epoch + 1, running_loss / len(train_dataloader)))
+            loss_history.append(loss_final)
+
+            if r2_per_epoch:
+                r2_history.append(mb.pl.kmer_enrichment(self, dataloader, k=8, show=False))
+            # model.crit_history.append(crit_final)
+            # model.rec_history.append(rec_final)
+
+            if early_stopping > 0 and epoch >= best_epoch + early_stopping:
+                if verbose != 0:
+                    total_time = time.time() - t0
+                    time_epoch_1k = (total_time / max(epoch, 1) / n_trials * 1e3)
+                    print(
+                        "Epoch: %2d, Loss: %.4f, " % (epoch + 1, loss_final),
+                        "best epoch: %i, " % best_epoch,
+                        "secs per epoch: %.3fs, " % ((time.time() - t0) / max(epoch, 1)),
+                        "secs epoch*1k trials: %.3fs" % time_epoch_1k
+                    )
+                if verbose != 0:
+                    print("early stop!")
+                break
+
+        # Print if profiling included. Temporarily removed profiling to save memory.
+        # print('Profiling epoch:')
+        # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=25))
+        # prof.export_chrome_trace(f'profile_{epoch}.json')
+        total_time = time.time() - t0
+        self.total_time += total_time
+        if verbose:
+            print('Final loss: %.10f' % loss_final)
+            print(f'Total time (model/function): (%.3fs / %.3fs)' % (self.total_time, total_time))
+            print("Time per epoch (model/function): (%.3fs/ %.3fs)" %
+                  ((self.total_time / max(epoch, 1)), (total_time / max(epoch, 1))))
+            print('Time per epoch per 1k trials: %.3fs' % (total_time / max(epoch, 1) / n_trials * 1e3))
+            print('Current time:', datetime.datetime.now())
+
+        self.loss_history += loss_history
+        self.r2_history += r2_history
+
+    def optimize_iterative(self,
+                           train,
+                           # min_w=10,
+                           max_w=20,
+                           num_epochs=100,
+                           early_stopping=15,
+                           log_each=10,
+                           opt_kernel_shift=True,
+                           opt_kernel_length=True,
+                           expand_length_max=3,
+                           expand_length_step=1,
+                           show_logo=False,
+                           optimiser=None,
+                           seed=None,
+                           init_random=False,
+                           joint_learning=False,
+                           ignore_kernel=False,
+                           lr=0.01,
+                           weight_decay=0.001,
+                           stop_at_kernel=None,
+                           dirichlet_regularization=0,
+                           verbose=2,
+                           exp_max=40,
+                           shift_max=2,
+                           shift_step=1,
+                           r2_per_epoch=False,
+                           **kwargs,
+                           ):
+        # color for visualization of history
+        colors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#ffff33", "#a65628"]
+
+        # verbose print declaration
+        if verbose:
+            def vprint(*args, **kwargs):
+                print(*args, **kwargs)
+        else:
+            vprint = lambda *a, **k: None  # do-nothing function
+
+        if not isinstance(opt_kernel_shift, list):
+            opt_kernel_shift = [0] + [opt_kernel_shift] * (self.n_kernels - 1)
+        if not isinstance(opt_kernel_length, list):
+            opt_kernel_length = [0] + [opt_kernel_length] * (self.n_kernels - 1)
+
+        # prepare model
+
+        # this sets up the seed at the first position
+        if seed is not None:
+            # this sets up the seed at the first position
+            for i, s, min_w, max_w in seed:
+                if s is not None:
+                    print(i, s)
+                    self.set_seed(s, i, min=min_w, max=max_w)
+            self = self.to(self.device)
+
+        # step 1) freeze everything before the current binding mode
+        for i in range(0, self.n_kernels):
+
+            vprint('current kernels')
+            # print(self.binding_modes)
+
+            vprint("\nKernel to optimize %i" % i)
+            vprint("\nFREEZING KERNELS")
+
+            for feat_i in ['mono', 'dinuc']:
+                if i == 0 and feat_i == 'dinuc':
+                    vprint('optimization of dinuc is not necessary for the intercepts (kernel=0). Skip...')
+                    continue
+
+                vprint('optimizing feature type', feat_i)
+                if i != 0:
+                    if feat_i == 'dinuc' and not self.use_dinuc:
+                        vprint('the optimization of dinucleotide features is skipped...')
+                        continue
+                    elif feat_i == 'mono' and not self.use_mono:
+                        vprint('the optimization of mononucleotide features is skipped...')
+                        continue
+
+                # block kernels that we do not require to optimize
+                for ki in range(self.n_kernels):
+                    mask_mono = (ki == i) and (feat_i == 'mono')
+                    mask_dinuc = (ki == i) and (feat_i == 'dinuc')
+                    if verbose != 0:
+                        vprint("setting grad status of kernel (mono, dinuc) at %i to (%i, %i)" % (
+                        ki, mask_mono, mask_dinuc))
+
+                    if hasattr(self.binding_modes, 'update_grad_mono'):
+                        self.binding_modes.update_grad_mono(ki, mask_mono)
+                        self.binding_modes.update_grad_di(ki, mask_dinuc)
+
+                print("\n")
+
+                if show_logo:
+                    vprint("before kernel optimization.")
+                    mb.pl.plot_activities(self, train)
+                    mb.pl.conv_mono(self)
+                    # mb.pl.conv_mono(model, flip=False, log=False)
+                    mb.pl.conv_di(self, mode='triangle')
+
+                next_lr = lr if not isinstance(lr, list) else lr[i]
+                next_weight_decay = weight_decay if not isinstance(weight_decay, list) else weight_decay[i]
+                next_early_stopping = early_stopping if not isinstance(early_stopping, list) else early_stopping[i]
+
+                next_optimiser = (
+                    topti.Adam(self.parameters(), lr=next_lr, weight_decay=next_weight_decay)
+                    if optimiser is None
+                    else optimiser(self.parameters(), lr=next_lr)
+                )
+
+                # mask kernels to avoid using weights from further steps into early ones.
+                if ignore_kernel:
+                    self.set_ignore_kernel(np.array([0 for i in range(i + 1)] + [1 for i in range(i + 1, n_kernels)]))
+
+                if verbose != 0:
+                    print("kernels mask", self.get_ignore_kernel())
+
+                # assert False
+
+                self.optimize_simple(
+                    train,
+                    next_optimiser,
+                    num_epochs=num_epochs,
+                    early_stopping=next_early_stopping,
+                    log_each=log_each,
+                    dirichlet_regularization=dirichlet_regularization,
+                    exp_max=exp_max,
+                    verbose=verbose,
+                )
+
+                # vprint('grad')
+                # vprint(model.binding_modes.conv_mono[1].weight.grad)
+                # vprint(model.binding_modes.conv_di[1].weight.grad)
+                # vprint('')
+
+                self.loss_color += list(np.repeat(colors[i], len(self.loss_history) - len(self.loss_color)))
+                # probably here load the state of the best epoch and save
+
+                self.load_state_dict(self.best_model_state)
+                # store model parameters and fit for later visualization
+                self = copy.deepcopy(self)
+                # optimizer for left / right flanks
+                best_loss = self.best_loss
+
+                if show_logo:
+                    print("\n##After kernel opt / before shift optim.")
+                    mb.pl.plot_activities(self, train)
+                    mb.pl.conv_mono(self)
+                    # mb.pl.conv_mono(model, flip=True, log=False)
+                    mb.pl.conv_di(self, mode='triangle')
+                    mb.pl.plot_loss(self)
+
+                # print(model_by_k[k_parms].loss_color)
+                #######
+                # optimize the flanks through +1/-1 shifts
+                #######
+                if (opt_kernel_shift[i] or opt_kernel_length[i]) and i != 0:
+                    self = self.optimize_width_and_length(train,
+                                                      expand_length_max,
+                                                      expand_length_step,
+                                                      shift_max,
+                                                      shift_step,
+                                                      i,
+                                                      feat_i=feat_i,
+                                                      colors=colors,
+                                                      verbose=verbose,
+                                                      lr=next_lr,
+                                                      weight_decay=next_weight_decay,
+                                                      optimiser=optimiser,
+                                                      log_each=log_each,
+                                                      exp_max=exp_max,
+                                                      dirichlet_regularization=dirichlet_regularization,
+                                                      early_stopping=next_early_stopping, criterion=self.criterion,
+                                                      show_logo=show_logo,
+                                                      n_kernels=self.n_kernels,
+                                                      max_w=max_w,
+                                                      num_epochs=num_epochs,
+                                                      **kwargs)
+
+                if show_logo:
+                    vprint("after shift optimz model")
+                    mb.pl.plot_activities(self, train)
+                    mb.pl.conv_mono(self)
+                    # mb.pl.conv_mono(model, log=False)
+                    mb.pl.conv_di(self, mode='triangle')
+                    mb.pl.plot_loss(self)
+                    print("")
+
+                # the first kernel does not require an additional fit.
+                if i == 0:
+                    continue
+
+                vprint("\n\nfinal refinement step (after shift)...")
+                vprint("\nunfreezing all layers for final refinement")
+
+                for ki in range(self.n_kernels):
+                    vprint("kernel grad (%i) = %i \n" % (ki, True), sep=", ", end="")
+                    self.update_grad(ki, ki == i)
+                vprint("")
+
+                # define the optimizer for final refinement of the model
+                next_optimiser = (
+                    topti.Adam(self.parameters(), lr=next_lr, weight_decay=next_weight_decay)
+                    if optimiser is None
+                    else optimiser(self.parameters(), lr=next_lr)
+                )
+                # mask kernels to avoid using weights from further steps into early ones.
+                if ignore_kernel:
+                    self.set_ignore_kernel(np.array([0 for i in range(i + 1)] +
+                                                    [1 for i in range(i + 1, self.n_kernels)]))
+
+                vprint("kernels mask", self.get_ignore_kernel())
+                vprint("kernels mask", self.get_ignore_kernel())
+
+                # final refinement of weights
+                self.optimize_simple(
+                    train,
+                    next_optimiser,
+                    num_epochs=num_epochs,
+                    early_stopping=next_early_stopping,
+                    log_each=log_each,
+                    dirichlet_regularization=dirichlet_regularization,
+                    verbose=verbose,
+                )
+
+                # load the best model after the final refinement
+                self.loss_color += list(np.repeat(colors[i], len(self.loss_history) - len(self.loss_color)))
+                self.load_state_dict(self.best_model_state)
+
+                if stop_at_kernel is not None and stop_at_kernel == i:
+                    break
+
+                if show_logo:
+                    vprint("\n##final motif signal (after final refinement)")
+                    mb.pl.plot_activities(self, train)
+                    mb.pl.conv_mono(self)
+                    mb.pl.conv_di(self, mode='triangle')
+                    # mb.pl.conv_mono(model, flip=True, log=False)
+
+                vprint('best loss', self.best_loss)
+
+        vprint('\noptimization finished:')
+        vprint(f'total time: {self.total_time}s')
+        vprint("Time per epoch (total): %.3f s" % (self.total_time / max(num_epochs, 1)))
+
+        return self, self.best_loss
+
+    def optimize_width_and_length(self, train, expand_length_max, expand_length_step, shift_max, shift_step, i,
+                                  colors=None, verbose=False, lr=0.01, weight_decay=0.001, optimiser=None, log_each=10,
+                                  exp_max=40,
+                                  num_epochs_shift_factor=3,
+                                  dirichlet_regularization=0, early_stopping=15, criterion=None, show_logo=False,
+                                  feat_i=None,
+                                  n_kernels=4, w=15, max_w=20, num_epochs=100, loss_thr_pct=0.005, **kwargs, ):
+        """
+        A variation of the main optimization routine that attempts expanding the kernel of the model at position i, and refines
+        the weights and loss in order to find a better convergence.
+        """
+
+        # verbose print declaration
+        if verbose:
+            def vprint(*args, **kwargs):
+                print(*args, **kwargs)
+        else:
+            vprint = lambda *a, **k: None  # do-nothing function
+
+        n_attempts = 0  # to keep a log of overall attempts
+        opt_expand_left = range(0, expand_length_max, expand_length_step)
+        opt_expand_right = range(0, expand_length_max, expand_length_step)
+        opt_shift = list(range(-shift_max, shift_max + 1, shift_step))
+        for opt_option_text, opt_option_next in zip(
+            ["WIDTH", "SHIFT"], [[opt_expand_left, opt_expand_right, [0]], [[0], [0], opt_shift]]
+        ):
+            next_loss = None
+            loss_diff_pct = 0
+            while next_loss is None or (next_loss < best_loss and loss_diff_pct > loss_thr_pct):
+                n_attempts += 1
+
+                vprint("\n%s OPTIMIZATION (%s)..." % (opt_option_text, "first" if next_loss is None else "again"),
+                       end="")
+                vprint("")
+                curr_w = self.get_kernel_width(i)
+                if curr_w >= max_w:
+                    if opt_option_text == 'WIDTH':
+                        print("Reached maximum w. Stop...")
+                        break
+
+                self = copy.deepcopy(self)
+                best_loss = self.best_loss
+                next_color = colors[-(1 if n_attempts % 2 == 0 else -2)]
+
+                all_options = []
+
+                options = [
+                    [expand_left, expand_right, shift]
+                    for expand_left in opt_option_next[0]
+                    for expand_right in opt_option_next[1]
+                    for shift in opt_option_next[2]
+                ]
+
+                if opt_option_text == 'SHIFT' and False:  # include shifts to center weights
+                    m = torch.tensor(self.get_kernel_weights(i))
+                    # print(m)
+                    m[m < 0] = 0
+                    m = m.reshape(m.shape[-2:])
+                    col_pos_means = m.mean(axis=0).cpu()
+                    w = int(m.shape[-1] / 2)
+                    # print(w)
+                    col_means = []
+                    for j in range(m.shape[-1]):
+                        a, b = max(j - w, 0), min(j + w, m.shape[-1])
+                        ci = m[:, a:b].mean()
+                        col_means.append(j)
+                    pos_max = torch.argmax(torch.tensor(col_means))
+
+                    # mb.pl.conv(model)
+                    shift_center = (w - pos_max).cpu()
+                    # print(shift)
+                    # print('adding option', shift_center)
+                    options = [[0, 0, -shift_center], [0, 0, shift_center]] + options
+                    # assert False
+
+                print('options to try', options)
+
+                for expand_left, expand_right, shift in options:
+
+                    # if abs(expand_left) + abs(expand_right) + abs(shift) == 0:
+                    #     continue
+                    # if abs(shift) > 0:  # skip shift for now.
+                    #     continue
+                    if curr_w + expand_left + expand_right > max_w:
+                        continue
+
+                    # print(expand_left, expand_right, shift)
+                    # assert False
+
+                    vprint("next expand left: %i, next expand right: %i, shift: %i"
+                           % (expand_left, expand_right, shift))
+
+                    model_shift = copy.deepcopy(self)
+                    model_shift.loss_history = []
+                    model_shift.r2_history = []
+                    model_shift.loss_color = []
+
+                    model_shift.optimize_modified_kernel(
+                        train,
+                        kernel_i=i,
+                        shift=shift,
+                        device=self.device,
+                        expand_left=expand_left,
+                        expand_right=expand_right,
+                        num_epochs=num_epochs if opt_option_text == 'WIDTH' else num_epochs * num_epochs_shift_factor,
+                        early_stopping=early_stopping,
+                        log_each=log_each if opt_option_text == 'WIDTH' else log_each * num_epochs_shift_factor,
+                        # log_each,
+                        update_grad_i=i,
+                        feat_i=feat_i,
+                        lr=lr,
+                        weight_decay=weight_decay,
+                        optimiser=optimiser,
+                        criterion=criterion,
+                        dirichlet_regularization=dirichlet_regularization,
+                        exp_max=exp_max,
+                        verbose=verbose,
+                        **kwargs,
+                    )
+                    vprint('')
+
+                    model_shift.loss_color += list(np.repeat(next_color, len(model_shift.loss_history)))
+                    # print('history left', len(model_left.loss_history))
+                    weight_mono_i = model_shift.binding_modes.conv_mono[i].weight
+                    pos_w_sum = float(weight_mono_i[weight_mono_i > 0].sum())
+
+                    loss_diff_pct = (best_loss - model_shift.best_loss) / best_loss * 100
+                    all_options.append([expand_left, expand_right, shift, model_shift,
+                                        pos_w_sum, weight_mono_i.shape[-1], loss_diff_pct, model_shift.best_loss])
+                    # print('\n')
+                    # vprint("after opt.")
+
+                    if show_logo:
+                        mb.pl.conv_mono(model_shift)
+                        mb.pl.conv_di(model_shift, mode='triangle')
+
+                # for shift, model_shift, loss in all_shifts:
+                #     print('shift=%i' % shift, 'loss=%.4f' % loss)
+                weight_ref_mono_i = model_shift.binding_modes.conv_mono[i].weight
+                pos_w_ref_mono_i_sum = float(weight_ref_mono_i[weight_ref_mono_i > 0].sum())
+
+                best = sorted(
+                    all_options + [[0, 0, 0, self,
+                                    pos_w_ref_mono_i_sum, weight_ref_mono_i.shape[-1], 0, self.best_loss]],
+                    key=lambda x: x[-1],
+                )
+                if verbose != 0:
+                    print("sorted")
+                best_df = pd.DataFrame(best, columns=["expand.left", "expand.right", "shift", "model",
+                                                      'pos_w_sum', 'width', "loss_diff_pct", "loss"],
+                                       )
+                best_df['last_loss'] = best_loss
+                best_df = best_df.sort_values('loss')
+
+                vprint(best_df[[c for c in best_df if c != 'model']])
+                # print('\n history len')
+                next_expand_left, next_expand_right, next_position, next_model, next_pos_w, w, \
+                loss_diff_pct, next_loss = best_df.values[0][:-1]
+
+                print(next_expand_left, next_expand_right, next_position, next_pos_w, w,
+                      loss_diff_pct, next_loss)
+
+                if verbose != 0:
+                    print("action (expand left, expand right, shift): (%i, %i, %i)\n" %
+                          (next_expand_left, next_expand_right, next_position))
+
+                if loss_diff_pct >= loss_thr_pct:
+                    next_model.loss_history = self.loss_history + next_model.loss_history
+                    next_model.r2_history = self.r2_history + next_model.r2_history
+                    next_model.loss_color = self.loss_color + next_model.loss_color
+
+                self = copy.deepcopy(next_model)
+
+                if next_expand_left == 0 and next_expand_right == 0 and next_position == 0 and opt_option_text == 'SHIFT':
+                    print('This was the last iteration. Done with kernel shift optimization...')
+                    break
+
+        return self
+
+    def optimize_modified_kernel(self,
+        train,
+        shift=0,
+        expand_left=0,
+        expand_right=0,
+        device=None,
+        num_epochs=500,
+        early_stopping=15,
+        log_each=-1,
+        feat_i='mono',
+        update_grad_i=None,
+        use_dinuc=False,
+        kernel_i=None,
+        lr=0.01,
+        weight_decay=0.001,
+        optimiser=None,
+        dirichlet_regularization=0,
+        exp_max=40,
+        verbose=0,
+        **kwargs,
+    ):
+        assert expand_left >= 0 and expand_right >= 0
+        self.modify_kernel(kernel_i, shift, expand_left, expand_right, device)
+
+        # requires grad update
+        n_kernels = len(self.binding_modes)
+        for ki in range(n_kernels):
+            self.binding_modes.update_grad_mono(ki, (ki == update_grad_i) and (feat_i == 'mono'))
+            self.binding_modes.update_grad_di(ki, (ki == update_grad_i) and (feat_i == 'dinuc'))
+
+        # finally the optimiser has to be initialized again.
+        optimiser = (
+            topti.Adam(self.parameters(), lr=lr, weight_decay=weight_decay)
+            if optimiser is None
+            else optimiser(self.parameters(), lr=lr)
+        )
+
+        self.optimize_simple(
+            train,
+            optimiser,
+            num_epochs=num_epochs,
+            early_stopping=early_stopping,
+            log_each=log_each,
+            dirichlet_regularization=dirichlet_regularization,
+            exp_max=exp_max,
+            verbose=verbose,
+        )
+
+        return self
+
 
 class BindingModesSimple(tnn.Module):
     """
@@ -211,15 +1023,16 @@ class BindingModesSimple(tnn.Module):
         init_random (bool): Use a random initialization for all parameters. Default: True
         use_dinuc (bool): Use dinucleotide contributions (not fully implemented for all kind of models). Default: False
     """
+
     def __init__(self, **kwargs):
         super().__init__()
         self.kernels = kwargs.get("kernels", [0, 15])
         self.init_random = kwargs.get("init_random", True)
         self.use_dinuc = kwargs.get("use_dinuc", True)
-        self.dinuc_mode = kwargs.get("dinuc_mode", 'local') # local or full
+        self.dinuc_mode = kwargs.get("dinuc_mode", 'local')  # local or full
         self.conv_mono = tnn.ModuleList()
         self.conv_di = tnn.ModuleList()
-        self.ones = None # aux ones tensor, for intercept init.
+        self.ones = None  # aux ones tensor, for intercept init.
 
         for k in self.kernels:
             if k == 0:
@@ -236,7 +1049,7 @@ class BindingModesSimple(tnn.Module):
                     # the number of contiguous dinucleotides for k positions is k - 1
                     next_di = tnn.Conv2d(1, 1, kernel_size=(16, k - 1), padding=(0, 0), bias=False)
                     if not self.init_random:
-                        next_di.weight.data.uniform_(-.5, .5) # problem with fitting  dinucleotides if (0, 0)
+                        next_di.weight.data.uniform_(-.01, .01)  # problem with fitting  dinucleotides if (0, 0)
                     self.conv_di.append(next_di)
                 # a matrix of conv2d
                 elif self.dinuc_mode == 'full':
@@ -254,10 +1067,11 @@ class BindingModesSimple(tnn.Module):
                 # intercept (will be scaled by the activity of the non-specific binding)
                 # print(mono.shape[0])
                 # temp = torch.tensor([1.0] * mono.shape[0], device=mono.device)
-                if self.ones is None or self.ones.shape[0] < mono.shape[0]: # aux ones tensor, to avoid memory init delay
-                    self.ones = torch.ones(mono.shape[0], device=mono.device) # torch.ones is much faster
+                if self.ones is None or self.ones.shape[0] < mono.shape[
+                    0]:  # aux ones tensor, to avoid memory init delay
+                    self.ones = torch.ones(mono.shape[0], device=mono.device)  # torch.ones is much faster
 
-                temp = self.ones[:mono.shape[0]] # subsetting of ones to fit batch
+                temp = self.ones[:mono.shape[0]]  # subsetting of ones to fit batch
 
                 bm_pred.append(temp)
             else:
@@ -281,7 +1095,7 @@ class BindingModesSimple(tnn.Module):
                 elif self.use_dinuc and self.dinuc_mode == 'full':
                     next_conv_di = self.conv_di[i]
 
-                    k = self.conv_mono[i].weight.shape[-1] # this is to infer the number of conv2d for dinuc
+                    k = self.conv_mono[i].weight.shape[-1]  # this is to infer the number of conv2d for dinuc
                     pi = -1  # the overall counter of the conv2d
                     # iterating in this way, we go from the largest axis i.e. diagonal to the corner
                     out_di = []
@@ -409,7 +1223,6 @@ class BindingModesSimple(tnn.Module):
                     )
                 )
 
-
             # adding more positions left and right
             if expand_left > 0:
                 self.conv_mono[i].weight = torch.nn.Parameter(
@@ -422,7 +1235,6 @@ class BindingModesSimple(tnn.Module):
             after_w = m.weight.shape[-1]
             if after_w != (before_w + expand_left + expand_right):
                 assert after_w != (before_w + expand_left + expand_right)
-
 
         # shift di
         for i, m in enumerate(self.conv_di):
@@ -455,7 +1267,7 @@ class BindingModesSimple(tnn.Module):
                 # check that the differences between kernels are the same before and after updates
                 diff_width_after = self.conv_di[i].weight.shape[-1] - self.conv_mono[i].weight.shape[-1]
                 assert diff_width_after == (shape_di_before[-1] - shape_mono_before[-1])
-            elif self.dinuc_mode == 'full': # reset the dinuc weights to match the shape of the new conv2d for mononuc
+            elif self.dinuc_mode == 'full':  # reset the dinuc weights to match the shape of the new conv2d for mononuc
                 if shape_mono_before[-1] != self.conv_mono[i].weight.shape[-1]:
                     if False:
                         k = self.conv_mono[i].weight.shape[-1]
@@ -467,7 +1279,6 @@ class BindingModesSimple(tnn.Module):
                                 conv_di_next.append(tnn.Conv2d(1, 1, kernel_size=(16, i)))
                         self.conv_di[i] = conv_di_next
                         # print(len(self.conv_di))
-
 
     def dirichlet_regularization(self):
         out = 0
@@ -505,6 +1316,7 @@ class BindingModesPerProtein(tnn.Module):
     Keyword Args:
         add_intercept (bool): Whether an intercept is used in addition to the predicted binding modes. Default: True
     """
+
     def __init__(self, bm_generator, **kwargs):
         super().__init__()
         self.generator = bm_generator
@@ -568,6 +1380,7 @@ class ActivitiesLayer(tnn.Module):
         n_proteins (int): Number of proteins in the dataset. Either n_proteins or n_batches may be used. Default: 1
         ignore_kernel (list[bool]): Whether a kernel should be ignored. Default: None.
     """
+
     def __init__(self, n_kernels, target_dim, **kwargs):
         super().__init__()
         self.n_kernels = n_kernels
@@ -591,7 +1404,6 @@ class ActivitiesLayer(tnn.Module):
         # print(scores.shape)
         # print(torch.stack(list(self.log_activities), dim=1).shape)
 
-
         # this is to compare old/new implementation of relevant low-level operations
         scores = None
         option = 1
@@ -601,6 +1413,11 @@ class ActivitiesLayer(tnn.Module):
             # print(b.shape, a.shape, batch.shape)
             # print(b.type(), a.type(), batch.type())
             result = torch.matmul(b, a[batch, :, :])
+
+            # print(a)
+            # print('b')
+            # print(b)
+
             scores = result.squeeze(1)
         else:
             scores = torch.zeros([binding_per_mode.shape[0], self.target_dim], device=binding_per_mode.device)
@@ -642,6 +1459,7 @@ class SelexModule(tnn.Module):
     Keyword Args:
         enr_series (bool): Whether the data should be handled as enrichment series. Default: True
     """
+
     def __init__(self, n_rounds, **kwargs):
         super().__init__()
         self.n_rounds = max(n_rounds) if not isinstance(n_rounds, int) else n_rounds
@@ -656,7 +1474,7 @@ class SelexModule(tnn.Module):
 
         out = None
         if self.enr_series:
-            out = torch.cumprod(binding_scores, dim=1) # cum product between rounds 0 and N
+            out = torch.cumprod(binding_scores, dim=1)  # cum product between rounds 0 and N
         else:
             out = binding_scores
 
@@ -665,6 +1483,7 @@ class SelexModule(tnn.Module):
         out = out * etas[batch, :]
 
         results = out.T / torch.sum(out, dim=1)
+
         return (results * countsum).T
 
     def get_log_etas(self):
@@ -683,9 +1502,9 @@ def _weight_distances(mono, min_k=5):
         for k in range(5, min_w):
             # print(k)
             for i in range(0, a.shape[-1] - k + 1):
-                ai = a[:, :, :, i : i + k]
+                ai = a[:, :, :, i: i + k]
                 for j in range(0, b.shape[-1] - k + 1):
-                    bi = b[:, :, :, j : j + k]
+                    bi = b[:, :, :, j: j + k]
                     bi_rev = torch.flip(bi, [3])[:, :, [3, 2, 1, 0], :]
                     d.append(((bi - ai) ** 2).sum() / bi.shape[-1])
                     d.append(((bi_rev - ai) ** 2).sum() / bi.shape[-1])
@@ -695,6 +1514,7 @@ def _weight_distances(mono, min_k=5):
                         # print(i, i + k, j, j + k, d[-2], d[-1])
                         lowest_d = next_d
     return min(d)
+
 
 # This class should be deleted in the future
 class MultibindFlexibleWeights(tnn.Module):
@@ -812,6 +1632,7 @@ class BMCollection(tnn.Module):
                 setting add_intercept to True). Default: [0, 15]
         init_random (bool): Use a random initialization for all parameters. Default: True
     """
+
     def __init__(self, n_proteins, **kwargs):
         super().__init__()
         self.n_proteins = n_proteins
@@ -906,7 +1727,7 @@ class BMCollection(tnn.Module):
 
 # This class could be used as a bm_generator
 class BMPrediction(tnn.Module):
-    def __init__(self, num_classes, input_size, hidden_size, num_layers, seq_length): #  state_size_buff=512):
+    def __init__(self, num_classes, input_size, hidden_size, num_layers, seq_length):  # state_size_buff=512):
         super().__init__()
         self.num_classes = num_classes  # number of classes
         self.num_layers = num_layers  # number of layers
@@ -924,13 +1745,14 @@ class BMPrediction(tnn.Module):
         # self.c_0 = Variable(torch.zeros(self.num_layers, state_size_buff, self.hidden_size)) # .to(x.device)
 
     def forward(self, residues, **kwargs):
-
         # assert x.size(0) <= self.state_size_buff
-        #h_0 = self.h_0[:,:x.size(0),:]
+        # h_0 = self.h_0[:,:x.size(0),:]
         # c_0 = self.c_0[:,:x.size(0),:]
 
-        h_0 = Variable(torch.zeros(self.num_layers, residues.size(0), self.hidden_size, device=residues.device))  # hidden state
-        c_0 = Variable(torch.zeros(self.num_layers, residues.size(0), self.hidden_size, device=residues.device))  # internal state
+        h_0 = Variable(
+            torch.zeros(self.num_layers, residues.size(0), self.hidden_size, device=residues.device))  # hidden state
+        c_0 = Variable(
+            torch.zeros(self.num_layers, residues.size(0), self.hidden_size, device=residues.device))  # internal state
         # Propagate input through LSTM
         output, (hn, cn) = self.lstm(residues, (h_0, c_0))  # lstm with input, hidden, and internal state
         hn = hn.view(-1, self.hidden_size)  # reshaping the data for Dense layer next
@@ -951,13 +1773,13 @@ class Decoder(tnn.Module):
         self.input_size = input_size  # input size
         self.enc_size = enc_size
         self.seq_length = seq_length
-        self.output_size = enc_size*seq_length  # output size
+        self.output_size = enc_size * seq_length  # output size
         modules = [tnn.Linear(input_size, layers[0])]
-        for i in range(len(layers)-1):
+        for i in range(len(layers) - 1):
             modules.append(tnn.ReLU())
-            modules.append(tnn.Linear(layers[i], layers[i+1]))
+            modules.append(tnn.Linear(layers[i], layers[i + 1]))
         modules.append(tnn.ReLU())
-        modules.append(tnn.Linear(layers[len(layers)-1], self.output_size))
+        modules.append(tnn.Linear(layers[len(layers) - 1], self.output_size))
         self.decoder = tnn.Sequential(*modules)
 
     def forward(self, x):
@@ -970,7 +1792,8 @@ class Decoder(tnn.Module):
 
 # This class should be deleted in the future
 class ProteinDNABinding(tnn.Module):
-    def __init__(self, n_rounds, n_batches, num_classes=1, input_size=21, hidden_size=2, num_layers=1, seq_length=88, datatype="pbm", **kwargs):
+    def __init__(self, n_rounds, n_batches, num_classes=1, input_size=21, hidden_size=2, num_layers=1, seq_length=88,
+                 datatype="pbm", **kwargs):
         super().__init__()
         self.datatype = datatype
 
@@ -1010,6 +1833,7 @@ class ProteinDNABinding(tnn.Module):
         with torch.no_grad():
             weights = self.bm_prediction(msa)
         return weights
+
 
 # Multiple datasets
 class DinucMulti(tnn.Module):
