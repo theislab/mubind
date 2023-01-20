@@ -26,24 +26,26 @@ class ModelTests(unittest.TestCase):
         dataset = mb.datasets.SelexDataset(data, n_rounds=n_rounds, labels=labels)
         cls.train = tdata.DataLoader(dataset=dataset, batch_size=256, shuffle=True)
 
-        cls.model, _ = mb.tl.optimize_iterative(cls.train, device, num_epochs=cls.N_EPOCHS, show_logo=False,
+        model = mb.models.Multibind.make_model(cls.train, 4, mb.tl.PoissonLoss()).cuda()
+        cls.model, _ = model.optimize_iterative(cls.train, num_epochs=cls.N_EPOCHS, show_logo=False,
                                                 early_stopping=early_stopping, log_each=50,
-                                                opt_kernel_shift=0, opt_kernel_length=0,
+                                                opt_kernel_shift=[0, 0, 1, 1], opt_kernel_length=[0, 0, 1, 1],
                                                 dinuc_mode='local',
                                                 verbose=0)
 
         # setting dinuc to false
-        cls.model, _ = mb.tl.optimize_iterative(cls.train, device, num_epochs=cls.N_EPOCHS, show_logo=False,
+        model = mb.models.Multibind.make_model(cls.train, 4, mb.tl.PoissonLoss(), dinuc_mode='local').cuda()
+
+        cls.model, _ = model.optimize_iterative(cls.train, num_epochs=cls.N_EPOCHS, show_logo=False,
                                                 early_stopping=early_stopping, log_each=50,
-                                                dinuc_mode='local',
                                                 opt_kernel_shift=0, opt_kernel_length=0,
                                                 verbose=0,
                                                 use_dinuc=False)
 
         # using dinuc full
-        cls.model, _ = mb.tl.optimize_iterative(cls.train, device, num_epochs=cls.N_EPOCHS, show_logo=False,
+        model = mb.models.Multibind.make_model(cls.train, 4, mb.tl.PoissonLoss(), dinuc_mode='full').cuda()
+        cls.model, _ = model.optimize_iterative(cls.train, num_epochs=cls.N_EPOCHS, show_logo=False,
                                                 early_stopping=early_stopping, log_each=50,
-                                                dinuc_mode='full',
                                                 opt_kernel_shift=0, opt_kernel_length=0,
                                                 verbose=0,
                                                 use_dinuc=True,)

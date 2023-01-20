@@ -25,6 +25,8 @@ def test_model_aggregation():
     dataset = mb.datasets.SelexDataset(data, n_rounds=n_rounds, labels=labels)
     trainloader = tdata.DataLoader(dataset=dataset, batch_size=256, shuffle=True)
 
+
+
     model_paths = mb.tl.aggregation.get_model_paths('tests')
     assert len(model_paths) > 0
 
