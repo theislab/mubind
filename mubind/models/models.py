@@ -94,17 +94,23 @@ class Multibind(tnn.Module, Model):
         if self.datatype == "selex":
             self.selex_module = SelexModule(**kwargs)
 
+        self.kernel_rel = None
+        if kwargs.get('kernel_sim') is not None:
+            self.kernel_rel = torch.tensor(kwargs.get('kernel_sim'))
+
+
         self.n_kernels = kwargs['n_kernels']
         self.best_model_state = None
         self.best_loss = None
         self.loss_history = []
+        self.loss_history_sym_weights = []
         self.r2_history = []
         self.loss_color = []
         self.total_time = 0
 
 
     @staticmethod
-    def make_model(train, n_kernels, criterion, **kwargs):
+    def make_model(train, n_kernels, criterion, init_random=True, **kwargs):
         # verbose print declaration
         if kwargs.get('verbose'):
             def vprint(*args, **kwargs):
@@ -152,11 +158,12 @@ class Multibind(tnn.Module, Model):
             vprint("# custom kernels", kwargs.get('kernels'))
 
             kwargs['kernels'] = kwargs.get('kernels', [0] + [kwargs.get('w', 20)] * (n_kernels - 1))
+
             model = mb.models.Multibind(
                 datatype="selex",
                 n_rounds=n_rounds,
-                init_random=kwargs.get('init_random', False),
                 n_batches=n_batches,
+                init_random=init_random,
                 enr_series=enr_series,
                 **kwargs,
             ) # .to(self.device)
@@ -173,16 +180,16 @@ class Multibind(tnn.Module, Model):
                 kwargs['kernels'] = kwargs.get('kernels', [0] + [w] * (n_kernels - 1))
                 model = mb.models.Multibind(
                     datatype="pbm",
-                    init_random=kwargs.get('init_random', False),
+                    init_random=init_random,
                     n_batches=n_proteins,
                     **kwargs,
                 ) # .to(self.device)
             else:
                 bm_generator = mb.models.BMCollection(n_proteins=n_proteins, n_kernels=n_kernels,
-                                                      init_random=kwargs.get('init_random', False))
+                                                      init_random=init_random)
                 model = mb.models.Multibind(
                     datatype="pbm",
-                    init_random=kwargs.get('init_random', False),
+                    init_random=init_random,
                     n_proteins=n_proteins,
                     bm_generator=bm_generator,
                     n_kernels=n_kernels,
@@ -191,7 +198,7 @@ class Multibind(tnn.Module, Model):
         elif isinstance(train.dataset, mb.datasets.ResiduePBMDataset):
             model = mb.models.Multibind(
                 datatype="pbm",
-                init_random=kwargs.get('init_random', False),
+                init_random=init_random,
                 bm_generator=mb.models.BMPrediction(num_classes=1, input_size=21, hidden_size=2, num_layers=1,
                                                     seq_length=train.dataset.get_max_residue_length()),
                 **kwargs,
@@ -241,12 +248,14 @@ class Multibind(tnn.Module, Model):
         # print('scores')
         # print(binding_scores)
 
-        if self.datatype == "pbm":
-            return binding_scores
-        elif self.datatype == "selex":
-            return self.selex_module(binding_scores, **kwargs)
-        else:
-            return None  # this line should never be called
+        # if self.datatype == "pbm":
+        #     print('here...')
+        #     assert False
+        #     return binding_scores
+        # elif self.datatype == "selex":
+        return self.selex_module(binding_scores, **kwargs)
+        # else:
+        #     return None  # this line should never be called
 
     def set_seed(self, seed, index, max_value=0, min_value=-1):
         if isinstance(self.binding_modes, BindingModesSimple):
@@ -265,6 +274,12 @@ class Multibind(tnn.Module, Model):
     def update_grad(self, index, value):
         self.binding_modes.update_grad(index, value)
         self.activities.update_grad(index, value)
+
+    def update_grad_activities(self, index, value):
+        self.activities.update_grad(index, value)
+
+    def update_grad_etas(self, value):
+        self.selex_module.update_grad_etas(value)
 
     def set_ignore_kernel(self, ignore_kernel):
         self.activities.set_ignore_kernel(ignore_kernel)
@@ -325,6 +340,82 @@ class Multibind(tnn.Module, Model):
 
         return torch.exp(exp_delta - min(d))
 
+    def loss_kernel_rel(self, log=False):
+        """
+        Return a loss associated to the similarity of weights that are assumed to be similar
+        """
+        loss = 0
+        # relationship terms in the matrix
+        if self.kernel_rel is not None and self.optimize_kernel_rel:
+            # print('distances')
+            # monos = [b.weight for b in self.binding_modes.conv_mono[1:]]
+            # monos = [m.cpu().detach().numpy().squeeze() for m in monos]
+            # # print(monos)
+            # print('# of kernels', len(monos))
+            # res = mb.tl.calculate_distances([m.copy() for m in monos], best=True, full=True,
+            #                                 filter_neg_weights=False, min_w_sum=-10000)
+            # distances_kernels = res[~pd.isnull(res['id'])]
+            # d = distances_kernels.pivot('a', 'b', 'distance')
+            #
+            # print(d)
+            # print(self.kernel_rel)
+            # dist_loss = np.nansum(d.values[self.kernel_rel[d.index - 1, :-1] == 1])
+            dist_loss = 0
+            for ai, a in enumerate(self.binding_modes.conv_mono[1:]):
+                for bi, b in enumerate(self.binding_modes.conv_mono[1:]):
+                    if ai >= bi:
+                        continue
+                    if self.kernel_rel[ai, bi] == 1:
+                        d = torch.norm(a.weight - b.weight)
+                        if log:
+                            print(ai, bi, d)
+                        dist_loss += d
+
+            # assert False
+            # print(distances_kernels.head())
+            # calculate the distances between kernels
+            # print('here', dist_loss)
+            # assert False
+
+            loss += dist_loss
+        return loss
+
+    def print_weights(self):
+        torch.set_printoptions(profile="default")  # reset
+        torch.set_printoptions(linewidth=500)
+
+        print('here...')
+        # torch.set_printoptions(threshold=10_000)
+        print('\nmono')
+        for b in self.binding_modes.conv_mono:
+            if hasattr(b, 'weight'):
+                print(b.weight)
+        print('\ndinuc')
+        for b in self.binding_modes.conv_di:
+            if hasattr(b, 'weight'):
+                print(b.weight)
+        print('\nactivities')
+        print(self.activities.get_log_activities())
+        print('\netas')
+        print(self.selex_module.log_etas)
+
+    def loss_kernel_neg_weights(self):
+        """
+        We add an exponential negative loss, to force weights to be positive
+        """
+        return sum([-b.weight.sum() for b in self.binding_modes.conv_mono[1:]])
+
+    def loss_kernel_symmetrical_weights(self):
+        """
+        This loss calculates the squared sum of columns per position, and it is useful to detect
+        strong positive/negative biases per position or in the whole object.
+        """
+        mono_sym_weight = sum([(b.weight.sum(axis=2) ** 2).sum() for b in self.binding_modes.conv_mono[1:]])
+        di_sym_weight = sum([(b.weight.sum(axis=2) ** 2).sum() for b in self.binding_modes.conv_di[1:]])
+        # print(mono_sym_weight, di_sym_weight)
+        return mono_sym_weight + di_sym_weight
+
+
     # if early_stopping is positive, training is stopped if over the length of early_stopping no improvement happened or
     # num_epochs is reached.
     def optimize_simple(self,
@@ -338,10 +429,13 @@ class Multibind(tnn.Module, Model):
         log_each=-1,
         verbose=0,
         r2_per_epoch=False,
+        **kwargs,
     ):
         # global loss_history
         r2_history = []
         loss_history = []
+        loss_history_sym_weights = []
+
         best_loss = None
         best_epoch = -1
         if verbose != 0:
@@ -385,11 +479,14 @@ class Multibind(tnn.Module, Model):
 
         for epoch in range(num_epochs):
             running_loss = 0
-            running_crit = 0
+            running_loss_sym_weights = 0
+
             running_rec = 0
 
             # if dataloader is a list of dataloaders, we have to iterate through those
             dataloader_queries = dataloader if isinstance(dataloader, list) else [dataloader]
+
+
 
             # print(len(dataloader_queries))
             for data_i, next_dataloader in enumerate(dataloader_queries):
@@ -419,42 +516,11 @@ class Multibind(tnn.Module, Model):
                     if protein_id is not None:
                         inputs["protein_id"] = protein_id
 
+                    # if not selex, do not scale by overall signal
+                    inputs['scale_countsum'] = self.datatype == 'selex'
+
                     loss = None
-                    if not is_lbfgs:
-                        # PyTorch calculates gradients by accumulating contributions to them (useful for
-                        # RNNs).  Hence we must manully set them to zero before calculating them.
-                        optimiser.zero_grad(set_to_none=None)
-
-                        # outputs, reconstruction = model(inputs)  # Forward pass through the network.
-                        outputs = self.forward(**inputs)  # Forward pass through the network.
-                        # weight_dist = model.weight_distances_min_k()
-                        if dirichlet_regularization == 0:
-                            dir_weight = 0
-                        else:
-                            dir_weight = dirichlet_regularization * self.dirichlet_regularization()
-                        # if the dataloader is a list, then we know the output shape directly by rounds
-                        if isinstance(dataloader, list):
-                            loss = criterion(outputs[:, :rounds.shape[1]], rounds)
-                        else:
-                            # define a mask to remove items on a rounds specific manner
-                            if n_rounds is not None:
-                                mask = torch.zeros((n_rounds.shape[0], outputs.shape[1]), dtype=torch.bool,
-                                                   device=self.device)
-                                for i in range(mask.shape[1]):
-                                    mask[:, i] = ~(n_rounds - 1 < i)
-                                loss = self.criterion(outputs[mask], rounds[mask])
-                            else:
-                                loss = self.criterion(outputs, rounds)
-
-                        loss += dir_weight
-                        # loss = criterion(outputs, rounds) + .01*reconstruct_crit(reconstruction, residues) + dir_w
-                        if exp_max >= 0:
-                            loss += self.exp_barrier(exp_max)
-
-                        loss.backward()  # Calculate gradients.
-                        optimiser.step()
-                        outputs = self.forward(**inputs)  # Forward pass through the network.
-                    else:
+                    if is_lbfgs:
                         def closure():
                             optimiser.zero_grad()
                             # this statement here is mandatory to
@@ -475,24 +541,88 @@ class Multibind(tnn.Module, Model):
                             return loss
 
                         loss = optimiser.step(closure)  # Step to minimise the loss according to the gradient.
+                    else:
+                        # PyTorch calculates gradients by accumulating contributions to them (useful for
+                        # RNNs).  Hence we must manully set them to zero before calculating them.
+                        optimiser.zero_grad(set_to_none=None)
+
+                        # outputs, reconstruction = model(inputs)  # Forward pass through the network.
+                        outputs = self.forward(**inputs)  # Forward pass through the network.
+
+                        # print(outputs.shape, rounds.shape)
+                        # print(torch.cat([outputs, rounds], axis=1)[:3])
+                        # assert False
+
+                        # weight_dist = model.weight_distances_min_k()
+                        if dirichlet_regularization == 0:
+                            dir_weight = 0
+                        else:
+                            dir_weight = dirichlet_regularization * self.dirichlet_regularization()
+                        # if the dataloader is a list, then we know the output shape directly by rounds
+                        if isinstance(dataloader, list):
+                            loss = self.criterion(outputs[:, :rounds.shape[1]], rounds)
+                        else:
+                            # define a mask to remove items on a rounds specific manner
+                            if n_rounds is not None:
+                                mask = torch.zeros((n_rounds.shape[0], outputs.shape[1]), dtype=torch.bool,
+                                                   device=self.device)
+                                for i in range(mask.shape[1]):
+                                    mask[:, i] = ~(n_rounds - 1 < i)
+                                loss = self.criterion(outputs[mask], rounds[mask])
+                            else:
+                                loss = self.criterion(outputs, rounds)
+
+                        loss += dir_weight
+                        # loss = criterion(outputs, rounds) + .01*reconstruct_crit(reconstruction, residues) + dir_w
+                        if exp_max >= 0:
+                            loss += self.exp_barrier(exp_max)
+
+                        loss_kernel_rel = self.loss_kernel_rel()
+                        loss_neg_weights = self.loss_kernel_neg_weights()
+                        loss_sym_weights = self.loss_kernel_symmetrical_weights()
+
+                        # print(loss, loss_kernel_rel, loss_neg_weights, loss_sym_weights)
+                        # assert False
+
+                        if self.optimize_kernel_rel:
+                            loss += loss_kernel_rel
+
+                        if self.optimize_neg_weight:
+                            loss += loss_neg_weights
+                        if self.optimize_sym_weight:
+                            # print(loss_sym_weights)
+                            loss += loss_sym_weights
+
+                        loss.backward()  # Calculate gradients.
+                        optimiser.step()
 
                     running_loss += loss.item()
-                    # running_crit += criterion(outputs, rounds).item()
+                    running_loss_sym_weights += loss_sym_weights
                     # running_rec += reconstruction_crit(reconstruction, residues).item()
 
             loss_final = running_loss / len(dataloader)
-            rec_final = running_rec / len(dataloader)
+            loss_final_sym_weights = running_loss_sym_weights / len(dataloader)
 
             if log_each != -1 and epoch > 0 and (epoch % log_each == 0):
+                # self.print_weights()
                 if verbose != 0:
+                    r2_epoch = None
+                    if r2_per_epoch:
+                        r2_epoch = mb.tl.scores(self, dataloader)['r2_counts']
+                        # r2_history.append(mb.pl.kmer_enrichment(self, dataloader, k=8, show=False))
+
                     total_time = time.time() - t0
                     time_epoch_1k = (total_time / max(epoch, 1) / n_trials * 1e3)
                     print(
-                        "Epoch: %2d, Loss: %.6f, " % (epoch + 1, loss_final),
+                        "Epoch: %2d, Loss: %.6f, %s" % (epoch + 1, loss_final,
+                                                        'R2: %.2f, ' % r2_epoch if r2_epoch is not None else ''),
                         "best epoch: %i, " % best_epoch,
                         "secs per epoch: %.3f s, " % ((time.time() - t0) / max(epoch, 1)),
                         "secs epoch*1k trials: %.3fs" % time_epoch_1k
                     )
+
+                    if kwargs.get('print_weights', False):
+                        self.print_weights()
 
             if best_loss is None or loss_final < best_loss:
                 best_loss = loss_final
@@ -501,19 +631,24 @@ class Multibind(tnn.Module, Model):
                 self.best_loss = best_loss
 
             # print("Epoch: %2d, Loss: %.3f" % (epoch + 1, running_loss / len(train_dataloader)))
-            loss_history.append(loss_final)
+            loss_history.append(float(loss_final))
+            loss_history_sym_weights.append(float(loss_final_sym_weights))
 
-            if r2_per_epoch:
-                r2_history.append(mb.pl.kmer_enrichment(self, dataloader, k=8, show=False))
             # model.crit_history.append(crit_final)
             # model.rec_history.append(rec_final)
 
             if early_stopping > 0 and epoch >= best_epoch + early_stopping:
                 if verbose != 0:
+                    r2_epoch = None
+                    if r2_per_epoch:
+                        r2_epoch = mb.tl.scores(self, dataloader)['r2_counts']
+                        # r2_history.append(mb.pl.kmer_enrichment(self, dataloader, k=8, show=False))
+
                     total_time = time.time() - t0
                     time_epoch_1k = (total_time / max(epoch, 1) / n_trials * 1e3)
                     print(
-                        "Epoch: %2d, Loss: %.4f, " % (epoch + 1, loss_final),
+                        "Epoch: %2d, Loss: %.6f, %s" % (epoch + 1, loss_final,
+                                                        'R2: %.2f, ' % r2_epoch if r2_epoch is not None else ''),
                         "best epoch: %i, " % best_epoch,
                         "secs per epoch: %.3fs, " % ((time.time() - t0) / max(epoch, 1)),
                         "secs epoch*1k trials: %.3fs" % time_epoch_1k
@@ -529,7 +664,12 @@ class Multibind(tnn.Module, Model):
         total_time = time.time() - t0
         self.total_time += total_time
         if verbose:
-            print('Final loss: %.10f' % loss_final)
+            r2_epoch = None
+            if r2_per_epoch:
+                r2_epoch = mb.tl.scores(self, dataloader)['r2_counts']
+                # r2_history.append(mb.pl.kmer_enrichment(self, dataloader, k=8, show=False))
+
+            print('Final loss: %.10f %s' % (loss_final, ', R2: %.2f' % r2_epoch if r2_epoch is not None else ''))
             print(f'Total time (model/function): (%.3fs / %.3fs)' % (self.total_time, total_time))
             print("Time per epoch (model/function): (%.3fs/ %.3fs)" %
                   ((self.total_time / max(epoch, 1)), (total_time / max(epoch, 1))))
@@ -537,14 +677,15 @@ class Multibind(tnn.Module, Model):
             print('Current time:', datetime.datetime.now())
 
         self.loss_history += loss_history
+        self.loss_history_sym_weights += loss_history_sym_weights
         self.r2_history += r2_history
 
     def optimize_iterative(self,
                            train,
                            # min_w=10,
                            max_w=20,
-                           num_epochs=100,
-                           early_stopping=15,
+                           n_epochs=100, # int or list
+                           early_stopping=15, # int or list
                            log_each=10,
                            opt_kernel_shift=True,
                            opt_kernel_length=True,
@@ -565,6 +706,7 @@ class Multibind(tnn.Module, Model):
                            shift_max=2,
                            shift_step=1,
                            r2_per_epoch=False,
+                           skip_kernels=None,
                            **kwargs,
                            ):
         # color for visualization of history
@@ -595,6 +737,9 @@ class Multibind(tnn.Module, Model):
 
         # step 1) freeze everything before the current binding mode
         for i in range(0, self.n_kernels):
+
+            if skip_kernels is not None and i in skip_kernels:
+                continue
 
             vprint('current kernels')
             # print(self.binding_modes)
@@ -628,7 +773,9 @@ class Multibind(tnn.Module, Model):
                         self.binding_modes.update_grad_mono(ki, mask_mono)
                         self.binding_modes.update_grad_di(ki, mask_dinuc)
 
-                print("\n")
+                    # activities are frozen during intercept optimization
+                    self.update_grad_activities(ki, i != 0)
+                    # self.update_grad_etas(i != 0)
 
                 if show_logo:
                     vprint("before kernel optimization.")
@@ -659,12 +806,14 @@ class Multibind(tnn.Module, Model):
                 self.optimize_simple(
                     train,
                     next_optimiser,
-                    num_epochs=num_epochs,
+                    num_epochs=n_epochs[i] if isinstance(n_epochs, list) else n_epochs,
                     early_stopping=next_early_stopping,
                     log_each=log_each,
                     dirichlet_regularization=dirichlet_regularization,
                     exp_max=exp_max,
                     verbose=verbose,
+                    r2_per_epoch=r2_per_epoch,
+                    **kwargs,
                 )
 
                 # vprint('grad')
@@ -695,26 +844,27 @@ class Multibind(tnn.Module, Model):
                 #######
                 if (opt_kernel_shift[i] or opt_kernel_length[i]) and i != 0:
                     self = self.optimize_width_and_length(train,
-                                                      expand_length_max,
-                                                      expand_length_step,
-                                                      shift_max,
-                                                      shift_step,
-                                                      i,
-                                                      feat_i=feat_i,
-                                                      colors=colors,
-                                                      verbose=verbose,
-                                                      lr=next_lr,
-                                                      weight_decay=next_weight_decay,
-                                                      optimiser=optimiser,
-                                                      log_each=log_each,
-                                                      exp_max=exp_max,
-                                                      dirichlet_regularization=dirichlet_regularization,
-                                                      early_stopping=next_early_stopping, criterion=self.criterion,
-                                                      show_logo=show_logo,
-                                                      n_kernels=self.n_kernels,
-                                                      max_w=max_w,
-                                                      num_epochs=num_epochs,
-                                                      **kwargs)
+                                                          expand_length_max,
+                                                          expand_length_step,
+                                                          shift_max,
+                                                          shift_step,
+                                                          i,
+                                                          feat_i=feat_i,
+                                                          colors=colors,
+                                                          verbose=verbose,
+                                                          lr=next_lr,
+                                                          weight_decay=next_weight_decay,
+                                                          optimiser=optimiser,
+                                                          log_each=log_each,
+                                                          exp_max=exp_max,
+                                                          dirichlet_regularization=dirichlet_regularization,
+                                                          early_stopping=next_early_stopping, criterion=self.criterion,
+                                                          show_logo=show_logo,
+                                                          n_kernels=self.n_kernels,
+                                                          max_w=max_w,
+                                                          r2_per_epoch=r2_per_epoch,
+                                                          num_epochs=n_epochs[i] if isinstance(n_epochs, list) else n_epochs,
+                                                          **kwargs)
 
                 if show_logo:
                     vprint("after shift optimz model")
@@ -750,16 +900,16 @@ class Multibind(tnn.Module, Model):
 
                 vprint("kernels mask", self.get_ignore_kernel())
                 vprint("kernels mask", self.get_ignore_kernel())
-
                 # final refinement of weights
                 self.optimize_simple(
                     train,
                     next_optimiser,
-                    num_epochs=num_epochs,
+                    num_epochs=n_epochs[i] if isinstance(n_epochs, list) else n_epochs,
                     early_stopping=next_early_stopping,
                     log_each=log_each,
                     dirichlet_regularization=dirichlet_regularization,
                     verbose=verbose,
+                    r2_per_epoch=r2_per_epoch,
                 )
 
                 # load the best model after the final refinement
@@ -780,7 +930,9 @@ class Multibind(tnn.Module, Model):
 
         vprint('\noptimization finished:')
         vprint(f'total time: {self.total_time}s')
-        vprint("Time per epoch (total): %.3f s" % (self.total_time / max(num_epochs, 1)))
+        vprint("Time per epoch (total): %.3f s" %
+               (self.total_time / max(n_epochs if not isinstance(n_epochs, list) else sum(n_epochs), 1)))
+
 
         return self, self.best_loss
 
@@ -911,8 +1063,11 @@ class Multibind(tnn.Module, Model):
                     pos_w_sum = float(weight_mono_i[weight_mono_i > 0].sum())
 
                     loss_diff_pct = (best_loss - model_shift.best_loss) / best_loss * 100
+
+                    r2 = mb.tl.scores(model_shift, train)['r2_counts']
+
                     all_options.append([expand_left, expand_right, shift, model_shift,
-                                        pos_w_sum, weight_mono_i.shape[-1], loss_diff_pct, model_shift.best_loss])
+                                        pos_w_sum, weight_mono_i.shape[-1], loss_diff_pct, model_shift.best_loss, r2])
                     # print('\n')
                     # vprint("after opt.")
 
@@ -925,15 +1080,16 @@ class Multibind(tnn.Module, Model):
                 weight_ref_mono_i = model_shift.binding_modes.conv_mono[i].weight
                 pos_w_ref_mono_i_sum = float(weight_ref_mono_i[weight_ref_mono_i > 0].sum())
 
+                best_r2 = mb.tl.scores(self, train)['r2_counts']
                 best = sorted(
                     all_options + [[0, 0, 0, self,
-                                    pos_w_ref_mono_i_sum, weight_ref_mono_i.shape[-1], 0, self.best_loss]],
+                                    pos_w_ref_mono_i_sum, weight_ref_mono_i.shape[-1], 0, self.best_loss, best_r2]],
                     key=lambda x: x[-1],
                 )
                 if verbose != 0:
                     print("sorted")
                 best_df = pd.DataFrame(best, columns=["expand.left", "expand.right", "shift", "model",
-                                                      'pos_w_sum', 'width', "loss_diff_pct", "loss"],
+                                                      'pos_w_sum', 'width', "loss_diff_pct", "loss", 'r2'],
                                        )
                 best_df['last_loss'] = best_loss
                 best_df = best_df.sort_values('loss')
@@ -941,10 +1097,10 @@ class Multibind(tnn.Module, Model):
                 vprint(best_df[[c for c in best_df if c != 'model']])
                 # print('\n history len')
                 next_expand_left, next_expand_right, next_position, next_model, next_pos_w, w, \
-                loss_diff_pct, next_loss = best_df.values[0][:-1]
+                loss_diff_pct, next_loss, next_r2 = best_df.values[0][:-1]
 
                 print(next_expand_left, next_expand_right, next_position, next_pos_w, w,
-                      loss_diff_pct, next_loss)
+                      loss_diff_pct, next_loss, next_r2)
 
                 if verbose != 0:
                     print("action (expand left, expand right, shift): (%i, %i, %i)\n" %
@@ -982,6 +1138,7 @@ class Multibind(tnn.Module, Model):
         dirichlet_regularization=0,
         exp_max=40,
         verbose=0,
+        r2_per_epoch=False,
         **kwargs,
     ):
         assert expand_left >= 0 and expand_right >= 0
@@ -1009,6 +1166,7 @@ class Multibind(tnn.Module, Model):
             dirichlet_regularization=dirichlet_regularization,
             exp_max=exp_max,
             verbose=verbose,
+            r2_per_epoch=r2_per_epoch,
         )
 
         return self
@@ -1033,7 +1191,6 @@ class BindingModesSimple(tnn.Module):
         self.conv_mono = tnn.ModuleList()
         self.conv_di = tnn.ModuleList()
         self.ones = None  # aux ones tensor, for intercept init.
-
         for k in self.kernels:
             if k == 0:
                 self.conv_mono.append(None)
@@ -1042,6 +1199,9 @@ class BindingModesSimple(tnn.Module):
                 next_mono = tnn.Conv2d(1, 1, kernel_size=(4, k), padding=(0, 0), bias=False)
                 if not self.init_random:
                     next_mono.weight.data.uniform_(0, 0)
+                else:
+                    next_mono.weight.data.uniform_(.01, .05)  # problem with fitting  dinucleotides if (0, 0)
+
                 self.conv_mono.append(next_mono)
 
                 # create the conv_di layers. These are skipped during forward unless use_dinuc is True
@@ -1482,12 +1642,21 @@ class SelexModule(tnn.Module):
         etas = torch.exp(self.log_etas)
         out = out * etas[batch, :]
 
-        results = out.T / torch.sum(out, dim=1)
+        # fluorescent data e.g. PBM, does not require scaling, to keep numbers beyond range [0 - 1]
+        if not kwargs.get('scale_countsum', True):
+            return out
 
+        results = out.T / torch.sum(out, dim=1)
         return (results * countsum).T
 
     def get_log_etas(self):
         return self.log_etas
+
+    def update_grad_etas(self, value):
+        self.log_etas.requires_grad = value
+        # if not value:
+        #    self.log_etas.grad = None
+
 
 
 def _weight_distances(mono, min_k=5):

@@ -6,7 +6,7 @@ from mubind.pl.plotting import (
     create_logo,
     kmer_enrichment,
     activities,
-    plot_loss,
+    loss,
     scatter,
     alignment_protein,
     R2_per_protein,

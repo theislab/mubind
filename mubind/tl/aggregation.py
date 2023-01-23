@@ -165,7 +165,7 @@ def submatrix(m, start, length, flip, filter_neg_weights=True):
 
 
 # @jit
-def distances_dataframe(a, b, min_w_sum=0):
+def distances_dataframe(a, b, min_w_sum=0, **kwargs):
     d = []
     min_w = min(a.shape[-1], b.shape[-1])
     # k = min_w
@@ -173,7 +173,7 @@ def distances_dataframe(a, b, min_w_sum=0):
     for k in np.arange(5, min_w):
         # print(k)
         for i in np.arange(0, a.shape[-1] - k + 1):
-            ai = submatrix(a, i, k, 0)
+            ai = submatrix(a, i, k, 0, **kwargs)
             ai_sum = ai.sum()
             if ai_sum < min_w_sum:
                 continue
@@ -182,7 +182,7 @@ def distances_dataframe(a, b, min_w_sum=0):
                 continue
             for j in np.arange(0, b.shape[-1] - k + 1):
                 # print(i, j)
-                bi = submatrix(b, j, k, 0)
+                bi = submatrix(b, j, k, 0, **kwargs)
                 bi_sum = bi.sum()
                 if bi_sum < min_w_sum:
                     continue
@@ -194,7 +194,7 @@ def distances_dataframe(a, b, min_w_sum=0):
                 # if lowest_d[-1] == -1 or d[-1] < lowest_d[-1] or d[-2] < lowest_d[-1]:
                 #     lowest_d = i, 0, d[-1]
 
-                bi_rev = submatrix(b, j, k, 1)
+                bi_rev = submatrix(b, j, k, 1, **kwargs)
                 # flipped version
                 d2 = ((bi_rev - ai) ** 2).sum() / bi.shape[-1]
                 d.append([i, j, k, ai.shape[-1], bi.shape[-1],
@@ -202,21 +202,21 @@ def distances_dataframe(a, b, min_w_sum=0):
                 # if lowest_d[-1] == -1 or d[-1] < lowest_d[-1] or d[-2] < lowest_d[-1]:
                 #     lowest_d = i, 1, d[-1]
 
-        res = pd.DataFrame(d, columns=['a_start', 'b_start', 'k', 'a_shape', 'b_shape',
-                                       'a_sum', 'b_sum', 'b_flip', 'distance']).sort_values('distance')
+    res = pd.DataFrame(d, columns=['a_start', 'b_start', 'k', 'a_shape', 'b_shape',
+                                   'a_sum', 'b_sum', 'b_flip', 'distance']).sort_values('distance')
     return res
 
-def calculate_distances(mono_list, full=False, best=False):
+def calculate_distances(mono_list, full=False, best=False, **kwargs):
     res = []
     for a, b in itertools.product(enumerate(mono_list), repeat=2):
         # print(a[0], b[0])
         if not full and a[0] > b[0]:
             continue
-        df2 = mb.tl.distances_dataframe(a[1], b[1])
+        df2 = mb.tl.distances_dataframe(a[1], b[1], **kwargs)
         df2['a'] = a[0]
         df2['b'] = b[0]
         res.append(df2)
-        df3 = mb.tl.distances_dataframe(b[1], a[1])
+        df3 = mb.tl.distances_dataframe(b[1], a[1], **kwargs)
         df3['a'] = b[0]
         df3['b'] = a[0]
         df3['id'] = df3['a'].astype(str) + '_' + df3['b'].astype(str)

@@ -484,7 +484,7 @@ def activities(model, n_rows=None, n_cols=None, batch_i=0, batch_names=None, fig
     plt.show()
 
 
-def plot_loss(model):
+def loss(model):
     h, c = model.loss_history, model.loss_color
     for i in range(len(h) - 2):
         plt.plot([i, i + 1], h[i : i + 2], c=c[i])

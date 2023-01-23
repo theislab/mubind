@@ -68,6 +68,7 @@ def test_network(model, dataloader, device):
             else:
                 inputs = {"mono": mononuc, "batch": b, "countsum": countsum}
 
+            inputs['scale_countsum'] = model.datatype == 'selex'
             output = model(**inputs)
 
             output = output.cpu().detach().numpy()
@@ -287,7 +288,6 @@ def scores(model, train, by=None, **kwargs):
 def kmer_enrichment(model, train, k=None, base_round=0, enr_round=-1, pseudo_count=1):
     # getting the targets and predictions from the model
     seqs, targets, pred = mb.tl.test_network(model, train, next(model.parameters()).device)
-
     counts = None
     target_labels = ["t" + str(i) for i in range(max(train.dataset.n_rounds))]
     pred_labels = ["p" + str(i) for i in range(max(train.dataset.n_rounds))]
