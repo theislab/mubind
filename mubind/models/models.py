@@ -46,12 +46,16 @@ class Multibind(tnn.Module, Model):
         super().__init__()
 
         self.device = kwargs.get('device')
-        print('here... 2')
         if self.device is None:
             # Use a GPU if available, as it should be faster.
             self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
             print("Using device: " + str(self.device))
 
+
+        self.optimize_exp_barrier = kwargs.get('optimize_exp_barrier', False)
+        self.optimize_kernel_rel = kwargs.get('optimize_kernel_rel', False)
+        self.optimize_sym_weight = kwargs.get('optimize_sym_weight', True)
+        self.optimize_log_dynamic = kwargs.get('optimize_log_dynamic', False)
 
         self.datatype = datatype.lower()
         assert self.datatype in ["selex", "pbm"]
@@ -210,7 +214,11 @@ class Multibind(tnn.Module, Model):
 
         # set criterion
         model.criterion = criterion
+
+        if kwargs.get('device') != 'cpu':
+            return model.cuda()
         return model
+
 
     def forward(self, mono, **kwargs):
         # mono_rev=None, di=None, di_rev=None, batch=None, countsum=None, residues=None, protein_id=None):
@@ -303,12 +311,6 @@ class Multibind(tnn.Module, Model):
     def dirichlet_regularization(self):
         return self.binding_modes.dirichlet_regularization()
 
-    def exp_barrier(self, exp_max=40):
-        out = 0
-        for p in self.parameters():
-            out += torch.sum(torch.exp(p - exp_max) + torch.exp(-p - exp_max))
-        return out
-
     def weight_distances_min_k(self, min_k=5, exp_delta=4):
         d = []
         for a, b in itertools.combinations(self.conv_mono[1:], r=2):
@@ -383,8 +385,6 @@ class Multibind(tnn.Module, Model):
     def print_weights(self):
         torch.set_printoptions(profile="default")  # reset
         torch.set_printoptions(linewidth=500)
-
-        print('here...')
         # torch.set_printoptions(threshold=10_000)
         print('\nmono')
         for b in self.binding_modes.conv_mono:
@@ -399,11 +399,63 @@ class Multibind(tnn.Module, Model):
         print('\netas')
         print(self.selex_module.log_etas)
 
-    def loss_kernel_neg_weights(self):
+    def loss_exp_barrier(self, exp_max):
         """
-        We add an exponential negative loss, to force weights to be positive
+        We add an exponential negative term, to force weights to be more positive than negative
         """
-        return sum([-b.weight.sum() for b in self.binding_modes.conv_mono[1:]])
+        pos_weight_sum_abs_mono = [b.weight.sum(axis=2).abs() for b in self.binding_modes.conv_mono[1:]]
+        mono = sum([torch.exp(p - exp_max).sum() for p in pos_weight_sum_abs_mono])
+
+        di = None
+        if self.use_dinuc and self.binding_modes.dinuc_mode == 'local':
+            pos_weight_sum_abs_di = [b.weight.sum(axis=2).abs() for b in self.binding_modes.conv_di[1:]]
+            di = sum([torch.exp(p - exp_max).sum() for p in pos_weight_sum_abs_di])
+        elif self.use_dinuc and self.binding_modes.dinuc_mode == 'full':
+            di = []
+            for b in self.binding_modes.conv_di[1:]:
+                for b2 in b:
+                    di.append(b2.weight.sum(axis=2).abs().sum())
+            di = sum(di)
+
+            return mono + di
+
+        return mono
+
+
+    def loss_log_dynamic(self):
+
+        if not hasattr(self.selex_module, 'connectivities'):
+            return 0
+
+        conn = self.selex_module.connectivities
+        log_dynamic = self.selex_module.log_dynamic
+
+        # print(self.selex_module.log_dynamic)
+        # print(self.selex_module.shape)
+        n_rounds = self.selex_module.n_rounds
+
+        # log_dynamic_mat = torch.zeros((n_rounds, n_rounds), device=log_dynamic.device)
+        log_dynamic_mat = log_dynamic + -torch.transpose(log_dynamic, 0, 1)
+
+        # old solution
+        # mask = np.tri(n_rounds, dtype=bool, k=-1)
+        # log_dynamic_mat[mask] = log_dynamic
+        # log_dynamic_mat += -torch.transpose(log_dynamic_mat, 0, 1)
+
+
+        idx = torch.argwhere(conn != 0)
+        c = torch.combinations(torch.arange(idx.size(0)), r=2)
+        idx = idx[c].reshape(c.shape[0], 4)
+        idx = idx[(idx[:, 0] == idx[:, 2]) | (idx[:, 1] == idx[:, 3])]
+        w_err = sum(((log_dynamic_mat[idx[:, 0], idx[:, 1]] - log_dynamic_mat[idx[:, 2], idx[:, 3]]) ** 2) / idx.shape[0])
+        return w_err
+
+    def exp_barrier(self, exp_max=40):
+        out = 0
+        for p in self.parameters():
+            out += torch.sum(torch.exp(p - exp_max) + torch.exp(-p - exp_max))
+        return out
+
 
     def loss_kernel_symmetrical_weights(self):
         """
@@ -411,10 +463,19 @@ class Multibind(tnn.Module, Model):
         strong positive/negative biases per position or in the whole object.
         """
         mono_sym_weight = sum([(b.weight.sum(axis=2) ** 2).sum() for b in self.binding_modes.conv_mono[1:]])
-        di_sym_weight = sum([(b.weight.sum(axis=2) ** 2).sum() for b in self.binding_modes.conv_di[1:]])
-        # print(mono_sym_weight, di_sym_weight)
-        return mono_sym_weight + di_sym_weight
 
+        di_sym_weight = None
+        if self.use_dinuc and self.binding_modes.dinuc_mode == 'local':
+            di_sym_weight = sum([(b.weight.sum(axis=2) ** 2).sum() for b in self.binding_modes.conv_di[1:]])
+        elif self.use_dinuc and self.binding_modes.dinuc_mode == 'full':
+            di_sym_weight = []
+            for b in self.binding_modes.conv_di[1:]:
+                for b2 in b:
+                    di_sym_weight.append((b2.weight.sum(axis=2) ** 2).sum())
+            di_sym_weight = sum(di_sym_weight)
+            return mono_sym_weight + di_sym_weight
+
+        return mono_sym_weight
 
     # if early_stopping is positive, training is stopped if over the length of early_stopping no improvement happened or
     # num_epochs is reached.
@@ -535,8 +596,8 @@ class Multibind(tnn.Module, Model):
                             # loss = criterion(outputs, rounds) + weight_dist + dir_weight
                             loss = self.criterion(outputs, rounds) + dir_weight
 
-                            if exp_max >= 0:
-                                loss += self.exp_barrier(exp_max)
+                            # if exp_max >= 0:
+                            #     loss += self.exp_barrier(exp_max)
                             loss.backward()  # retain_graph=True)
                             return loss
 
@@ -563,23 +624,24 @@ class Multibind(tnn.Module, Model):
                             loss = self.criterion(outputs[:, :rounds.shape[1]], rounds)
                         else:
                             # define a mask to remove items on a rounds specific manner
-                            if n_rounds is not None:
+                            if n_rounds is not None and len(set(dataloader.dataset.n_rounds)) != 1:
                                 mask = torch.zeros((n_rounds.shape[0], outputs.shape[1]), dtype=torch.bool,
                                                    device=self.device)
-                                for i in range(mask.shape[1]):
-                                    mask[:, i] = ~(n_rounds - 1 < i)
+                                for mi in range(mask.shape[1]):
+                                    mask[:, mi] = ~(n_rounds - 1 < i)
                                 loss = self.criterion(outputs[mask], rounds[mask])
                             else:
                                 loss = self.criterion(outputs, rounds)
 
                         loss += dir_weight
                         # loss = criterion(outputs, rounds) + .01*reconstruct_crit(reconstruction, residues) + dir_w
-                        if exp_max >= 0:
-                            loss += self.exp_barrier(exp_max)
+                        # if exp_max >= 0:
+                        #     loss += self.exp_barrier(exp_max)
 
                         loss_kernel_rel = self.loss_kernel_rel()
-                        loss_neg_weights = self.loss_kernel_neg_weights()
+                        loss_neg_weights = self.loss_exp_barrier(exp_max=exp_max)
                         loss_sym_weights = self.loss_kernel_symmetrical_weights()
+                        loss_log_dynamic = self.loss_log_dynamic()
 
                         # print(loss, loss_kernel_rel, loss_neg_weights, loss_sym_weights)
                         # assert False
@@ -587,9 +649,12 @@ class Multibind(tnn.Module, Model):
                         if self.optimize_kernel_rel:
                             loss += loss_kernel_rel
 
-                        if self.optimize_neg_weight:
+                        if self.optimize_exp_barrier:
                             loss += loss_neg_weights
                         if self.optimize_sym_weight:
+                            # print(loss_sym_weights)
+                            loss += loss_sym_weights
+                        if self.optimize_log_dynamic:
                             # print(loss_sym_weights)
                             loss += loss_sym_weights
 
@@ -667,6 +732,7 @@ class Multibind(tnn.Module, Model):
             r2_epoch = None
             if r2_per_epoch:
                 r2_epoch = mb.tl.scores(self, dataloader)['r2_counts']
+                self.r2_final = r2_epoch
                 # r2_history.append(mb.pl.kmer_enrichment(self, dataloader, k=8, show=False))
 
             print('Final loss: %.10f %s' % (loss_final, ', R2: %.2f' % r2_epoch if r2_epoch is not None else ''))
@@ -702,7 +768,7 @@ class Multibind(tnn.Module, Model):
                            stop_at_kernel=None,
                            dirichlet_regularization=0,
                            verbose=2,
-                           exp_max=40,
+                           exp_max=-1,
                            shift_max=2,
                            shift_step=1,
                            r2_per_epoch=False,
@@ -711,6 +777,9 @@ class Multibind(tnn.Module, Model):
                            ):
         # color for visualization of history
         colors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#ffff33", "#a65628"]
+
+        # here he add a parameter to keep the r2 log by next parms
+        self.best_r2_by_new_filter = []
 
         # verbose print declaration
         if verbose:
@@ -771,7 +840,8 @@ class Multibind(tnn.Module, Model):
 
                     if hasattr(self.binding_modes, 'update_grad_mono'):
                         self.binding_modes.update_grad_mono(ki, mask_mono)
-                        self.binding_modes.update_grad_di(ki, mask_dinuc)
+                        if self.use_dinuc:
+                            self.binding_modes.update_grad_di(ki, mask_dinuc)
 
                     # activities are frozen during intercept optimization
                     self.update_grad_activities(ki, i != 0)
@@ -927,6 +997,14 @@ class Multibind(tnn.Module, Model):
                     # mb.pl.conv_mono(model, flip=True, log=False)
 
                 vprint('best loss', self.best_loss)
+
+                # calculate the current r2 and keep a log of it
+                next_r2 = mb.tl.scores(self, train)['r2_counts']
+                self.best_r2_by_new_filter.append(next_r2)
+
+                print('current r2 values by newly added kernel')
+                print(self.best_r2_by_new_filter)
+
 
         vprint('\noptimization finished:')
         vprint(f'total time: {self.total_time}s')
@@ -1148,7 +1226,9 @@ class Multibind(tnn.Module, Model):
         n_kernels = len(self.binding_modes)
         for ki in range(n_kernels):
             self.binding_modes.update_grad_mono(ki, (ki == update_grad_i) and (feat_i == 'mono'))
-            self.binding_modes.update_grad_di(ki, (ki == update_grad_i) and (feat_i == 'dinuc'))
+
+            if self.use_dinuc:
+                self.binding_modes.update_grad_di(ki, (ki == update_grad_i) and (feat_i == 'dinuc'))
 
         # finally the optimiser has to be initialized again.
         optimiser = (
@@ -1338,7 +1418,7 @@ class BindingModesSimple(tnn.Module):
                 self.conv_mono[index].weight.grad = None
 
     def update_grad_di(self, index, value):
-        if self.conv_di[index] is not None:
+        if len(self.conv_di) >= index and self.conv_di[index] is not None:
             if isinstance(self.conv_di[index], tnn.ModuleList):
                 for conv_di in self.conv_di[index]:
                     conv_di.weight.requires_grad = value
@@ -1351,7 +1431,9 @@ class BindingModesSimple(tnn.Module):
 
     def update_grad(self, index, value):
         self.update_grad_mono(index, value)
-        self.update_grad_di(index, value)
+
+        if self.use_dinuc:
+            self.update_grad_di(index, value)
 
     def modify_kernel(self, index=None, shift=0, expand_left=0, expand_right=0, device=None):
         # shift mono
@@ -1627,6 +1709,13 @@ class SelexModule(tnn.Module):
         self.n_batches = kwargs.get("n_batches", 1)
         self.log_etas = tnn.Parameter(torch.zeros([self.n_batches, self.n_rounds]))
 
+        # log dynamic is a matrix with upper/lower triangle with opposite symbols
+        # self.log_dynamic = tnn.Parameter(torch.zeros([int((self.n_rounds - 1) * (self.n_rounds) / 2)]))
+
+        self.log_dynamic = tnn.Parameter(torch.zeros([self.n_rounds, self.n_rounds]))
+        # print(self.log_etas.shape, self.log_dynamic.shape)
+        # print(self.log_etas.shape, self.log_dynamic.shape)
+
     def forward(self, binding_scores, countsum, **kwargs):
         batch = kwargs.get("batch", None)
         if batch is None:
@@ -1635,12 +1724,50 @@ class SelexModule(tnn.Module):
         out = None
         if self.enr_series:
             out = torch.cumprod(binding_scores, dim=1)  # cum product between rounds 0 and N
+        elif hasattr(self, 'connectivities'): # in this particular step, we multiply by the dynamic or static scores.
+            # old solution
+            # log_dynamic_mat = torch.zeros((self.n_rounds, self.n_rounds), device=binding_scores.device)
+            # # faster with booleans
+            # mask = np.tri(self.n_rounds, dtype=bool, k=-1)
+            # log_dynamic_mat[mask] = self.log_dynamic
+            # log_dynamic_mat += -torch.transpose(log_dynamic_mat, 0, 1)
+
+            # new solution
+            log_dynamic_mat = self.log_dynamic + -torch.transpose(self.log_dynamic, 0, 1)
+            # print(self.log_dynamic_vec)
+            # print(self.log_dynamic_mat)
+
+            # print(binding_scores.shape, self.log_dynamic.shape)
+            static_out = binding_scores @ torch.exp(-log_dynamic_mat)
+            dynamic_out = (binding_scores @ self.connectivities) @ torch.exp(log_dynamic_mat)
+            # print(dynamic_out.shape, dynamic_out.shape, binding_scores.shape)
+            # assert False
+
+            out = static_out + dynamic_out
+            # print(out[:3, :3])
         else:
             out = binding_scores
 
+        # print(hasattr(self, 'connectivities'))
+        # assert False
+
+        #
+        # print('binding scores')
+        # print(out[:5])
+        #
+        # print('log etas')
+        # print(self.log_etas)
+
         # multiplication in one step
         etas = torch.exp(self.log_etas)
+        #
+        # print('etas exp')
+        # print(etas)
+
         out = out * etas[batch, :]
+
+        # print('out after eta scaling')
+        # print(out[:5])
 
         # fluorescent data e.g. PBM, does not require scaling, to keep numbers beyond range [0 - 1]
         if not kwargs.get('scale_countsum', True):
@@ -1656,7 +1783,6 @@ class SelexModule(tnn.Module):
         self.log_etas.requires_grad = value
         # if not value:
         #    self.log_etas.grad = None
-
 
 
 def _weight_distances(mono, min_k=5):

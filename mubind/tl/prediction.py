@@ -269,6 +269,9 @@ def scores(model, train, by=None, **kwargs):
         pred = counts[[c for c in counts if c.startswith('p')]]
         mask = np.isnan(targets)
 
+        # print(targets[:5])
+        # print(pred[:5])
+        # assert False
         r2_counts = sklearn.metrics.r2_score(targets.to_numpy()[~mask], pred.to_numpy()[~mask])
         # print(counts)
         r2_enr = sklearn.metrics.r2_score(counts["enr_obs"], counts["enr_pred"])

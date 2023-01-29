@@ -31,6 +31,9 @@ def create_logo(net):
     weights.index = "A", "C", "G", "T"
     crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5)
 
+def set_rcParams(parms):
+    for k in parms:
+        matplotlib.rcParams[k] = parms[k]
 
 def conv_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=True, yticks=True,
               figsize=None, flip=False, log=False, show=True, title=True):
@@ -298,6 +301,7 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle',
                 # weights = model.get_kernel_weights(i, dinucleotide=True)
                 weights = m.weight
 
+                # print(ki, m)
                 # print(weights)
                 # print(weights.shape)
 
@@ -350,11 +354,14 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle',
                     # plt.show()
                     df_final.append(df_concat)
 
+                # if len(df_final) == 10:
+                #     break
+
             df = df_final[0].copy()
             for df2 in df_final:
                 df[~pd.isnull(df2)] = df2
 
-            print(df.shape)
+            # print(df.shape)
             C = df.copy()
             C = np.array(C)
 
