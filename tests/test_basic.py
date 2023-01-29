@@ -9,7 +9,7 @@ def test_simdata_train():
     import warnings
 
     warnings.filterwarnings("ignore", category=DeprecationWarning)
-    import multibind as mb
+    import mubind as mb
 
     # Use a GPU if available, as it should be faster.
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -21,23 +21,29 @@ def test_simdata_train():
     # data = pd.DataFrame({'seq': x1, 'enr_approx': y1})
     data = pd.DataFrame(
         {
-            "seq": x2,
             0: np.where(y2 == 0, 1, 0).astype(float),
             1: np.where(y2 == 1, 1, 0).astype(float),
         }
     )
+    data.index = x2
 
     # divide in train and test data -- copied from above, organize differently!
     train_dataframe = data.copy()
-    data.shape[0]
+    # data.shape[0]
     train_dataframe = train_dataframe  # .sample(n=n_sample)
-    train_dataframe.index = range(len(train_dataframe))
 
+    # print(train_dataframe.shape)
     # create datasets and dataloaders
-    train_data = mb.datasets.SelexDataset(train_dataframe, single_encoding_step=False)
-    train_loader = tdata.DataLoader(dataset=train_data, batch_size=256, shuffle=True)
-    model = mb.models.DinucSelex(1, 1, kernels=[0, 12]).to(device)
-    optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.01)
+    n_rounds = train_dataframe.shape[1]
+    train_data = mb.datasets.SelexDataset(train_dataframe, single_encoding_step=False, n_rounds=n_rounds)
+    data_loader = tdata.DataLoader(dataset=train_data, batch_size=256, shuffle=True)
+
+    # print(train_loader.dataset.rounds.shape)
+
     criterion = mb.tl.PoissonLoss()
-    l2 = mb.tl.train_network(model, train_loader, device, optimiser, criterion, num_epochs=10, log_each=1)
+
+    model = mb.models.Multibind.make_model(data_loader, 2, mb.tl.PoissonLoss()).cuda()
+    optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.01)
+
+    l2 = model.optimize_simple(data_loader, optimiser, num_epochs=10, log_each=1)
     # mb.pl.conv_mono(model)

@@ -16,7 +16,7 @@ class ParsedConfig:
         self.ANNOTATIONS = config['ANNOTATIONS']
         self.HYPERPARAM = config['HYPERPARAM']
         # print(config['GENE_NAMES'])
-        self.GENE_NAMES = [s.strip() for s in open(gene_names)][:1]
+        self.GENE_NAMES = [s.strip() for s in open(gene_names)] # takes all gene names
         # self.GENE_NAMES = config['GENE_NAMES']
         # print(self.GENE_NAMES)
         # assert False

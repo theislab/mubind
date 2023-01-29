@@ -1,4 +1,4 @@
-name: multibind
+name: mubind
 channels:
     - conda-forge
     - anaconda
