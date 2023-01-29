@@ -19,7 +19,7 @@ sys.path.insert(0, str(HERE / "extensions"))
 info = metadata("multibind")
 project = info["Name"]
 author = info["Author"]
-copyright = f"{datetime.now():%Y}, {author}."
+copyright = f"{datetime.now():%Y}, {author}"
 version = info["Version"]
 
 # The full version, including alpha/beta/rc tags
@@ -50,9 +50,12 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinxcontrib.bibtex",
     "sphinx_autodoc_typehints",
+    'scanpydoc.theme',
     "scanpydoc.definition_list_typed_field",
     "nbsphinx",
     "sphinx.ext.mathjax",
+    "sphinx_rtd_theme",
+    "sphinx_gallery.load_style",
     *[p.stem for p in (HERE / "extensions").glob("*.py")],
 ]
 
@@ -77,13 +80,18 @@ nbsphinx_execute = "never"
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
 
+# See https://nbsphinx.readthedocs.io/en/latest/subdir/gallery.html for
+# other options of how to select thumbnails.
+nbsphinx_thumbnails = {
+    'notebooks/modeling': '_static/example.png',
+}
 
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-#
-html_theme = "furo"
+# html_theme = "furo"
+html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
 
 pygments_style = "sphinx"
