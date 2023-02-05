@@ -235,16 +235,21 @@ def calculate_distances(mono_list, full=False, best=False, **kwargs):
 
     return res
 
-def reduce_filters(binding_modes, plot=False, thr_group=0.01):
+def reduce_filters(binding_modes, plot=False, thr_group=0.01, max_w=25):
     best = None
     iteration_i = 0
-    monos = [b.weight for b in binding_modes.conv_mono]
-    monos = [m.cpu().detach().numpy().squeeze() for m in monos]
+
+    if isinstance(binding_modes, mb.models.BindingModesSimple):
+        monos = [b.weight for b in binding_modes.conv_mono]
+        monos = [m.cpu().detach().numpy().squeeze() for m in monos]
+    else:
+        monos = binding_modes
 
     while True:
         iteration_i += 1
         print('iteration', iteration_i)
 
+        n_curr = len(monos)
         res = calculate_distances([m.copy() for m in monos])
 
         if plot:
@@ -309,16 +314,29 @@ def reduce_filters(binding_modes, plot=False, thr_group=0.01):
             print(m_a.shape, m_b.shape, merged_a.shape, merged_b.shape, width_diff, shift)
             merged = (merged_a + merged_b) / 2
 
-            # reduction. Replace a and remove b
-            monos[a_i] = merged
-            monos[b_i] = None
+            if merged.shape[1] < max_w:
+                # reduction. Replace a and remove b
+                monos[a_i] = merged
+                monos[b_i] = None
 
             if plot:
                 mb.pl.conv_mono(weights_list=[m_a, m_b, sub_m1, sub_m2,
                                               merged_a, merged_b, merged], n_rows=7, n_cols=1, figsize=[9, 4], show=True)
 
         monos = [m for m in monos if m is not None]
+
+        n_after = len(monos)
         print('# of remaining groups', len(monos))
+
+        min_w = min([m.shape[-1] for m in monos])
+        max_w = max([m.shape[-1] for m in monos])
+        print('min/max shape', min_w, max_w)
+
+        if n_curr == n_after:
+            print('no more groupings can be done. Stop.')
+            break
+
+
     return monos
 
 

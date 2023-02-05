@@ -185,7 +185,10 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle',
     binding_modes = model.binding_modes if is_multibind else model # model can be a list of binding modes
 
     print(is_multibind)
-    n_cols = len(binding_modes) if not is_multibind else len(model.binding_modes.conv_mono)
+
+    n_cols = kwargs.get('n_cols', None)
+    if n_cols is None:
+        n_cols = len(binding_modes) if not is_multibind else len(model.binding_modes.conv_mono)
     if figsize is not None:
         plt.figure(figsize=figsize)
 
@@ -193,7 +196,9 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle',
     # mono
     ci = 0
 
-    n_rows = rowspan_mono + rowspan_dinuc
+    n_rows = kwargs.get('n_rows', None)
+    if n_rows is None:
+        n_rows = rowspan_mono + rowspan_dinuc
 
     for i, m in enumerate(binding_modes.conv_mono):
         # weights = model.get_kernel_weights(i)
@@ -202,8 +207,9 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle',
         if m is None:
             continue
 
-        ax = plt.subplot2grid((n_rows, (n_cols)), (0, ci), rowspan=rowspan_mono, frame_on=False)
+        ax = plt.subplot2grid((n_rows, (n_cols)), (int((i - 1) / n_cols), ci), rowspan=rowspan_mono, frame_on=False)
         ci += 1
+        ci = ci % n_cols
 
         weights = m.weight
         if weights is None:
@@ -228,7 +234,7 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle',
     for i, m in enumerate(binding_modes.conv_di):
         if m is None:
             continue
-        ax = plt.subplot2grid((n_rows, n_cols), (rowspan_mono, ci), rowspan=rowspan_dinuc, frame_on=False)
+        ax = plt.subplot2grid((n_rows, n_cols), (int((i - 1) / n_cols) + rowspan_mono, ci), rowspan=rowspan_dinuc, frame_on=False)
         ci += 1
 
         if mode == 'complex':
