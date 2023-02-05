@@ -1,6 +1,7 @@
 import itertools
 import random
 from difflib import SequenceMatcher
+from pathlib import Path
 
 import numpy as np
 import torch.utils.data as tdata
@@ -448,3 +449,13 @@ def gata_remap(n_sample=5000):
     x = np.array([s[1] for s in seqs] + [s[1] for s in shuffled_seqs])
     y = np.array([int(i % 2 == 0) for i, s in enumerate([seqs, shuffled_seqs]) for yi in range(len(s))])
     return x, y
+
+def cisbp_hs():
+    # path to dir containing pwm txt files
+    base_path = Path(mb.bindome.constants.ANNOTATIONS_DIRECTORY + '/cisbp/hs/pwms_all_motifs')
+    # collect paths to all pwms
+    motif_paths = []
+    for p in base_path.rglob('*'):
+        motif_paths.append(p)
+    pwms = [pd.read_csv(p, sep='\t').drop(columns=['Pos'], axis=1).T for p in motif_paths]
+    return pwms

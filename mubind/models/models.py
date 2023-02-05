@@ -108,6 +108,7 @@ class Multibind(tnn.Module, Model):
         self.best_loss = None
         self.loss_history = []
         self.loss_history_sym_weights = []
+        self.loss_history_log_dynamic = []
         self.r2_history = []
         self.loss_color = []
         self.total_time = 0
@@ -496,6 +497,7 @@ class Multibind(tnn.Module, Model):
         r2_history = []
         loss_history = []
         loss_history_sym_weights = []
+        loss_history_log_dynamic = []
 
         best_loss = None
         best_epoch = -1
@@ -541,6 +543,7 @@ class Multibind(tnn.Module, Model):
         for epoch in range(num_epochs):
             running_loss = 0
             running_loss_sym_weights = 0
+            running_loss_log_dynamic = 0
 
             running_rec = 0
 
@@ -633,6 +636,12 @@ class Multibind(tnn.Module, Model):
                             else:
                                 loss = self.criterion(outputs, rounds)
 
+                        # print('pred/obs')
+                        # print(outputs, outputs.shape)
+                        # print(rounds, rounds.shape)
+                        # print((rounds.sum(axis=1) == 0).any())
+                        # assert False
+
                         loss += dir_weight
                         # loss = criterion(outputs, rounds) + .01*reconstruct_crit(reconstruction, residues) + dir_w
                         # if exp_max >= 0:
@@ -658,15 +667,19 @@ class Multibind(tnn.Module, Model):
                             # print(loss_sym_weights)
                             loss += loss_sym_weights
 
+                        # print('# LOSS', loss)
                         loss.backward()  # Calculate gradients.
                         optimiser.step()
 
                     running_loss += loss.item()
                     running_loss_sym_weights += loss_sym_weights
+                    running_loss_log_dynamic += loss_log_dynamic
+
                     # running_rec += reconstruction_crit(reconstruction, residues).item()
 
             loss_final = running_loss / len(dataloader)
             loss_final_sym_weights = running_loss_sym_weights / len(dataloader)
+            loss_final_log_dynamic = running_loss_log_dynamic / len(dataloader)
 
             if log_each != -1 and epoch > 0 and (epoch % log_each == 0):
                 # self.print_weights()
@@ -698,6 +711,7 @@ class Multibind(tnn.Module, Model):
             # print("Epoch: %2d, Loss: %.3f" % (epoch + 1, running_loss / len(train_dataloader)))
             loss_history.append(float(loss_final))
             loss_history_sym_weights.append(float(loss_final_sym_weights))
+            loss_history_log_dynamic.append(float(loss_final_log_dynamic))
 
             # model.crit_history.append(crit_final)
             # model.rec_history.append(rec_final)
@@ -744,6 +758,8 @@ class Multibind(tnn.Module, Model):
 
         self.loss_history += loss_history
         self.loss_history_sym_weights += loss_history_sym_weights
+        self.loss_history_log_dynamic += loss_history_log_dynamic
+
         self.r2_history += r2_history
 
     def optimize_iterative(self,
@@ -891,12 +907,15 @@ class Multibind(tnn.Module, Model):
                 # vprint(model.binding_modes.conv_di[1].weight.grad)
                 # vprint('')
 
-                self.loss_color += list(np.repeat(colors[i], len(self.loss_history) - len(self.loss_color)))
+                self.loss_color += list(np.repeat(colors[i % len(colors)], len(self.loss_history) - len(self.loss_color)))
                 # probably here load the state of the best epoch and save
 
                 self.load_state_dict(self.best_model_state)
+
                 # store model parameters and fit for later visualization
-                self = copy.deepcopy(self)
+                # necessary?
+                # self = copy.deepcopy(self)
+
                 # optimizer for left / right flanks
                 best_loss = self.best_loss
 
@@ -983,7 +1002,7 @@ class Multibind(tnn.Module, Model):
                 )
 
                 # load the best model after the final refinement
-                self.loss_color += list(np.repeat(colors[i], len(self.loss_history) - len(self.loss_color)))
+                self.loss_color += list(np.repeat(colors[i % len(colors)], len(self.loss_history) - len(self.loss_color)))
                 self.load_state_dict(self.best_model_state)
 
                 if stop_at_kernel is not None and stop_at_kernel == i:
@@ -1712,7 +1731,7 @@ class SelexModule(tnn.Module):
         # log dynamic is a matrix with upper/lower triangle with opposite symbols
         # self.log_dynamic = tnn.Parameter(torch.zeros([int((self.n_rounds - 1) * (self.n_rounds) / 2)]))
 
-        self.log_dynamic = tnn.Parameter(torch.zeros([self.n_rounds, self.n_rounds]))
+        # self.log_dynamic = tnn.Parameter(torch.zeros([self.n_rounds, self.n_rounds]))
         # print(self.log_etas.shape, self.log_dynamic.shape)
         # print(self.log_etas.shape, self.log_dynamic.shape)
 
@@ -1724,27 +1743,78 @@ class SelexModule(tnn.Module):
         out = None
         if self.enr_series:
             out = torch.cumprod(binding_scores, dim=1)  # cum product between rounds 0 and N
-        elif hasattr(self, 'connectivities'): # in this particular step, we multiply by the dynamic or static scores.
-            # old solution
-            # log_dynamic_mat = torch.zeros((self.n_rounds, self.n_rounds), device=binding_scores.device)
-            # # faster with booleans
-            # mask = np.tri(self.n_rounds, dtype=bool, k=-1)
-            # log_dynamic_mat[mask] = self.log_dynamic
-            # log_dynamic_mat += -torch.transpose(log_dynamic_mat, 0, 1)
+        elif hasattr(self, 'conn_sparse'): # in this particular step, we multiply by the dynamic or static scores.
+            if True: # new solution:
+                # operations
+                tsum = torch.sum
+                texp = torch.exp
+                tspa = torch.sparse_coo_tensor
+                tsmm = torch.sparse.mm
+                t = torch.transpose
 
-            # new solution
-            log_dynamic_mat = self.log_dynamic + -torch.transpose(self.log_dynamic, 0, 1)
-            # print(self.log_dynamic_vec)
-            # print(self.log_dynamic_mat)
+                # binding scores
+                b = binding_scores
+                b_T = torch.transpose(b, 0, 1)
 
-            # print(binding_scores.shape, self.log_dynamic.shape)
-            static_out = binding_scores @ torch.exp(-log_dynamic_mat)
-            dynamic_out = (binding_scores @ self.connectivities) @ torch.exp(log_dynamic_mat)
-            # print(dynamic_out.shape, dynamic_out.shape, binding_scores.shape)
-            # assert False
+                # connectivities
+                C = self.conn_sparse
+                a_ind = C.indices()
+                conn_spa_T = torch.transpose(C, 0, 1)
 
-            out = static_out + dynamic_out
-            # print(out[:3, :3])
+                # dynamic
+                D = self.log_dynamic
+                D_tril = tspa(a_ind, D, C.shape)  # .requires_grad_(True).cuda()
+                D_triu = tspa(a_ind, -D, C.shape)  # .requires_grad_(True).cuda()
+                D = D_tril + t(D_triu, 0, 1)
+                # print('log dynamic1 after exp', torch.sum(D.to_dense()).cpu().detach().sum())
+
+                D1 = D
+
+                # print('sum of dynamic mat1', tsum(D.to_dense()).cpu().detach().sum())
+
+                # print(conn_spa_T.shape, b.shape)
+                tmp = tsmm(C, b_T).T
+
+                # print('')
+                # print('sum of tmp 1', tmp.cpu().detach().sum())
+                # print('shape tmp1', tmp.shape)
+                tmp_T = t(tmp, 0, 1)
+                # print('dynamic1 input', tsum(D.to_dense().cpu().detach().sum()),
+                #       tsum(b.to_dense()).cpu().detach().sum())
+
+                dynamic_out1 = tsmm(texp(t(D, 0, 1).to_dense()), tmp_T).T
+                # print('dynamic out 1 sum', dynamic_out1.cpu().detach().sum())
+                # print(torch.isnan(log_dynamic_spa).any(), torch.isnan(dyn1_T).any(), torch.isnan(dynamic_out).any())
+                # print('static1 input', tsum(D.to_dense()).cpu().detach(), tsum(b.to_dense()).cpu().detach())
+                static_out1 = tsmm(texp(D.to_dense()), b_T).T
+
+                out = static_out1 + dynamic_out1
+            else:
+                # old solution
+                # print(self.log_dynamic.shape)
+                D = self.log_dynamic
+                C_dense = C.to_dense()
+                a_ind = C.indices()
+                D = self.log_dynamic
+                D_spa = tspa(a_ind, D, C.shape)  # .requires_grad_(True).cuda()
+                D_mat = D_spa.to_dense()
+
+                # print(log_dynamic_mat)
+                D_mat = D_mat + torch.transpose(-D_mat, 0, 1)
+                D2 = D_mat
+                print('')
+                print('sum of mat2', tsum(D_mat.to_dense()).cpu().detach().sum())
+                print('static2 input', b.sum().cpu().detach().sum(), texp(-D_mat).cpu().detach().sum())
+
+                tmp = (b @ C_dense)
+                print('')
+                print('sum of tmp 2', tmp.cpu().detach().sum())
+                print('shape tmp1', tmp.shape)
+
+                dynamic_out2 = tmp @ texp(D_mat)  # texp(D_mat)
+                print('out 2 sum', dynamic_out2.cpu().detach().sum())
+                static_out2 = b @ texp(-D_mat)  # texp(-D_mat)
+                out2 = static_out2 + dynamic_out2
         else:
             out = binding_scores
 
@@ -1774,6 +1844,16 @@ class SelexModule(tnn.Module):
             return out
 
         results = out.T / torch.sum(out, dim=1)
+
+        # print('sums', torch.sum(out, dim=1))
+        # print('results')
+        # print(results)
+        #
+        # print('countsum')
+        # print(countsum)
+        # print('mat sum')
+        # print(countsum.sum())
+
         return (results * countsum).T
 
     def get_log_etas(self):
