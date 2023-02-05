@@ -3,8 +3,8 @@
 ## Preprocessing
 
 ```{eval-rst}
-.. module:: mubind.pp
-.. currentmodule:: mubind
+.. module:: multibind.pp
+.. currentmodule:: multibind
 
 .. autosummary::
     :toctree: generated
@@ -15,8 +15,8 @@
 ## Datasets
 
 ```{eval-rst}
-.. module:: mubind.datasets
-.. currentmodule:: mubind
+.. module:: multibind.datasets
+.. currentmodule:: multibind
 
 .. autosummary::
     :toctree: generated
@@ -30,21 +30,21 @@
 ## Tools
 
 ```{eval-rst}
-.. module:: mubind.tl
-.. currentmodule:: mubind
+.. module:: multibind.tl
+.. currentmodule:: multibind
 
 .. autosummary::
     :toctree: generated
 
     tl.train_network
-    tl.optimize_iterative
+    tl.train_iterative
 ```
 
 ## Plotting
 
 ```{eval-rst}
-.. module:: mubind.pl
-.. currentmodule:: mubind
+.. module:: multibind.pl
+.. currentmodule:: multibind
 
 .. autosummary::
     :toctree: generated
@@ -59,8 +59,8 @@
 ## Models
 
 ```{eval-rst}
-.. module:: mubind.models
-.. currentmodule:: mubind
+.. module:: multibind.models
+.. currentmodule:: multibind
 
 .. autosummary::
     :toctree: generated

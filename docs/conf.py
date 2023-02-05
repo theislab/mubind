@@ -16,7 +16,7 @@ sys.path.insert(0, str(HERE / "extensions"))
 
 # -- Project information -----------------------------------------------------
 
-info = metadata("mubind")
+info = metadata("multibind")
 project = info["Name"]
 author = info["Author"]
 copyright = f"{datetime.now():%Y}, {author}"
