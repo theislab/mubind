@@ -1731,7 +1731,7 @@ class SelexModule(tnn.Module):
         # log dynamic is a matrix with upper/lower triangle with opposite symbols
         # self.log_dynamic = tnn.Parameter(torch.zeros([int((self.n_rounds - 1) * (self.n_rounds) / 2)]))
 
-        # self.log_dynamic = tnn.Parameter(torch.zeros([self.n_rounds, self.n_rounds]))
+        self.log_dynamic = tnn.Parameter(torch.zeros([self.n_rounds, self.n_rounds]))
         # print(self.log_etas.shape, self.log_dynamic.shape)
         # print(self.log_etas.shape, self.log_dynamic.shape)
 
