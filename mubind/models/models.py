@@ -220,6 +220,39 @@ class Multibind(tnn.Module, Model):
             return model.cuda()
         return model
 
+    import torch.nn as tnn
+    def prepare_knn(self, adata):
+        '''
+        This routine is in charge of setting up the graph to be used during the assay-assay relatedness step
+        '''
+        def triu_init(m):
+            with torch.no_grad():
+                m.weight.copy_(torch.triu(m.weight))
+
+        # Zero out gradients
+        def get_zero_grad_hook(mask):
+            def hook(grad):
+                return grad * mask
+
+            return hook
+
+        # prepare the zero counts
+        counts = adata.X.T
+        next_data = pd.DataFrame(counts.A)  # sparse.from_spmatrix(counts.A)
+        next_data['var'] = next_data.var(axis=1)
+        del next_data['var']
+        df = next_data.copy()  # sample
+        zero_counts = df.sum(axis=1) == 0
+
+        self.selex_module.conn_sparse = torch.tensor(
+            adata[:, ~zero_counts].uns['neighbors']['connectivities'].A).to_sparse().requires_grad_(True).cuda()
+        self.selex_module.log_dynamic = tnn.Parameter(
+            torch.rand(self.selex_module.conn_sparse.indices().shape[1]))  # .cuda()
+
+        # print(self.selex_module.log_dynamic.shape)
+
+        # mask = torch.tril(torch.ones_like(self.selex_module.log_dynamic), -1)
+        # self.selex_module.log_dynamic.register_hook(get_zero_grad_hook(mask))
 
     def forward(self, mono, **kwargs):
         # mono_rev=None, di=None, di_rev=None, batch=None, countsum=None, residues=None, protein_id=None):
@@ -1730,8 +1763,7 @@ class SelexModule(tnn.Module):
 
         # log dynamic is a matrix with upper/lower triangle with opposite symbols
         # self.log_dynamic = tnn.Parameter(torch.zeros([int((self.n_rounds - 1) * (self.n_rounds) / 2)]))
-
-        self.log_dynamic = tnn.Parameter(torch.zeros([self.n_rounds, self.n_rounds]))
+        # self.log_dynamic = tnn.Parameter(torch.zeros([self.n_rounds, self.n_rounds]))
         # print(self.log_etas.shape, self.log_dynamic.shape)
         # print(self.log_etas.shape, self.log_dynamic.shape)
 
@@ -1739,6 +1771,8 @@ class SelexModule(tnn.Module):
         batch = kwargs.get("batch", None)
         if batch is None:
             batch = torch.zeros([binding_scores.shape[0]], device=binding_scores.device)
+
+        assert hasattr(self, 'conn_sparse')
 
         out = None
         if self.enr_series:
@@ -1772,7 +1806,10 @@ class SelexModule(tnn.Module):
 
                 # print('sum of dynamic mat1', tsum(D.to_dense()).cpu().detach().sum())
 
+                # print(C.shape, b_T.shape)
+                # assert False
                 # print(conn_spa_T.shape, b.shape)
+
                 tmp = tsmm(C, b_T).T
 
                 # print('')

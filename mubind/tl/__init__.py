@@ -22,7 +22,8 @@ from mubind.tl.prediction import (  # SelexDataset,; ChipSeqDataset,; create_dat
     test_network,
     kmer_enrichment,
     scores,
-    predict
+    predict,
+    dynamic_score
 )
 from mubind.tl.aggregation import (
     calculate_distances,

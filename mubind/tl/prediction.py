@@ -369,3 +369,19 @@ def kmer_enrichment(model, train, k=None, base_round=0, enr_round=-1, pseudo_cou
 def predict(model, train, show=True):
     counts = mb.tl.kmer_enrichment(model, train)
     return counts
+
+def dynamic_score(model):
+    tspa = torch.sparse_coo_tensor
+    t = torch.transpose
+    # connectivities
+    C = model.selex_module.conn_sparse
+    a_ind = C.indices()
+    log_dynamic = model.selex_module.log_dynamic
+    D = model.selex_module.log_dynamic
+    D_tril = tspa(a_ind, D, C.shape)  # .requires_grad_(True).cuda()
+    D_triu = tspa(a_ind, -D, C.shape)  # .requires_grad_(True).cuda()
+    D = D_tril + t(D_triu, 0, 1)
+
+    torch.set_printoptions(precision=2)
+    dynamic_score = D.to_dense().detach().cpu().sum(axis=0)
+    return dynamic_score

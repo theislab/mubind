@@ -75,3 +75,10 @@ def sample_rounds(df, n_rounds, n_sample_col, step=10):
         print(len(idx_final))
 
     return df[df.index.isin(idx_final)]
+
+def sample_anndata(adata, n_sample_obs = 750, n_sample_var = 750):
+    obs_sample = pd.Series(adata.obs_names).sample(n_sample_obs)
+    var_sample = pd.Series(adata.var_names).sample(n_sample_var)
+
+    ad = adata[adata.obs_names.isin(obs_sample), adata.var_names.isin(var_sample)].copy()
+    return ad
