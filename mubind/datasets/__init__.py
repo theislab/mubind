@@ -8,5 +8,5 @@ from .datasets import (
     gata_remap,
     simulate_data,
     simulate_xy,
-    cisbp_hs
+    cisbp_hs, genre, # pwm datasets
 )

@@ -11,6 +11,7 @@ import mubind as mb
 from scipy import sparse
 import pandas as pd
 
+import pickle
 
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
@@ -450,12 +451,25 @@ def gata_remap(n_sample=5000):
     y = np.array([int(i % 2 == 0) for i, s in enumerate([seqs, shuffled_seqs]) for yi in range(len(s))])
     return x, y
 
-def cisbp_hs():
+def cisbp_hs(**kwargs):
     # path to dir containing pwm txt files
     base_path = Path(mb.bindome.constants.ANNOTATIONS_DIRECTORY + '/cisbp/hs/pwms_all_motifs')
+    print(base_path)
     # collect paths to all pwms
     motif_paths = []
     for p in base_path.rglob('*'):
         motif_paths.append(p)
+        if kwargs.get('stop_at') is not None and kwargs.get('stop_at') >= len(motif_paths):
+            break
+    print(len(motif_paths))
     pwms = [pd.read_csv(p, sep='\t').drop(columns=['Pos'], axis=1).T for p in motif_paths]
+    return pwms
+
+def genre(**kwargs):
+    # path to dir containing pwm txt files
+    base_path = Path(mb.bindome.constants.ANNOTATIONS_DIRECTORY + '/genre/genre_pwms.pkl')
+    print(base_path)
+    # collect paths to all pwms
+    pwms_by_module = pickle.load(open(base_path, 'rb'))
+    pwms = [pwms_by_module[k].T for k in pwms_by_module]
     return pwms

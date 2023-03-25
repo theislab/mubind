@@ -216,7 +216,7 @@ class Multibind(tnn.Module, Model):
         # set criterion
         model.criterion = criterion
 
-        if kwargs.get('device') != 'cpu':
+        if str(kwargs.get('device')) != 'cpu':
             return model.cuda()
         return model
 
@@ -245,9 +245,13 @@ class Multibind(tnn.Module, Model):
         zero_counts = df.sum(axis=1) == 0
 
         self.selex_module.conn_sparse = torch.tensor(
-            adata[:, ~zero_counts].uns['neighbors']['connectivities'].A).to_sparse().requires_grad_(True).cuda()
+            adata[:, ~zero_counts].uns['neighbors']['connectivities'].A).to_sparse().requires_grad_(True) # .cuda()
         self.selex_module.log_dynamic = tnn.Parameter(
             torch.rand(self.selex_module.conn_sparse.indices().shape[1]))  # .cuda()
+
+        if self.selex_module.log_dynamic.shape[0] == 0:
+            print('Warning: Log dynamic is empty. This indicates an empty kNN representations.'
+                  'Please verify previous steps...')
 
         # print(self.selex_module.log_dynamic.shape)
 
