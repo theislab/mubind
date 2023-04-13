@@ -36,7 +36,7 @@ def set_rcParams(parms):
         matplotlib.rcParams[k] = parms[k]
 
 def conv_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=True, yticks=True,
-              figsize=None, flip=False, log=False, show=True, title=True):
+              figsize=None, flip=False, log=False, show=True, title=True, subset=None):
 
     if log:
         activities = np.exp(model.get_log_activities().cpu().detach().numpy())
@@ -54,20 +54,21 @@ def conv_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=Tr
         plt.figure(figsize=figsize)
 
     fig, axs = plt.subplots(n_rows, n_cols)
-    print(axs.shape)
 
-    for i in range(n_rows * n_cols):
+    for i, mi in enumerate(range(n_rows * n_cols) if subset is None else subset):
         ax = axs.flatten()[i]
         ax.set_frame_on(False)
 
         weights = None
         if model is not None:
-            weights = model.get_kernel_weights(i)
+            weights = model.get_kernel_weights(mi)
             if weights is None:
                 fig.delaxes(ax)
                 continue
             weights = weights.squeeze().cpu().detach().numpy()
         else:
+            if i >= len(weights_list):
+                break
             weights = weights_list[i]
             if weights is None:
                 fig.delaxes(ax)
@@ -77,15 +78,19 @@ def conv_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=Tr
         weights = pd.DataFrame(weights)
         weights.index = "A", "C", "G", "T"
 
+        print(i, mi, weights.shape)
+
         if flip:
             weights = weights.loc[::-1, ::-1].copy()
             weights.columns = range(weights.shape[1])
             weights.index = "A", "C", "G", "T"
         # print(weights)
 
+        # info content
+
         crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5, ax=ax)
         if title:
-            ax.set_title(i)
+            ax.set_title(mi)
         if not xticks:
             ax.set_xticks([])
 
@@ -202,7 +207,11 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle',
 
     for i, m in enumerate(binding_modes.conv_mono):
         # weights = model.get_kernel_weights(i)
+        if kwargs.get('stop_at') is not None and i >= kwargs.get('stop_at'):
+            break
 
+        if i % 10 == 0:
+            print('%i out of %i...' % (i, len(binding_modes.conv_mono)))
         # print('mono', i, m)
         if m is None:
             continue

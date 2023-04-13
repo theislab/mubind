@@ -56,6 +56,7 @@ class Multibind(tnn.Module, Model):
         self.optimize_kernel_rel = kwargs.get('optimize_kernel_rel', False)
         self.optimize_sym_weight = kwargs.get('optimize_sym_weight', True)
         self.optimize_log_dynamic = kwargs.get('optimize_log_dynamic', False)
+        self.optimize_prob_act = kwargs.get('optimize_prob_act', False)
 
         self.datatype = datatype.lower()
         assert self.datatype in ["selex", "pbm"]
@@ -101,7 +102,6 @@ class Multibind(tnn.Module, Model):
         self.kernel_rel = None
         if kwargs.get('kernel_sim') is not None:
             self.kernel_rel = torch.tensor(kwargs.get('kernel_sim'))
-
 
         self.n_kernels = kwargs['n_kernels']
         self.best_model_state = None
@@ -211,52 +211,12 @@ class Multibind(tnn.Module, Model):
         else:
             assert False  # not implemented yet
 
-
-
         # set criterion
         model.criterion = criterion
 
         if str(kwargs.get('device')) != 'cpu':
             return model.cuda()
         return model
-
-    import torch.nn as tnn
-    def prepare_knn(self, adata):
-        '''
-        This routine is in charge of setting up the graph to be used during the assay-assay relatedness step
-        '''
-        def triu_init(m):
-            with torch.no_grad():
-                m.weight.copy_(torch.triu(m.weight))
-
-        # Zero out gradients
-        def get_zero_grad_hook(mask):
-            def hook(grad):
-                return grad * mask
-
-            return hook
-
-        # prepare the zero counts
-        counts = adata.X.T
-        next_data = pd.DataFrame(counts.A)  # sparse.from_spmatrix(counts.A)
-        next_data['var'] = next_data.var(axis=1)
-        del next_data['var']
-        df = next_data.copy()  # sample
-        zero_counts = df.sum(axis=1) == 0
-
-        self.selex_module.conn_sparse = torch.tensor(
-            adata[:, ~zero_counts].uns['neighbors']['connectivities'].A).to_sparse().requires_grad_(True) # .cuda()
-        self.selex_module.log_dynamic = tnn.Parameter(
-            torch.rand(self.selex_module.conn_sparse.indices().shape[1]))  # .cuda()
-
-        if self.selex_module.log_dynamic.shape[0] == 0:
-            print('Warning: Log dynamic is empty. This indicates an empty kNN representations.'
-                  'Please verify previous steps...')
-
-        # print(self.selex_module.log_dynamic.shape)
-
-        # mask = torch.tril(torch.ones_like(self.selex_module.log_dynamic), -1)
-        # self.selex_module.log_dynamic.register_hook(get_zero_grad_hook(mask))
 
     def forward(self, mono, **kwargs):
         # mono_rev=None, di=None, di_rev=None, batch=None, countsum=None, residues=None, protein_id=None):
@@ -288,7 +248,6 @@ class Multibind(tnn.Module, Model):
         # binding_per_mode: matrix of size [batchsize, number of binding modes]
         binding_per_mode = self.binding_modes(mono=mono, mono_rev=mono_rev, **kwargs)
         binding_scores = self.activities(binding_per_mode, **kwargs)
-
         # print('mode')
         # print(binding_per_mode)
         # print('scores')
@@ -462,30 +421,43 @@ class Multibind(tnn.Module, Model):
 
     def loss_log_dynamic(self):
 
-        if not hasattr(self.selex_module, 'connectivities'):
+        if not hasattr(self.selex_module, 'conn_sparse'):
             return 0
 
-        conn = self.selex_module.connectivities
+        conn = self.selex_module.conn_sparse
         log_dynamic = self.selex_module.log_dynamic
+        idx = conn.indices()
 
-        # print(self.selex_module.log_dynamic)
-        # print(self.selex_module.shape)
-        n_rounds = self.selex_module.n_rounds
+        # prepare combinations based on common indexes
+        uniq_idx = idx.unique()
+        all_combinations = []
+        for u_idx in uniq_idx:
+            pos = torch.arange(idx.size(1))
+            sub_pos = pos[(idx[:, :][0] == u_idx) | (idx[:, :][1] == u_idx)]
+            c = torch.combinations(sub_pos, r=2)
+            all_combinations.append(c)
 
-        # log_dynamic_mat = torch.zeros((n_rounds, n_rounds), device=log_dynamic.device)
-        log_dynamic_mat = log_dynamic + -torch.transpose(log_dynamic, 0, 1)
+        all_pos = torch.cat(all_combinations)
+        pairs = idx[:, all_pos].reshape(all_pos.shape[0], 4)
+        # pairs = idx[all_pos].reshape(all_pos.shape[0], 4)
+        mask1 = (pairs[:, 0] == pairs[:, 2]) | (pairs[:, 1] == pairs[:, 3])
+        mask2 = (pairs[:, 0] != pairs[:, 1]) & (pairs[:, 2] != pairs[:, 3])
 
-        # old solution
-        # mask = np.tri(n_rounds, dtype=bool, k=-1)
-        # log_dynamic_mat[mask] = log_dynamic
-        # log_dynamic_mat += -torch.transpose(log_dynamic_mat, 0, 1)
+        all_pos = all_pos[mask1 & mask2]
+        pairs = pairs[mask1 & mask2]
 
+        a = log_dynamic[all_pos[:, 0]]
+        b = log_dynamic[all_pos[:, 1]]
 
-        idx = torch.argwhere(conn != 0)
-        c = torch.combinations(torch.arange(idx.size(0)), r=2)
-        idx = idx[c].reshape(c.shape[0], 4)
-        idx = idx[(idx[:, 0] == idx[:, 2]) | (idx[:, 1] == idx[:, 3])]
-        w_err = sum(((log_dynamic_mat[idx[:, 0], idx[:, 1]] - log_dynamic_mat[idx[:, 2], idx[:, 3]]) ** 2) / idx.shape[0])
+        # print(a)
+        # print(b)
+        #
+        # print(all_pos.shape)
+        # edges = conn[all_pos]
+        # print(a.shape, edges.shape)
+        # assert False
+        w_err = sum(((a - b) ** 2) / idx.shape[0])
+        # return sum(w_err + torch.rand(1, device=self.device))
         return w_err
 
     def exp_barrier(self, exp_max=40):
@@ -514,6 +486,11 @@ class Multibind(tnn.Module, Model):
             return mono_sym_weight + di_sym_weight
 
         return mono_sym_weight
+
+    def loss_prob_act(self):
+        prob = torch.cat((torch.ones(1, device=self.device), self.binding_modes.prob_act))
+        prob = torch.sigmoid(torch.exp(prob))
+        return torch.sum(prob)
 
     # if early_stopping is positive, training is stopped if over the length of early_stopping no improvement happened or
     # num_epochs is reached.
@@ -678,8 +655,13 @@ class Multibind(tnn.Module, Model):
                         # print(rounds, rounds.shape)
                         # print((rounds.sum(axis=1) == 0).any())
                         # assert False
+                        # restart loss
+                        # loss = 0.0
 
+                        # skip loss
                         loss += dir_weight
+
+
                         # loss = criterion(outputs, rounds) + .01*reconstruct_crit(reconstruction, residues) + dir_w
                         # if exp_max >= 0:
                         #     loss += self.exp_barrier(exp_max)
@@ -688,6 +670,9 @@ class Multibind(tnn.Module, Model):
                         loss_neg_weights = self.loss_exp_barrier(exp_max=exp_max)
                         loss_sym_weights = self.loss_kernel_symmetrical_weights()
                         loss_log_dynamic = self.loss_log_dynamic()
+
+
+                        # regularization of binding modes
 
                         # print(loss, loss_kernel_rel, loss_neg_weights, loss_sym_weights)
                         # assert False
@@ -702,9 +687,22 @@ class Multibind(tnn.Module, Model):
                             loss += loss_sym_weights
                         if self.optimize_log_dynamic:
                             # print(loss_sym_weights)
-                            loss += loss_sym_weights
+                            # print(loss_log_dynamic)
+                            # print(self.selex_module.log_dynamic.sum())
+                            loss += loss_log_dynamic
+                        if self.optimize_prob_act:
+                            loss_prob_act = self.loss_prob_act()
+                            loss += loss_prob_act
 
+                        # print(loss_kernel_rel)
+                        # print(loss_neg_weights)
+                        # print(loss_sym_weights)
+                        # print('dynamic weights', sum(self.selex_module.log_dynamic))
+                        # print('dynamic loss', loss_log_dynamic)
+                        # print('sum etas', self.selex_module.log_etas.sum())
+                        # print('sum activities', sum(p.sum() for p in self.activities.log_activities))
                         # print('# LOSS', loss)
+
                         loss.backward()  # Calculate gradients.
                         optimiser.step()
 
@@ -808,6 +806,7 @@ class Multibind(tnn.Module, Model):
                            log_each=10,
                            opt_kernel_shift=True,
                            opt_kernel_length=True,
+                           opt_one_step=False,
                            expand_length_max=3,
                            expand_length_step=1,
                            show_logo=False,
@@ -887,6 +886,11 @@ class Multibind(tnn.Module, Model):
                 for ki in range(self.n_kernels):
                     mask_mono = (ki == i) and (feat_i == 'mono')
                     mask_dinuc = (ki == i) and (feat_i == 'dinuc')
+
+                    if opt_one_step: # skip freezing
+                        mask_mono = False
+                        mask_dinuc = False
+
                     if verbose != 0:
                         vprint("setting grad status of kernel (mono, dinuc) at %i to (%i, %i)" % (
                         ki, mask_mono, mask_dinuc))
@@ -898,6 +902,7 @@ class Multibind(tnn.Module, Model):
 
                     # activities are frozen during intercept optimization
                     self.update_grad_activities(ki, i != 0)
+                    vprint('activities status', i != 0)
                     # self.update_grad_etas(i != 0)
 
                 if show_logo:
@@ -923,8 +928,6 @@ class Multibind(tnn.Module, Model):
 
                 if verbose != 0:
                     print("kernels mask", self.get_ignore_kernel())
-
-                # assert False
 
                 self.optimize_simple(
                     train,
@@ -1327,6 +1330,8 @@ class BindingModesSimple(tnn.Module):
         self.conv_mono = tnn.ModuleList()
         self.conv_di = tnn.ModuleList()
         self.ones = None  # aux ones tensor, for intercept init.
+
+
         for k in self.kernels:
             if k == 0:
                 self.conv_mono.append(None)
@@ -1353,6 +1358,16 @@ class BindingModesSimple(tnn.Module):
                     for i in range(1, k):
                         conv_di_next.append(tnn.Conv2d(1, 1, kernel_size=(16, k - i)))
                     self.conv_di.append(conv_di_next)
+
+        # regularization parameter
+        # self.prob_act = tnn.Parameter(torch.ones(len(self.conv_mono) - 1, dtype=torch.float32)) # minus the intercept
+        # self.prob_act = tnn.Parameter(torch.ones(len(self.conv_mono) - 1, dtype=torch.float32)) # minus the intercept
+        # self.prob_thr = .1 # tnn.Parameter(torch.zeros(1, dtype=torch.float32))
+        if kwargs.get('p_dropout', False):
+            self.p_dropout = kwargs.get('p_dropout')
+            self.dropout = tnn.Dropout(p=self.p_dropout)
+        else:
+            self.dropout = None
 
     def forward(self, mono, mono_rev, di=None, di_rev=None, **kwargs):
         bm_pred = []
@@ -1448,7 +1463,19 @@ class BindingModesSimple(tnn.Module):
                 temp = torch.sum(temp, dim=1)
                 bm_pred.append(temp)
 
-        return torch.stack(bm_pred).T
+
+        out = torch.stack(bm_pred).T
+
+        # regularization step, using activation probability
+        if self.dropout is not None:
+            prob = torch.ones(out.shape[-1] - 1, device=mono.device)
+            prob = self.dropout(prob)
+            prob = torch.cat((torch.ones(1, device=mono.device), prob))
+            prob = prob > 0 # self.prob_thr
+            return out * prob
+        else:
+            return out
+
 
     def set_seed(self, seed, index, max, min):
         assert len(seed) <= self.conv_mono[index].kernel_size[1]
@@ -1764,24 +1791,49 @@ class SelexModule(tnn.Module):
         self.enr_series = kwargs.get("enr_series", True)
         self.n_batches = kwargs.get("n_batches", 1)
         self.log_etas = tnn.Parameter(torch.zeros([self.n_batches, self.n_rounds]))
-
         # log dynamic is a matrix with upper/lower triangle with opposite symbols
         # self.log_dynamic = tnn.Parameter(torch.zeros([int((self.n_rounds - 1) * (self.n_rounds) / 2)]))
         # self.log_dynamic = tnn.Parameter(torch.zeros([self.n_rounds, self.n_rounds]))
         # print(self.log_etas.shape, self.log_dynamic.shape)
         # print(self.log_etas.shape, self.log_dynamic.shape)
+        if kwargs.get('prepare_knn'):
+            self.prepare_knn(kwargs.get('adata'))
+
+    import torch.nn as tnn
+    def prepare_knn(self, adata):
+        '''
+        This routine is in charge of the graph to be used during the assay-assay relatedness step
+        '''
+        # prepare the zero counts
+        counts = adata.X.T
+        next_data = pd.DataFrame(counts.A if type(counts) != np.ndarray else counts)  # sparse.from_spmatrix(counts.A)
+        next_data['var'] = next_data.var(axis=1)
+        del next_data['var']
+        df = next_data.copy()  # sample
+        zero_counts = df.sum(axis=1) == 0
+
+        self.conn_sparse = torch.tensor(
+            adata[:, ~zero_counts].uns['neighbors']['connectivities'].A).to_sparse().requires_grad_(True).cuda()
+
+        # do not activate the required grad of this function, otherwise, it does not optimize
+        self.log_dynamic = tnn.Parameter(
+            torch.rand(self.conn_sparse.indices().shape[1])) # .requires_grad_(True).cuda()
+
+        if self.log_dynamic.shape[0] == 0:
+            print('Warning: Log dynamic is empty. This indicates an empty kNN representations.'
+                  'Please verify previous steps...')
 
     def forward(self, binding_scores, countsum, **kwargs):
         batch = kwargs.get("batch", None)
         if batch is None:
             batch = torch.zeros([binding_scores.shape[0]], device=binding_scores.device)
 
-        assert hasattr(self, 'conn_sparse')
+        # assert hasattr(self, 'conn_sparse')
 
         out = None
         if self.enr_series:
             out = torch.cumprod(binding_scores, dim=1)  # cum product between rounds 0 and N
-        elif hasattr(self, 'conn_sparse'): # in this particular step, we multiply by the dynamic or static scores.
+        elif hasattr(self, 'conn_sparse') and kwargs.get('use_conn', True): # in this particular step, we multiply by the dynamic or static scores.
             if True: # new solution:
                 # operations
                 tsum = torch.sum
@@ -1805,9 +1857,6 @@ class SelexModule(tnn.Module):
                 D_triu = tspa(a_ind, -D, C.shape)  # .requires_grad_(True).cuda()
                 D = D_tril + t(D_triu, 0, 1)
                 # print('log dynamic1 after exp', torch.sum(D.to_dense()).cpu().detach().sum())
-
-                D1 = D
-
                 # print('sum of dynamic mat1', tsum(D.to_dense()).cpu().detach().sum())
 
                 # print(C.shape, b_T.shape)
