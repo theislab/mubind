@@ -205,7 +205,14 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle',
     if n_rows is None:
         n_rows = rowspan_mono + rowspan_dinuc
 
-    for i, m in enumerate(binding_modes.conv_mono):
+    order = kwargs.get('order')
+    for i, m in enumerate(binding_modes.conv_mono) if order is None else enumerate(order):
+        print(i, m)
+        if isinstance(m, int):
+            m = binding_modes.conv_mono[m]
+
+        print(i)
+        print(m)
         # weights = model.get_kernel_weights(i)
         if kwargs.get('stop_at') is not None and i >= kwargs.get('stop_at'):
             break
@@ -216,7 +223,13 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle',
         if m is None:
             continue
 
-        ax = plt.subplot2grid((n_rows, (n_cols)), (int((i - 1) / n_cols), ci), rowspan=rowspan_mono, frame_on=False)
+        shape = (n_rows, (n_cols))
+        size = (int((i + 2 - 1) / n_cols), ci)
+        print(shape, size, rowspan_mono)
+        ax = plt.subplot2grid(shape,
+                              size,
+                              rowspan=rowspan_mono,
+                              frame_on=False)
         ci += 1
         ci = ci % n_cols
 

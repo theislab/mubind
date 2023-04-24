@@ -218,6 +218,7 @@ class Multibind(tnn.Module, Model):
             return model.cuda()
         return model
 
+
     def forward(self, mono, **kwargs):
         # mono_rev=None, di=None, di_rev=None, batch=None, countsum=None, residues=None, protein_id=None):
         mono_rev = kwargs.get("mono_rev", None)
@@ -427,36 +428,36 @@ class Multibind(tnn.Module, Model):
         conn = self.selex_module.conn_sparse
         log_dynamic = self.selex_module.log_dynamic
         idx = conn.indices()
+        conn_vals = conn.values()
+        pos = torch.arange(idx.size(1))
 
         # prepare combinations based on common indexes
         uniq_idx = idx.unique()
         all_combinations = []
         for u_idx in uniq_idx:
-            pos = torch.arange(idx.size(1))
-            sub_pos = pos[(idx[:, :][0] == u_idx) | (idx[:, :][1] == u_idx)]
+            # at least one common index has to be present in the position retrieved
+            sub_pos = pos[(idx[0] == u_idx) | (idx[1] == u_idx)]
             c = torch.combinations(sub_pos, r=2)
             all_combinations.append(c)
-
         all_pos = torch.cat(all_combinations)
         pairs = idx[:, all_pos].reshape(all_pos.shape[0], 4)
+
         # pairs = idx[all_pos].reshape(all_pos.shape[0], 4)
         mask1 = (pairs[:, 0] == pairs[:, 2]) | (pairs[:, 1] == pairs[:, 3])
         mask2 = (pairs[:, 0] != pairs[:, 1]) & (pairs[:, 2] != pairs[:, 3])
+        mask3 = ~((pairs[:, 0] == pairs[:, 2]) & (pairs[:, 1] != pairs[:, 3]))
 
-        all_pos = all_pos[mask1 & mask2]
-        pairs = pairs[mask1 & mask2]
+        pairs = pairs[mask1 & mask2 & mask3]
+
+        all_pos = all_pos[mask1 & mask2 & mask3]
 
         a = log_dynamic[all_pos[:, 0]]
         b = log_dynamic[all_pos[:, 1]]
+        w_err = (a - b) ** 2
+        conn_weight = conn_vals[all_pos[:, 0]] * conn_vals[all_pos[:, 1]]
+        score = w_err * conn_weight
 
-        # print(a)
-        # print(b)
-        #
-        # print(all_pos.shape)
-        # edges = conn[all_pos]
-        # print(a.shape, edges.shape)
-        # assert False
-        w_err = sum(((a - b) ** 2) / idx.shape[0])
+        w_err = sum(score) / idx.shape[0]
         # return sum(w_err + torch.rand(1, device=self.device))
         return w_err
 
@@ -888,8 +889,9 @@ class Multibind(tnn.Module, Model):
                     mask_dinuc = (ki == i) and (feat_i == 'dinuc')
 
                     if opt_one_step: # skip freezing
-                        mask_mono = False
-                        mask_dinuc = False
+                        if skip_kernels is None or (i in skip_kernels):
+                            mask_mono = False
+                            mask_dinuc = False
 
                     if verbose != 0:
                         vprint("setting grad status of kernel (mono, dinuc) at %i to (%i, %i)" % (
@@ -902,7 +904,9 @@ class Multibind(tnn.Module, Model):
 
                     # activities are frozen during intercept optimization
                     self.update_grad_activities(ki, i != 0)
-                    vprint('activities status', i != 0)
+                    if opt_one_step:
+                        self.update_grad_activities(ki, True)
+
                     # self.update_grad_etas(i != 0)
 
                 if show_logo:
@@ -1360,8 +1364,7 @@ class BindingModesSimple(tnn.Module):
                     self.conv_di.append(conv_di_next)
 
         # regularization parameter
-        # self.prob_act = tnn.Parameter(torch.ones(len(self.conv_mono) - 1, dtype=torch.float32)) # minus the intercept
-        # self.prob_act = tnn.Parameter(torch.ones(len(self.conv_mono) - 1, dtype=torch.float32)) # minus the intercept
+        self.prob_act = tnn.Parameter(torch.ones(len(self.conv_mono) - 1, dtype=torch.float32)) # minus the intercept
         # self.prob_thr = .1 # tnn.Parameter(torch.zeros(1, dtype=torch.float32))
         if kwargs.get('p_dropout', False):
             self.p_dropout = kwargs.get('p_dropout')
@@ -1383,7 +1386,6 @@ class BindingModesSimple(tnn.Module):
                     self.ones = torch.ones(mono.shape[0], device=mono.device)  # torch.ones is much faster
 
                 temp = self.ones[:mono.shape[0]]  # subsetting of ones to fit batch
-
                 bm_pred.append(temp)
             else:
                 # check devices match
@@ -1463,16 +1465,25 @@ class BindingModesSimple(tnn.Module):
                 temp = torch.sum(temp, dim=1)
                 bm_pred.append(temp)
 
-
         out = torch.stack(bm_pred).T
 
         # regularization step, using activation probability
         if self.dropout is not None:
-            prob = torch.ones(out.shape[-1] - 1, device=mono.device)
-            prob = self.dropout(prob)
-            prob = torch.cat((torch.ones(1, device=mono.device), prob))
-            prob = prob > 0 # self.prob_thr
-            return out * prob
+            sparsity = True
+            if not sparsity:
+                prob = torch.ones(out.shape[-1] - 1, device=mono.device)
+                prob = self.dropout(prob)
+                prob = torch.cat((torch.ones(1, device=mono.device), prob))
+                prob = prob > 0 # self.prob_thr
+                return out * prob
+            else:
+                mask1 = self.prob_act > torch.ones(self.prob_act.shape[0], device=mono.device)
+                out1 = torch.where(mask1, 0, self.prob_act)
+                mask2 = out1 < torch.zeros(out1.shape[0], device=mono.device)
+                z = torch.where(mask2, 1, out1)
+                z = torch.cat((torch.ones(1, device=mono.device), z))
+                # print(z)
+                return out * z
         else:
             return out
 
