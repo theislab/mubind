@@ -732,7 +732,8 @@ class Multibind(tnn.Module, Model):
                                                         'R2: %.2f, ' % r2_epoch if r2_epoch is not None else ''),
                         "best epoch: %i, " % best_epoch,
                         "secs per epoch: %.3f s, " % ((time.time() - t0) / max(epoch, 1)),
-                        "secs epoch*1k trials: %.3fs" % time_epoch_1k
+                        "secs epoch*1k trials: %.3fs" % time_epoch_1k,
+                        "curr time:", datetime.datetime.now(),
                     )
 
                     if kwargs.get('print_weights', False):
@@ -766,7 +767,8 @@ class Multibind(tnn.Module, Model):
                                                         'R2: %.2f, ' % r2_epoch if r2_epoch is not None else ''),
                         "best epoch: %i, " % best_epoch,
                         "secs per epoch: %.3fs, " % ((time.time() - t0) / max(epoch, 1)),
-                        "secs epoch*1k trials: %.3fs" % time_epoch_1k
+                        "secs epoch*1k trials: %.3fs," % time_epoch_1k,
+                        "curr time:", datetime.datetime.now(),
                     )
                 if verbose != 0:
                     print("early stop!")
@@ -1469,7 +1471,7 @@ class BindingModesSimple(tnn.Module):
 
         # regularization step, using activation probability
         if self.dropout is not None:
-            sparsity = True
+            sparsity = False
             if not sparsity:
                 prob = torch.ones(out.shape[-1] - 1, device=mono.device)
                 prob = self.dropout(prob)
@@ -1478,11 +1480,10 @@ class BindingModesSimple(tnn.Module):
                 return out * prob
             else:
                 mask1 = self.prob_act > torch.ones(self.prob_act.shape[0], device=mono.device)
-                out1 = torch.where(mask1, 0, self.prob_act)
+                out1 = torch.where(mask1, 1, self.prob_act)
                 mask2 = out1 < torch.zeros(out1.shape[0], device=mono.device)
-                z = torch.where(mask2, 1, out1)
+                z = torch.where(mask2, 0, out1)
                 z = torch.cat((torch.ones(1, device=mono.device), z))
-                # print(z)
                 return out * z
         else:
             return out
@@ -1824,7 +1825,7 @@ class SelexModule(tnn.Module):
         zero_counts = df.sum(axis=1) == 0
 
         self.conn_sparse = torch.tensor(
-            adata[:, ~zero_counts].uns['neighbors']['connectivities'].A).to_sparse().requires_grad_(True).cuda()
+            adata[:, ~zero_counts].uns['neighbors']['connectivities'].A).to_sparse().requires_grad_(True) # .cuda()
 
         # do not activate the required grad of this function, otherwise, it does not optimize
         self.log_dynamic = tnn.Parameter(

@@ -495,9 +495,8 @@ def archetypes(**kwargs):
     # read PFM across meme files
     for f in os.listdir(archetypes_dir):
         if f.endswith('.meme'):
-            print(f)
+            # print(f)
             lines = [r.strip() for r in open(os.path.join(archetypes_dir, f))]
-
             for i, e in enumerate(lines):
                 if e.startswith('letter-probability matrix'):
                     name = lines[i - 1]
