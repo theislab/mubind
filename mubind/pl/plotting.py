@@ -225,7 +225,7 @@ def conv(model, figsize=None, flip=False, log=False, mode='triangle',
 
         shape = (n_rows, (n_cols))
         size = (int((i) / n_cols), ci)
-        print(n_rows, n_cols, ci, shape, size, rowspan_mono)
+        # print(n_rows, n_cols, ci, shape, size, rowspan_mono)
         ax = plt.subplot2grid(shape,
                               size,
                               rowspan=rowspan_mono,

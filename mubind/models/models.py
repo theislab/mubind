@@ -597,7 +597,7 @@ class Multibind(tnn.Module, Model):
 
                     # if not selex, do not scale by overall signal
                     inputs['scale_countsum'] = self.datatype == 'selex'
-
+                    
                     loss = None
                     if is_lbfgs:
                         def closure():
@@ -896,8 +896,9 @@ class Multibind(tnn.Module, Model):
                             mask_dinuc = False
 
                     if verbose != 0:
-                        vprint("setting grad status of kernel (mono, dinuc) at %i to (%i, %i)" % (
-                        ki, mask_mono, mask_dinuc))
+                        if mask_mono or mask_dinuc:
+                            vprint("setting grad status of kernel (mono, dinuc) at %i to (%i, %i)" % (
+                            ki, mask_mono, mask_dinuc))
 
                     if hasattr(self.binding_modes, 'update_grad_mono'):
                         self.binding_modes.update_grad_mono(ki, mask_mono)
@@ -1018,7 +1019,7 @@ class Multibind(tnn.Module, Model):
                 vprint("\nunfreezing all layers for final refinement")
 
                 for ki in range(self.n_kernels):
-                    vprint("kernel grad (%i) = %i \n" % (ki, True), sep=", ", end="")
+                    # vprint("kernel grad (%i) = %i \n" % (ki, True), sep=", ", end="")
                     self.update_grad(ki, ki == i)
                 vprint("")
 
