@@ -32,7 +32,7 @@ def create_logo(net):
     crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5)
 
 
-def conv_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=True, yticks=True,
+def logo_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=True, yticks=True,
               figsize=None, flip=False, log=False, show=True, title=True):
 
     if log:
@@ -90,7 +90,7 @@ def conv_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=Tr
         plt.show()
 
 
-def conv_di(model, figsize=None, mode='complex', show=True, ax=None): # modes include simple/complex/triangle
+def logo_di(model, figsize=None, mode='complex', show=True, ax=None): # modes include simple/complex/triangle
     n_cols = len(model.binding_modes)
     if figsize is not None:
         plt.figure(figsize=figsize)
@@ -167,7 +167,7 @@ def conv_di(model, figsize=None, mode='complex', show=True, ax=None): # modes in
         plt.show()
 
 
-def conv(model, figsize=None, flip=False, log=False, mode='triangle',
+def logo(model, figsize=None, flip=False, log=False, mode='triangle',
          show=True, rowspan_mono = 1, rowspan_dinuc = 1, **kwargs):
     import matplotlib.pyplot as plt
     import numpy as np
@@ -484,7 +484,7 @@ def activities(model, n_rows=None, n_cols=None, batch_i=0, batch_names=None, fig
     plt.show()
 
 
-def plot_loss(model):
+def loss(model):
     h, c = model.loss_history, model.loss_color
     for i in range(len(h) - 2):
         plt.plot([i, i + 1], h[i : i + 2], c=c[i])

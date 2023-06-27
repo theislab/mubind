@@ -9,15 +9,15 @@ from torch.autograd import Variable
 import mubind as mb
 
 
-class Multibind(tnn.Module):
+class Mubind(tnn.Module):
     """
-    Implements the Multibind model as flexible as possible.
+    Implements the MUBIND model.
 
     Args:
         datatype (String): Type of the experimental data. "selex" and "pbm" are supported.
 
     Keyword Args:
-        n_rounds (int): Necessary for selex data: Number of rounds to be predicted.
+        n_rounds (int): Necessary for SELEX data: Number of rounds to be predicted.
         init_random (bool): Use a random initialization for all parameters. Default: True
         padding_const (double): Value for padding DNA-seqs. Default: 0.25
         use_dinuc (bool): Use dinucleotide contributions (not fully implemented for all kind of models). Default: False
@@ -25,7 +25,8 @@ class Multibind(tnn.Module):
         n_batches (int): Number of batches that will occur in the data. Default: 1
         ignore_kernel (list[bool]): Whether a kernel should be ignored. Default: None.
         kernels (List[int]): Size of the binding modes (0 indicates non-specific binding). Default: [0, 15]
-        n_kernels (int). Number of kernels to be used (including non-specific binding). Default: 2
+        n_kernels (int). Number of kernels (filters) to be used (including non-specific binding, as a constant).
+                         Default: 2 (ns-binding, and one filter)
         init_random (bool): Use a random initialization for all parameters. Default: True
         n_proteins (int): Number of proteins in the dataset. Either n_proteins or n_batches may be used. Default: 1
 
@@ -71,7 +72,7 @@ class Multibind(tnn.Module):
             self.binding_modes = BindingModesSimple(**kwargs)
         self.activities = ActivitiesLayer(**kwargs)
         if self.datatype == "selex":
-            self.selex_module = SelexModule(**kwargs)
+            self.graph_module = GraphModule(**kwargs)
 
         self.best_model_state = None
         self.best_loss = None
@@ -120,7 +121,7 @@ class Multibind(tnn.Module):
         if self.datatype == "pbm":
             return binding_scores
         elif self.datatype == "selex":
-            return self.selex_module(binding_scores, **kwargs)
+            return self.graph_module(binding_scores, **kwargs)
         else:
             return None  # this line should never be called
 
@@ -159,7 +160,7 @@ class Multibind(tnn.Module):
 
     def get_log_etas(self):
         assert self.datatype == "selex"
-        return self.selex_module.get_log_etas()
+        return self.graph_module.get_log_etas()
 
     def dirichlet_regularization(self):
         return self.binding_modes.dirichlet_regularization()
@@ -632,9 +633,9 @@ class ActivitiesLayer(tnn.Module):
         return torch.stack(list(self.log_activities), dim=1)
 
 
-class SelexModule(tnn.Module):
+class GraphModule(tnn.Module):
     """
-    Implements the final calculations for the prediction of selex data.
+    Implements the layer that calculates associations between samples and readouts
 
     Args:
         target_dim: Second dimension of the output of forward
@@ -696,8 +697,8 @@ def _weight_distances(mono, min_k=5):
                         lowest_d = next_d
     return min(d)
 
-# This class should be deleted in the future
-class MultibindFlexibleWeights(tnn.Module):
+# This class is deprecated and should be deleted in the future
+class MubindFlexibleWeights(tnn.Module):
     def __init__(
         self,
         n_rounds,
@@ -976,7 +977,7 @@ class ProteinDNABinding(tnn.Module):
 
         self.bm_prediction = BMPrediction(num_classes, input_size, hidden_size, num_layers, seq_length)
         self.decoder = mb.models.Decoder(enc_size=input_size, seq_length=seq_length, **kwargs)
-        self.mubind = MultibindFlexibleWeights(n_rounds, n_batches, datatype=datatype)
+        self.mubind = MubindFlexibleWeights(n_rounds, n_batches, datatype=datatype)
 
         self.best_model_state = None
         self.best_loss = None
@@ -1060,9 +1061,8 @@ class DinucMulti(tnn.Module):
             x = torch.sum(mono, axis=1)
 
         x = x.view(-1)  # Flatten tensor.
-
+        
         # print('x in shape', x.shape)
-
         emb = self.embedding
         # print('emb shape', emb.weight.shape)
         # print('batch shape', b.shape)

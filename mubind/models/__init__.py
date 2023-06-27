@@ -1,1 +1,1 @@
-from mubind.models.models import DinucMulti, Multibind, BMPrediction, ProteinDNABinding, Decoder, BMCollection, BindingModesSimple
+from mubind.models.models import DinucMulti, Mubind, BMPrediction, ProteinDNABinding, Decoder, BMCollection, BindingModesSimple

@@ -40,7 +40,7 @@ def test_simdata_train():
 
     # print(train_loader.dataset.rounds.shape)
 
-    model = mb.models.Multibind('selex', n_rounds=n_rounds, kernels=[0, 12]).to(device)
+    model = mb.models.Mubind('selex', n_rounds=n_rounds, kernels=[0, 12]).to(device)
     optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.01)
     criterion = mb.tl.PoissonLoss()
 

@@ -358,7 +358,7 @@ def optimize_iterative(
         vprint("# initial w", w)
         vprint("# enr_series", enr_series)
 
-        model = mb.models.Multibind(
+        model = mb.models.Mubind(
             datatype="selex",
             kernels=[0] + [w] * (n_kernels - 1),
             n_rounds=n_rounds,
@@ -377,7 +377,7 @@ def optimize_iterative(
         vprint("# proteins", n_proteins)
 
         if joint_learning or n_proteins == 1:
-            model = mb.models.Multibind(
+            model = mb.models.Mubind(
                 datatype="pbm",
                 kernels=[0] + [w] * (n_kernels - 1),
                 init_random=init_random,
@@ -386,7 +386,7 @@ def optimize_iterative(
             ).to(device)
         else:
             bm_generator = mb.models.BMCollection(n_proteins=n_proteins, n_kernels=n_kernels, init_random=init_random)
-            model = mb.models.Multibind(
+            model = mb.models.Mubind(
                 datatype="pbm",
                 init_random=init_random,
                 n_proteins=n_proteins,
@@ -395,7 +395,7 @@ def optimize_iterative(
                 **kwargs,
             ).to(device)
     elif isinstance(train.dataset, mb.datasets.ResiduePBMDataset):
-        model = mb.models.Multibind(
+        model = mb.models.Mubind(
             datatype="pbm",
             init_random=init_random,
             bm_generator=mb.models.BMPrediction(num_classes=1, input_size=21, hidden_size=2, num_layers=1,
