@@ -160,7 +160,7 @@ class Mubind(tnn.Module):
 
             kwargs['kernels'] = kwargs.get('kernels', [0] + [kwargs.get('w', 20)] * (n_kernels - 1))
 
-            model = mb.models.Multibind(
+            model = mb.models.Mubind(
                 datatype="selex",
                 n_rounds=n_rounds,
                 n_batches=n_batches,
@@ -179,7 +179,7 @@ class Mubind(tnn.Module):
             vprint("# proteins", n_proteins)
             if kwargs.get('joint_learning', False) or n_proteins == 1:
                 kwargs['kernels'] = kwargs.get('kernels', [0] + [w] * (n_kernels - 1))
-                model = mb.models.Multibind(
+                model = mb.models.Mubind(
                     datatype="pbm",
                     init_random=init_random,
                     n_batches=n_proteins,
@@ -188,7 +188,7 @@ class Mubind(tnn.Module):
             else:
                 bm_generator = mb.models.BMCollection(n_proteins=n_proteins, n_kernels=n_kernels,
                                                       init_random=init_random)
-                model = mb.models.Multibind(
+                model = mb.models.Mubind(
                     datatype="pbm",
                     init_random=init_random,
                     n_proteins=n_proteins,
@@ -197,7 +197,7 @@ class Mubind(tnn.Module):
                     **kwargs,
                 ) # .to(self.device)
         elif isinstance(train.dataset, mb.datasets.ResiduePBMDataset):
-            model = mb.models.Multibind(
+            model = mb.models.Mubind(
                 datatype="pbm",
                 init_random=init_random,
                 bm_generator=mb.models.BMPrediction(num_classes=1, input_size=21, hidden_size=2, num_layers=1,
@@ -278,7 +278,7 @@ class Mubind(tnn.Module):
         self.activities.update_grad(index, value)
 
     def update_grad_etas(self, value):
-        self.selex_module.update_grad_etas(value)
+        self.graph_module.update_grad_etas(value)
 
     def set_ignore_kernel(self, ignore_kernel):
         self.activities.set_ignore_kernel(ignore_kernel)
@@ -388,7 +388,7 @@ class Mubind(tnn.Module):
         print('\nactivities')
         print(self.activities.get_log_activities())
         print('\netas')
-        print(self.selex_module.log_etas)
+        print(self.graph_module.log_etas)
 
     def loss_exp_barrier(self, exp_max):
         """
@@ -415,11 +415,11 @@ class Mubind(tnn.Module):
 
     def loss_log_dynamic(self):
 
-        if not hasattr(self.selex_module, 'conn_sparse'):
+        if not hasattr(self.graph_module, 'conn_sparse'):
             return 0
 
-        conn = self.selex_module.conn_sparse
-        log_dynamic = self.selex_module.log_dynamic
+        conn = self.graph_module.conn_sparse
+        log_dynamic = self.graph_module.log_dynamic
         idx = conn.indices()
         conn_vals = conn.values()
         pos = torch.arange(idx.size(1))
@@ -682,7 +682,6 @@ class Mubind(tnn.Module):
                         if self.optimize_log_dynamic:
                             # print(loss_sym_weights)
                             # print(loss_log_dynamic)
-                            # print(self.selex_module.log_dynamic.sum())
                             loss += loss_log_dynamic
                         if self.optimize_prob_act:
                             loss_prob_act = self.loss_prob_act()
@@ -691,9 +690,7 @@ class Mubind(tnn.Module):
                         # print(loss_kernel_rel)
                         # print(loss_neg_weights)
                         # print(loss_sym_weights)
-                        # print('dynamic weights', sum(self.selex_module.log_dynamic))
                         # print('dynamic loss', loss_log_dynamic)
-                        # print('sum etas', self.selex_module.log_etas.sum())
                         # print('sum activities', sum(p.sum() for p in self.activities.log_activities))
                         # print('# LOSS', loss)
 
