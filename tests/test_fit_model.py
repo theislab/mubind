@@ -26,7 +26,7 @@ class ModelTests(unittest.TestCase):
         dataset = mb.datasets.SelexDataset(data, n_rounds=n_rounds, labels=labels)
         cls.train = tdata.DataLoader(dataset=dataset, batch_size=256, shuffle=True)
 
-        model = mb.models.Multibind.make_model(cls.train, 4, mb.tl.PoissonLoss()).cuda()
+        model = mb.models.Mubind.make_model(cls.train, 4, mb.tl.PoissonLoss()).cuda()
         cls.model, _ = model.optimize_iterative(cls.train, n_epochs=cls.N_EPOCHS, show_logo=False,
                                                 early_stopping=early_stopping, log_each=50,
                                                 opt_kernel_shift=[0, 0, 1, 1], opt_kernel_length=[0, 0, 1, 1],
@@ -34,7 +34,7 @@ class ModelTests(unittest.TestCase):
                                                 verbose=0)
 
         # setting dinuc to false
-        model = mb.models.Multibind.make_model(cls.train, 4, mb.tl.PoissonLoss(), dinuc_mode='local').cuda()
+        model = mb.models.Mubind.make_model(cls.train, 4, mb.tl.PoissonLoss(), dinuc_mode='local').cuda()
 
         cls.model, _ = model.optimize_iterative(cls.train, n_epochs=cls.N_EPOCHS, show_logo=False,
                                                 early_stopping=early_stopping, log_each=50,
@@ -43,7 +43,7 @@ class ModelTests(unittest.TestCase):
                                                 use_dinuc=False)
 
         # using dinuc full
-        model = mb.models.Multibind.make_model(cls.train, 4, mb.tl.PoissonLoss(), dinuc_mode='full').cuda()
+        model = mb.models.Mubind.make_model(cls.train, 4, mb.tl.PoissonLoss(), dinuc_mode='full').cuda()
         cls.model, _ = model.optimize_iterative(cls.train, n_epochs=cls.N_EPOCHS, show_logo=False,
                                                 early_stopping=early_stopping, log_each=50,
                                                 opt_kernel_shift=0, opt_kernel_length=0,

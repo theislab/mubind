@@ -1,7 +1,7 @@
 from mubind.pl.plotting import (
-    conv,
-    conv_mono,
-    conv_di,
+    logo,
+    logo_mono,
+    logo_di,
     create_heatmap,
     create_logo,
     kmer_enrichment,

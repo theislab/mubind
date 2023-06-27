@@ -13,20 +13,15 @@ import copy
 import mubind as mb
 
 
-class Model():
-    def optimize(self):
-        raise NotImplementedError
-
-
-class Multibind(tnn.Module, Model):
+class Mubind(tnn.Module):
     """
-    Implements the Multibind model as flexible as possible.
+    Implements the MUBIND model.
 
     Args:
         datatype (String): Type of the experimental data. "selex" and "pbm" are supported.
 
     Keyword Args:
-        n_rounds (int): Necessary for selex data: Number of rounds to be predicted.
+        n_rounds (int): Necessary for SELEX data: Number of rounds to be predicted.
         init_random (bool): Use a random initialization for all parameters. Default: True
         padding_const (double): Value for padding DNA-seqs. Default: 0.25
         use_dinuc (bool): Use dinucleotide contributions (not fully implemented for all kind of models). Default: False
@@ -34,7 +29,8 @@ class Multibind(tnn.Module, Model):
         n_batches (int): Number of batches that will occur in the data. Default: 1
         ignore_kernel (list[bool]): Whether a kernel should be ignored. Default: None.
         kernels (List[int]): Size of the binding modes (0 indicates non-specific binding). Default: [0, 15]
-        n_kernels (int). Number of kernels to be used (including non-specific binding). Default: 2
+        n_kernels (int). Number of kernels (filters) to be used (including non-specific binding, as a constant).
+                         Default: 2 (ns-binding, and one filter)
         init_random (bool): Use a random initialization for all parameters. Default: True
         n_proteins (int): Number of proteins in the dataset. Either n_proteins or n_batches may be used. Default: 1
 
@@ -97,7 +93,7 @@ class Multibind(tnn.Module, Model):
             self.binding_modes = BindingModesSimple(**kwargs)
         self.activities = ActivitiesLayer(**kwargs)
         if self.datatype == "selex":
-            self.selex_module = SelexModule(**kwargs)
+            self.graph_module = GraphModule(**kwargs)
 
         self.kernel_rel = None
         if kwargs.get('kernel_sim') is not None:
@@ -164,7 +160,7 @@ class Multibind(tnn.Module, Model):
 
             kwargs['kernels'] = kwargs.get('kernels', [0] + [kwargs.get('w', 20)] * (n_kernels - 1))
 
-            model = mb.models.Multibind(
+            model = mb.models.Mubind(
                 datatype="selex",
                 n_rounds=n_rounds,
                 n_batches=n_batches,
@@ -183,7 +179,7 @@ class Multibind(tnn.Module, Model):
             vprint("# proteins", n_proteins)
             if kwargs.get('joint_learning', False) or n_proteins == 1:
                 kwargs['kernels'] = kwargs.get('kernels', [0] + [w] * (n_kernels - 1))
-                model = mb.models.Multibind(
+                model = mb.models.Mubind(
                     datatype="pbm",
                     init_random=init_random,
                     n_batches=n_proteins,
@@ -192,7 +188,7 @@ class Multibind(tnn.Module, Model):
             else:
                 bm_generator = mb.models.BMCollection(n_proteins=n_proteins, n_kernels=n_kernels,
                                                       init_random=init_random)
-                model = mb.models.Multibind(
+                model = mb.models.Mubind(
                     datatype="pbm",
                     init_random=init_random,
                     n_proteins=n_proteins,
@@ -201,7 +197,7 @@ class Multibind(tnn.Module, Model):
                     **kwargs,
                 ) # .to(self.device)
         elif isinstance(train.dataset, mb.datasets.ResiduePBMDataset):
-            model = mb.models.Multibind(
+            model = mb.models.Mubind(
                 datatype="pbm",
                 init_random=init_random,
                 bm_generator=mb.models.BMPrediction(num_classes=1, input_size=21, hidden_size=2, num_layers=1,
@@ -253,15 +249,12 @@ class Multibind(tnn.Module, Model):
         # print(binding_per_mode)
         # print('scores')
         # print(binding_scores)
-
-        # if self.datatype == "pbm":
-        #     print('here...')
-        #     assert False
-        #     return binding_scores
-        # elif self.datatype == "selex":
-        return self.selex_module(binding_scores, **kwargs)
-        # else:
-        #     return None  # this line should never be called
+        if self.datatype == "pbm":
+            return binding_scores
+        elif self.datatype == "selex":
+            return self.graph_module(binding_scores, **kwargs)
+        else:
+            return None  # this line should never be called
 
     def set_seed(self, seed, index, max_value=0, min_value=-1):
         if isinstance(self.binding_modes, BindingModesSimple):
@@ -285,7 +278,7 @@ class Multibind(tnn.Module, Model):
         self.activities.update_grad(index, value)
 
     def update_grad_etas(self, value):
-        self.selex_module.update_grad_etas(value)
+        self.graph_module.update_grad_etas(value)
 
     def set_ignore_kernel(self, ignore_kernel):
         self.activities.set_ignore_kernel(ignore_kernel)
@@ -304,7 +297,7 @@ class Multibind(tnn.Module, Model):
 
     def get_log_etas(self):
         assert self.datatype == "selex"
-        return self.selex_module.get_log_etas()
+        return self.graph_module.get_log_etas()
 
     def dirichlet_regularization(self):
         return self.binding_modes.dirichlet_regularization()
@@ -395,7 +388,7 @@ class Multibind(tnn.Module, Model):
         print('\nactivities')
         print(self.activities.get_log_activities())
         print('\netas')
-        print(self.selex_module.log_etas)
+        print(self.graph_module.log_etas)
 
     def loss_exp_barrier(self, exp_max):
         """
@@ -422,11 +415,11 @@ class Multibind(tnn.Module, Model):
 
     def loss_log_dynamic(self):
 
-        if not hasattr(self.selex_module, 'conn_sparse'):
+        if not hasattr(self.graph_module, 'conn_sparse'):
             return 0
 
-        conn = self.selex_module.conn_sparse
-        log_dynamic = self.selex_module.log_dynamic
+        conn = self.graph_module.conn_sparse
+        log_dynamic = self.graph_module.log_dynamic
         idx = conn.indices()
         conn_vals = conn.values()
         pos = torch.arange(idx.size(1))
@@ -689,7 +682,6 @@ class Multibind(tnn.Module, Model):
                         if self.optimize_log_dynamic:
                             # print(loss_sym_weights)
                             # print(loss_log_dynamic)
-                            # print(self.selex_module.log_dynamic.sum())
                             loss += loss_log_dynamic
                         if self.optimize_prob_act:
                             loss_prob_act = self.loss_prob_act()
@@ -698,9 +690,7 @@ class Multibind(tnn.Module, Model):
                         # print(loss_kernel_rel)
                         # print(loss_neg_weights)
                         # print(loss_sym_weights)
-                        # print('dynamic weights', sum(self.selex_module.log_dynamic))
                         # print('dynamic loss', loss_log_dynamic)
-                        # print('sum etas', self.selex_module.log_etas.sum())
                         # print('sum activities', sum(p.sum() for p in self.activities.log_activities))
                         # print('# LOSS', loss)
 
@@ -1787,9 +1777,9 @@ class ActivitiesLayer(tnn.Module):
         return torch.stack(list(self.log_activities), dim=1)
 
 
-class SelexModule(tnn.Module):
+class GraphModule(tnn.Module):
     """
-    Implements the final calculations for the prediction of selex data.
+    Implements the layer that calculates associations between samples and readouts
 
     Args:
         target_dim: Second dimension of the output of forward
@@ -1993,9 +1983,7 @@ def _weight_distances(mono, min_k=5):
                         lowest_d = next_d
     return min(d)
 
-
-# This class should be deleted in the future
-class MultibindFlexibleWeights(tnn.Module):
+class MubindFlexibleWeights(tnn.Module):
     def __init__(
         self,
         n_rounds,
@@ -2277,7 +2265,7 @@ class ProteinDNABinding(tnn.Module):
 
         self.bm_prediction = BMPrediction(num_classes, input_size, hidden_size, num_layers, seq_length)
         self.decoder = mb.models.Decoder(enc_size=input_size, seq_length=seq_length, **kwargs)
-        self.mubind = MultibindFlexibleWeights(n_rounds, n_batches, datatype=datatype)
+        self.mubind = MubindFlexibleWeights(n_rounds, n_batches, datatype=datatype)
 
         self.best_model_state = None
         self.best_loss = None
@@ -2362,9 +2350,8 @@ class DinucMulti(tnn.Module):
             x = torch.sum(mono, axis=1)
 
         x = x.view(-1)  # Flatten tensor.
-
+        
         # print('x in shape', x.shape)
-
         emb = self.embedding
         # print('emb shape', emb.weight.shape)
         # print('batch shape', b.shape)

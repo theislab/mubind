@@ -40,10 +40,10 @@ def test_simdata_train():
 
     # print(train_loader.dataset.rounds.shape)
 
-    criterion = mb.tl.PoissonLoss()
-
-    model = mb.models.Multibind.make_model(data_loader, 2, mb.tl.PoissonLoss()).cuda()
+    model = mb.models.Mubind('selex', n_rounds=n_rounds, kernels=[0, 12]).to(device)
     optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.01)
-
+    criterion = mb.tl.PoissonLoss()
+    model.criterion = criterion
+    
     l2 = model.optimize_simple(data_loader, optimiser, num_epochs=10, log_each=1)
     # mb.pl.conv_mono(model)

@@ -34,7 +34,7 @@ def test_encoding_basic():
     train_data = mb.datasets.SelexDataset(train_dataframe, single_encoding_step=False, n_rounds=train_dataframe.shape[1])
     train_loader = tdata.DataLoader(dataset=train_data, batch_size=256, shuffle=True)
 
-    model = mb.models.Multibind('selex', n_rounds=1, kernels=[0, 12]).to(device)
+    model = mb.models.Mubind('selex', n_rounds=1, kernels=[0, 12]).to(device)
 
     # make sure that the reverse is different than the original, and also rev(rev(s)) == s
     for i, batch in enumerate(train_loader):

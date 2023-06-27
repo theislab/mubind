@@ -35,9 +35,8 @@ def set_rcParams(parms):
     for k in parms:
         matplotlib.rcParams[k] = parms[k]
 
-def conv_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=True, yticks=True,
-              figsize=None, flip=False, log=False, show=True, title=True, subset=None):
-
+def logo_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=True, yticks=True,
+              figsize=None, flip=False, log=False, show=True, title=True):
     if log:
         activities = np.exp(model.get_log_activities().cpu().detach().numpy())
         print("\n#activities")
@@ -98,7 +97,7 @@ def conv_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=Tr
         plt.show()
 
 
-def conv_di(model, figsize=None, mode='complex', show=True, ax=None): # modes include simple/complex/triangle
+def logo_di(model, figsize=None, mode='complex', show=True, ax=None): # modes include simple/complex/triangle
     n_cols = len(model.binding_modes)
     if figsize is not None:
         plt.figure(figsize=figsize)
@@ -175,7 +174,7 @@ def conv_di(model, figsize=None, mode='complex', show=True, ax=None): # modes in
         plt.show()
 
 
-def conv(model, figsize=None, flip=False, log=False, mode='triangle',
+def logo(model, figsize=None, flip=False, log=False, mode='triangle',
          show=True, rowspan_mono = 1, rowspan_dinuc = 1, **kwargs):
     import matplotlib.pyplot as plt
     import numpy as np
