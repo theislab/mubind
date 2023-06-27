@@ -16,7 +16,7 @@ class ModelTests(unittest.TestCase):
 
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-        early_stopping = 100
+        early_stopping = 10 
         counts_path = os.path.abspath('tests/_data/ALX1-ZeroCycle_TACCAA40NTTA_0_0-TACCAA40NTTA.tsv.gz')
 
         data = pd.read_csv(counts_path, sep='\t', index_col=0)
@@ -27,7 +27,7 @@ class ModelTests(unittest.TestCase):
         cls.train = tdata.DataLoader(dataset=dataset, batch_size=256, shuffle=True)
 
         model = mb.models.Multibind.make_model(cls.train, 4, mb.tl.PoissonLoss()).cuda()
-        cls.model, _ = model.optimize_iterative(cls.train, num_epochs=cls.N_EPOCHS, show_logo=False,
+        cls.model, _ = model.optimize_iterative(cls.train, n_epochs=cls.N_EPOCHS, show_logo=False,
                                                 early_stopping=early_stopping, log_each=50,
                                                 opt_kernel_shift=[0, 0, 1, 1], opt_kernel_length=[0, 0, 1, 1],
                                                 dinuc_mode='local',
@@ -36,7 +36,7 @@ class ModelTests(unittest.TestCase):
         # setting dinuc to false
         model = mb.models.Multibind.make_model(cls.train, 4, mb.tl.PoissonLoss(), dinuc_mode='local').cuda()
 
-        cls.model, _ = model.optimize_iterative(cls.train, num_epochs=cls.N_EPOCHS, show_logo=False,
+        cls.model, _ = model.optimize_iterative(cls.train, n_epochs=cls.N_EPOCHS, show_logo=False,
                                                 early_stopping=early_stopping, log_each=50,
                                                 opt_kernel_shift=0, opt_kernel_length=0,
                                                 verbose=0,
@@ -44,7 +44,7 @@ class ModelTests(unittest.TestCase):
 
         # using dinuc full
         model = mb.models.Multibind.make_model(cls.train, 4, mb.tl.PoissonLoss(), dinuc_mode='full').cuda()
-        cls.model, _ = model.optimize_iterative(cls.train, num_epochs=cls.N_EPOCHS, show_logo=False,
+        cls.model, _ = model.optimize_iterative(cls.train, n_epochs=cls.N_EPOCHS, show_logo=False,
                                                 early_stopping=early_stopping, log_each=50,
                                                 opt_kernel_shift=0, opt_kernel_length=0,
                                                 verbose=0,
