@@ -11,4 +11,5 @@ from mubind.pl.plotting import (
     alignment_protein,
     R2_per_protein,
     R2_calculation,
+    set_rcParams,
 )

@@ -7,6 +7,12 @@
 [link-tests]: https://github.com/theislab/mubind/actions/workflows/test.yml
 [badge-docs]: https://img.shields.io/readthedocs/mubind
 
+<p align="center">
+    <img src="docs/logo.png"
+    width="400px" alt="mubind logo">
+    </a>
+</p>
+
 Modeling for fitting and interpretation of biomolecular binding data.
 
 ## Getting started

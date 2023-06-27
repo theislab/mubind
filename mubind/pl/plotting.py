@@ -31,10 +31,12 @@ def create_logo(net):
     weights.index = "A", "C", "G", "T"
     crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5)
 
+def set_rcParams(parms):
+    for k in parms:
+        matplotlib.rcParams[k] = parms[k]
 
 def logo_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=True, yticks=True,
               figsize=None, flip=False, log=False, show=True, title=True):
-
     if log:
         activities = np.exp(model.get_log_activities().cpu().detach().numpy())
         print("\n#activities")
@@ -51,20 +53,21 @@ def logo_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=Tr
         plt.figure(figsize=figsize)
 
     fig, axs = plt.subplots(n_rows, n_cols)
-    print(axs.shape)
 
-    for i in range(n_rows * n_cols):
+    for i, mi in enumerate(range(n_rows * n_cols) if subset is None else subset):
         ax = axs.flatten()[i]
         ax.set_frame_on(False)
 
         weights = None
         if model is not None:
-            weights = model.get_kernel_weights(i)
+            weights = model.get_kernel_weights(mi)
             if weights is None:
                 fig.delaxes(ax)
                 continue
             weights = weights.squeeze().cpu().detach().numpy()
         else:
+            if i >= len(weights_list):
+                break
             weights = weights_list[i]
             if weights is None:
                 fig.delaxes(ax)
@@ -74,15 +77,19 @@ def logo_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=Tr
         weights = pd.DataFrame(weights)
         weights.index = "A", "C", "G", "T"
 
+        print(i, mi, weights.shape)
+
         if flip:
             weights = weights.loc[::-1, ::-1].copy()
             weights.columns = range(weights.shape[1])
             weights.index = "A", "C", "G", "T"
         # print(weights)
 
+        # info content
+
         crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5, ax=ax)
         if title:
-            ax.set_title(i)
+            ax.set_title(mi)
         if not xticks:
             ax.set_xticks([])
 
@@ -182,7 +189,10 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
     binding_modes = model.binding_modes if is_multibind else model # model can be a list of binding modes
 
     print(is_multibind)
-    n_cols = len(binding_modes) if not is_multibind else len(model.binding_modes.conv_mono)
+
+    n_cols = kwargs.get('n_cols', None)
+    if n_cols is None:
+        n_cols = len(binding_modes) if not is_multibind else len(model.binding_modes.conv_mono)
     if figsize is not None:
         plt.figure(figsize=figsize)
 
@@ -190,17 +200,37 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
     # mono
     ci = 0
 
-    n_rows = rowspan_mono + rowspan_dinuc
+    n_rows = kwargs.get('n_rows', None)
+    if n_rows is None:
+        n_rows = rowspan_mono + rowspan_dinuc
 
-    for i, m in enumerate(binding_modes.conv_mono):
+    order = kwargs.get('order')
+    for i, m in enumerate(binding_modes.conv_mono) if order is None else enumerate(order):
+        # print(i, m)
+        if isinstance(m, int):
+            m = binding_modes.conv_mono[m]
+
+        # print(i)
+        # print(m)
         # weights = model.get_kernel_weights(i)
+        if kwargs.get('stop_at') is not None and i >= kwargs.get('stop_at'):
+            break
 
+        if i % 10 == 0:
+            print('%i out of %i...' % (i, len(binding_modes.conv_mono)))
         # print('mono', i, m)
         if m is None:
             continue
 
-        ax = plt.subplot2grid((n_rows, (n_cols)), (0, ci), rowspan=rowspan_mono, frame_on=False)
+        shape = (n_rows, (n_cols))
+        size = (int((i) / n_cols), ci)
+        # print(n_rows, n_cols, ci, shape, size, rowspan_mono)
+        ax = plt.subplot2grid(shape,
+                              size,
+                              rowspan=rowspan_mono,
+                              frame_on=False)
         ci += 1
+        ci = ci % n_cols
 
         weights = m.weight
         if weights is None:
@@ -212,20 +242,30 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
             weights = weights.loc[::-1, ::-1].copy()
             weights.columns = range(weights.shape[1])
             weights.index = "A", "C", "G", "T"
+
         # print(weights.shape)
+        # print(weights)
+        for c in weights:
+            weights[c] = np.where(weights[c] < 0, 0, weights[c])
+            weights[c] = np.log2(weights[c] / .25)
+            weights[c] = np.where(weights[c] < 0, 0, weights[c])
+
         crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5, ax=ax)
+
+
         # print(type(weights.T.shape[1]))
         xticks = [i for i in list(range(0, weights.T.shape[0], 5))]
         # print(xticks)
-        plt.xticks(xticks)
-        plt.title(i)
+        plt.xticks([])
+        if kwargs.get('title') is not False:
+            plt.title(i)
 
     # dinuc
     ci = 0
     for i, m in enumerate(binding_modes.conv_di):
         if m is None:
             continue
-        ax = plt.subplot2grid((n_rows, n_cols), (rowspan_mono, ci), rowspan=rowspan_dinuc, frame_on=False)
+        ax = plt.subplot2grid((n_rows, n_cols), (int((i - 1) / n_cols) + rowspan_mono, ci), rowspan=rowspan_dinuc, frame_on=False)
         ci += 1
 
         if mode == 'complex':
@@ -298,6 +338,7 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
                 # weights = model.get_kernel_weights(i, dinucleotide=True)
                 weights = m.weight
 
+                # print(ki, m)
                 # print(weights)
                 # print(weights.shape)
 
@@ -350,11 +391,14 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
                     # plt.show()
                     df_final.append(df_concat)
 
+                # if len(df_final) == 10:
+                #     break
+
             df = df_final[0].copy()
             for df2 in df_final:
                 df[~pd.isnull(df2)] = df2
 
-            print(df.shape)
+            # print(df.shape)
             C = df.copy()
             C = np.array(C)
 

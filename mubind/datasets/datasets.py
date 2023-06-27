@@ -1,6 +1,7 @@
 import itertools
 import random
 from difflib import SequenceMatcher
+from pathlib import Path
 
 import numpy as np
 import torch.utils.data as tdata
@@ -9,7 +10,8 @@ from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 import mubind as mb
 from scipy import sparse
 import pandas as pd
-
+import os
+import pickle
 
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
@@ -155,6 +157,8 @@ class GenomicsDataset(tdata.Dataset):
         self.length = self.signal.shape[0] * self.signal.shape[1]
         seq = df["seq"] if "seq" in df else df.index
         self.seq = np.array(seq)
+
+        self.use_sparse = False
 
         if single_encoding_step:
             assert len(set(seq.str.len())) == 1
@@ -446,3 +450,71 @@ def gata_remap(n_sample=5000):
     x = np.array([s[1] for s in seqs] + [s[1] for s in shuffled_seqs])
     y = np.array([int(i % 2 == 0) for i, s in enumerate([seqs, shuffled_seqs]) for yi in range(len(s))])
     return x, y
+
+def cisbp_hs(**kwargs):
+    # path to dir containing pwm txt files
+    base_path = Path(mb.bindome.constants.ANNOTATIONS_DIRECTORY + '/cisbp/hs/pwms_all_motifs')
+    print(base_path)
+    # collect paths to all pwms
+    motif_paths = []
+    for p in base_path.rglob('*'):
+        motif_paths.append(p)
+        if kwargs.get('stop_at') is not None and kwargs.get('stop_at') >= len(motif_paths):
+            break
+    print(len(motif_paths))
+    pwms = [pd.read_csv(p, sep='\t').drop(columns=['Pos'], axis=1).T for p in motif_paths]
+    return pwms
+
+def genre(**kwargs):
+    # path to dir containing pwm txt files
+    base_path = Path(mb.bindome.constants.ANNOTATIONS_DIRECTORY + '/genre/genre_pwms.pkl')
+    print(base_path)
+    # collect paths to all pwms
+    pwms_by_module = pickle.load(open(base_path, 'rb'))
+    pwms = [pwms_by_module[k].T for k in pwms_by_module]
+    return pwms
+
+def archetypes_anno(**kwargs):
+    # read reference clusters
+    archetypes_dir = os.path.join(mb.bindome.constants.ANNOTATIONS_DIRECTORY, 'archetypes')
+    anno = pd.read_excel(os.path.join(archetypes_dir, 'motif_annotations.xlsx'), sheet_name='Archetype clusters')
+    return anno
+
+def archetypes_clu(**kwargs):
+    archetypes_dir = os.path.join(mb.bindome.constants.ANNOTATIONS_DIRECTORY, 'archetypes')
+    clu = pd.read_excel(os.path.join(archetypes_dir, 'motif_annotations.xlsx'), sheet_name='Motifs')
+    return clu
+
+def archetypes(**kwargs):
+    ppm_by_name = {}
+    archetypes_dir = os.path.join(mb.bindome.constants.ANNOTATIONS_DIRECTORY, 'archetypes')
+
+    anno = archetypes_anno(**kwargs)
+    clu = archetypes_anno(**kwargs)
+
+    # read PFM across meme files
+    for f in os.listdir(archetypes_dir):
+        if f.endswith('.meme'):
+            # print(f)
+            lines = [r.strip() for r in open(os.path.join(archetypes_dir, f))]
+            for i, e in enumerate(lines):
+                if e.startswith('letter-probability matrix'):
+                    name = lines[i - 1]
+                    if len(name) == 0:
+                        name = lines[i - 2]
+                    name = name.split(' ')[1]
+                    w = e.split('w= ')[1].split(' ')[0]
+                    # print(name, w)
+                    a, b = i + 1, i + 1 + int(w)
+                    rows = lines[a: b]
+                    ppm = [list(map(float, v.replace('  ', '\t').replace('\t\t', '\t').split('\t'))) for v in rows]
+                    ppm = pd.DataFrame(ppm).T
+                    ppm.index = 'A', 'C', 'G', 'T'
+                    ppm_by_name[name] = ppm
+    print('# motifs loaded %i' % (len(ppm_by_name)))
+
+    # return non-redundant groups
+    reduced_groups = []
+    for k in anno['Seed_motif']:
+        reduced_groups.append(ppm_by_name[k])
+    return reduced_groups

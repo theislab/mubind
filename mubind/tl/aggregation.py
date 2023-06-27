@@ -165,57 +165,58 @@ def submatrix(m, start, length, flip, filter_neg_weights=True):
 
 
 # @jit
-def distances_dataframe(a, b, min_w_sum=3):
+def distances_dataframe(a, b, min_w_sum=0, **kwargs):
     d = []
     min_w = min(a.shape[-1], b.shape[-1])
+    # k = min_w
     # lowest_d = -1, -1
-    # for k in np.arange(5, min_w):
-    # print(k)
-    k = min_w
-    for i in np.arange(0, a.shape[-1] - k + 1):
-        ai = submatrix(a, i, k, 0)
-        ai_sum = ai.sum()
-        if ai_sum < min_w_sum:
-            continue
-
-        if ai_sum == 0:
-            continue
-        for j in np.arange(0, b.shape[-1] - k + 1):
-            bi = submatrix(b, j, k, 0)
-            bi_sum = bi.sum()
-            if bi_sum < min_w_sum:
+    for k in np.arange(5, min_w):
+        # print(k)
+        for i in np.arange(0, a.shape[-1] - k + 1):
+            ai = submatrix(a, i, k, 0, **kwargs)
+            ai_sum = ai.sum()
+            if ai_sum < min_w_sum:
                 continue
 
-            # print(type(ai), type(bi), ai.shape, bi.shape)
-            d1 = ((bi - ai) ** 2).sum() / bi.shape[-1]
-            d.append([i, j, k, ai.shape[-1], bi.shape[-1],
-                      ai.sum(), bi.sum(), 0, d1])
-            # if lowest_d[-1] == -1 or d[-1] < lowest_d[-1] or d[-2] < lowest_d[-1]:
-            #     lowest_d = i, 0, d[-1]
+            if ai_sum == 0:
+                continue
+            for j in np.arange(0, b.shape[-1] - k + 1):
+                # print(i, j)
+                bi = submatrix(b, j, k, 0, **kwargs)
+                bi_sum = bi.sum()
+                if bi_sum < min_w_sum:
+                    continue
 
-            bi_rev = submatrix(b, j, k, 1)
-            # flipped version
-            d2 = ((bi_rev - ai) ** 2).sum() / bi.shape[-1]
-            d.append([i, j, k, ai.shape[-1], bi.shape[-1],
-                      ai.sum(), bi.sum(), 1, d2])
-            # if lowest_d[-1] == -1 or d[-1] < lowest_d[-1] or d[-2] < lowest_d[-1]:
-            #     lowest_d = i, 1, d[-1]
+                # print(type(ai), type(bi), ai.shape, bi.shape)
+                d1 = ((bi - ai) ** 2).sum() / bi.shape[-1]
+                d.append([i, j, k, ai.shape[-1], bi.shape[-1],
+                          ai.sum(), bi.sum(), 0, d1])
+                # if lowest_d[-1] == -1 or d[-1] < lowest_d[-1] or d[-2] < lowest_d[-1]:
+                #     lowest_d = i, 0, d[-1]
+
+                bi_rev = submatrix(b, j, k, 1, **kwargs)
+                # flipped version
+                d2 = ((bi_rev - ai) ** 2).sum() / bi.shape[-1]
+                d.append([i, j, k, ai.shape[-1], bi.shape[-1],
+                          ai.sum(), bi.sum(), 1, d2])
+                # if lowest_d[-1] == -1 or d[-1] < lowest_d[-1] or d[-2] < lowest_d[-1]:
+                #     lowest_d = i, 1, d[-1]
 
     res = pd.DataFrame(d, columns=['a_start', 'b_start', 'k', 'a_shape', 'b_shape',
                                    'a_sum', 'b_sum', 'b_flip', 'distance']).sort_values('distance')
     return res
 
-def calculate_distances(mono_list, full=False, best=False):
+def calculate_distances(mono_list, full=False, best=False, **kwargs):
     res = []
     for a, b in itertools.product(enumerate(mono_list), repeat=2):
         # print(a[0], b[0])
         if not full and a[0] > b[0]:
             continue
-        df2 = mb.tl.distances_dataframe(a[1], b[1])
+        df2 = mb.tl.distances_dataframe(a[1], b[1], **kwargs)
         df2['a'] = a[0]
         df2['b'] = b[0]
         res.append(df2)
-        df3 = mb.tl.distances_dataframe(b[1], a[1])
+        df3 = mb.tl.distances_dataframe(b[1], a[1], **kwargs)
         df3['a'] = b[0]
         df3['b'] = a[0]
         df3['id'] = df3['a'].astype(str) + '_' + df3['b'].astype(str)
@@ -234,16 +235,21 @@ def calculate_distances(mono_list, full=False, best=False):
 
     return res
 
-def reduce_filters(binding_modes, plot=False, thr_group=0.01):
+def reduce_filters(binding_modes, plot=False, thr_group=0.01, max_w=25):
     best = None
     iteration_i = 0
-    monos = [b.weight for b in binding_modes.conv_mono]
-    monos = [m.cpu().detach().numpy().squeeze() for m in monos]
+
+    if isinstance(binding_modes, mb.models.BindingModesSimple):
+        monos = [b.weight for b in binding_modes.conv_mono]
+        monos = [m.cpu().detach().numpy().squeeze() for m in monos]
+    else:
+        monos = binding_modes
 
     while True:
         iteration_i += 1
         print('iteration', iteration_i)
 
+        n_curr = len(monos)
         res = calculate_distances([m.copy() for m in monos])
 
         if plot:
@@ -308,21 +314,34 @@ def reduce_filters(binding_modes, plot=False, thr_group=0.01):
             print(m_a.shape, m_b.shape, merged_a.shape, merged_b.shape, width_diff, shift)
             merged = (merged_a + merged_b) / 2
 
-            # reduction. Replace a and remove b
-            monos[a_i] = merged
-            monos[b_i] = None
+            if merged.shape[1] < max_w:
+                # reduction. Replace a and remove b
+                monos[a_i] = merged
+                monos[b_i] = None
 
             if plot:
                 mb.pl.conv_mono(weights_list=[m_a, m_b, sub_m1, sub_m2,
                                               merged_a, merged_b, merged], n_rows=7, n_cols=1, figsize=[9, 4], show=True)
 
         monos = [m for m in monos if m is not None]
+
+        n_after = len(monos)
         print('# of remaining groups', len(monos))
+
+        min_w = min([m.shape[-1] for m in monos])
+        max_w = max([m.shape[-1] for m in monos])
+        print('min/max shape', min_w, max_w)
+
+        if n_curr == n_after:
+            print('no more groupings can be done. Stop.')
+            break
+
+
     return monos
 
 
-def min_distance(w1, w2):
-    df = distances_dataframe(w1, w2)
+def min_distance(w1, w2, **kwargs):
+    df = distances_dataframe(w1, w2, **kwargs)
     if df.shape[0] == 0:
         return np.nan
     return min(df['distance'])

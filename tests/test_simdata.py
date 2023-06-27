@@ -36,7 +36,11 @@ def test_simdata_train():
     train_loader = tdata.DataLoader(dataset=train_data, batch_size=256, shuffle=True)
     model = mb.models.Mubind('selex', n_rounds=n_rounds, kernels=[0, 12]).to(device)
     optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.01)
+
     criterion = mb.tl.PoissonLoss()
-    l2 = mb.tl.optimize_simple(model, train_loader, device, optimiser, criterion, num_epochs=10, log_each=1)
+    model = mb.models.Mubind.make_model(train_loader, 4, criterion).cuda()
+
+    optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.01)
+    l2 = model.optimize_simple(train_loader, optimiser, num_epochs=10, log_each=1)
 
     # mb.pl.conv_mono(model)

@@ -68,6 +68,7 @@ def test_network(model, dataloader, device):
             else:
                 inputs = {"mono": mononuc, "batch": b, "countsum": countsum}
 
+            inputs['scale_countsum'] = model.datatype == 'selex'
             output = model(**inputs)
 
             output = output.cpu().detach().numpy()
@@ -1029,6 +1030,9 @@ def scores(model, train, by=None, **kwargs):
         pred = counts[[c for c in counts if c.startswith('p')]]
         mask = np.isnan(targets)
 
+        # print(targets[:5])
+        # print(pred[:5])
+        # assert False
         r2_counts = sklearn.metrics.r2_score(targets.to_numpy()[~mask], pred.to_numpy()[~mask])
         # print(counts)
         r2_enr = sklearn.metrics.r2_score(counts["enr_obs"], counts["enr_pred"])
@@ -1048,7 +1052,6 @@ def scores(model, train, by=None, **kwargs):
 def kmer_enrichment(model, train, k=None, base_round=0, enr_round=-1, pseudo_count=1):
     # getting the targets and predictions from the model
     seqs, targets, pred = mb.tl.test_network(model, train, next(model.parameters()).device)
-
     counts = None
     target_labels = ["t" + str(i) for i in range(max(train.dataset.n_rounds))]
     pred_labels = ["p" + str(i) for i in range(max(train.dataset.n_rounds))]
@@ -1127,3 +1130,19 @@ def kmer_enrichment(model, train, k=None, base_round=0, enr_round=-1, pseudo_cou
 def predict(model, train, show=True):
     counts = mb.tl.kmer_enrichment(model, train)
     return counts
+
+def dynamic_score(model):
+    tspa = torch.sparse_coo_tensor
+    t = torch.transpose
+    # connectivities
+    C = model.selex_module.conn_sparse
+    a_ind = C.indices()
+    log_dynamic = model.selex_module.log_dynamic
+    D = model.selex_module.log_dynamic
+    D_tril = tspa(a_ind, D, C.shape)  # .requires_grad_(True).cuda()
+    D_triu = tspa(a_ind, -D, C.shape)  # .requires_grad_(True).cuda()
+    D = D_tril + t(D_triu, 0, 1)
+
+    torch.set_printoptions(precision=2)
+    dynamic_score = D.to_dense().detach().cpu().sum(axis=0)
+    return dynamic_score

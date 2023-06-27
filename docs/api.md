@@ -12,6 +12,21 @@
     pp.basic_preproc
 ```
 
+## Datasets
+
+```{eval-rst}
+.. module:: multibind.datasets
+.. currentmodule:: multibind
+
+.. autosummary::
+    :toctree: generated
+
+    datasets.SelexDataset
+    datasets.PBMDataset
+    datasets.ResiduePBMDataset
+    datasets.GenomicsDataset
+```
+
 ## Tools
 
 ```{eval-rst}
@@ -21,7 +36,8 @@
 .. autosummary::
     :toctree: generated
 
-    tl.basic_tool
+    tl.train_network
+    tl.train_iterative
 ```
 
 ## Plotting
@@ -33,5 +49,23 @@
 .. autosummary::
     :toctree: generated
 
-    pl.basic_plot
+    pl.conv_mono
+    pl.plot_loss
+    pl.kmer_enrichment
+    pl.R2_per_protein
+    pl.R2_calculation
+```
+
+## Models
+
+```{eval-rst}
+.. module:: multibind.models
+.. currentmodule:: multibind
+
+.. autosummary::
+    :toctree: generated
+
+    models.Multibind
+    models.BMCollection
+    models.BMPrediction
 ```
