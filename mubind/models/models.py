@@ -29,7 +29,7 @@ class Mubind(tnn.Module):
         n_batches (int): Number of batches that will occur in the data. Default: 1
         ignore_kernel (list[bool]): Whether a kernel should be ignored. Default: None.
         kernels (List[int]): Size of the binding modes (0 indicates non-specific binding). Default: [0, 15]
-        n_kernels (int). Number of kernels (filters) to be used (including non-specific binding, as a constant).
+        n_kernels (int). Number of filters to be used (including non-specific binding, as a constant).
                          Default: 2 (ns-binding, and one filter)
         init_random (bool): Use a random initialization for all parameters. Default: True
         n_proteins (int): Number of proteins in the dataset. Either n_proteins or n_batches may be used. Default: 1
@@ -829,6 +829,7 @@ class Mubind(tnn.Module):
                            shift_step=1,
                            r2_per_epoch=False,
                            skip_kernels=None,
+                           log_next_r2=True,
                            **kwargs,
                            ):
         # color for visualization of history
@@ -869,12 +870,12 @@ class Mubind(tnn.Module):
             vprint('current kernels')
             # print(self.binding_modes)
 
-            vprint("\nKernel to optimize %i %s" % (i, '(intercept)' if i == 0 else ''))
+            vprint("\Filter to optimize %i %s" % (i, '(intercept)' if i == 0 else ''))
             vprint("\nFREEZING KERNELS")
 
             for feat_i in ['mono', 'dinuc']:
                 if i == 0 and feat_i == 'dinuc':
-                    vprint('optimization of dinuc is not necessary for the intercepts (kernel=0). Skip...')
+                    vprint('optimization of dinuc is not necessary for the intercepts (filter=0). Skip...')
                     continue
 
                 vprint('optimizing feature type', feat_i)
@@ -914,7 +915,7 @@ class Mubind(tnn.Module):
                     # self.update_grad_etas(i != 0)
 
                 if show_logo:
-                    vprint("before kernel optimization.")
+                    vprint("before filter optimization.")
                     mb.pl.plot_activities(self, train)
                     mb.pl.conv_mono(self)
                     # mb.pl.conv_mono(model, flip=False, log=False)
@@ -935,7 +936,7 @@ class Mubind(tnn.Module):
                     self.set_ignore_kernel(np.array([0 for i in range(i + 1)] + [1 for i in range(i + 1, n_kernels)]))
 
                 if verbose != 0:
-                    print("kernels mask", self.get_ignore_kernel())
+                    print("filters mask", self.get_ignore_kernel())
 
                 self.optimize_simple(
                     train,
@@ -968,7 +969,7 @@ class Mubind(tnn.Module):
                 best_loss = self.best_loss
 
                 if show_logo:
-                    print("\n##After kernel opt / before shift optim.")
+                    print("\n##After filter opt / before shift optim.")
                     mb.pl.plot_activities(self, train)
                     mb.pl.conv_mono(self)
                     # mb.pl.conv_mono(model, flip=True, log=False)
@@ -1035,8 +1036,8 @@ class Mubind(tnn.Module):
                     self.set_ignore_kernel(np.array([0 for i in range(i + 1)] +
                                                     [1 for i in range(i + 1, self.n_kernels)]))
 
-                vprint("kernels mask", self.get_ignore_kernel())
-                vprint("kernels mask", self.get_ignore_kernel())
+                vprint("filters mask", self.get_ignore_kernel())
+                vprint("filters mask", self.get_ignore_kernel())
 
                 # final refinement of weights
                 self.optimize_simple(
@@ -1067,11 +1068,11 @@ class Mubind(tnn.Module):
                 vprint('best loss', self.best_loss)
 
                 # calculate the current r2 and keep a log of it
-                next_r2 = mb.tl.scores(self, train)['r2_counts']
-                self.best_r2_by_new_filter.append(next_r2)
-
-                print('current r2 values by newly added kernel')
-                print(self.best_r2_by_new_filter)
+                if log_next_r2:
+                    next_r2 = mb.tl.scores(self, train)['r2_counts']
+                    self.best_r2_by_new_filter.append(next_r2)
+                    print('current r2 values by newly added filter')
+                    print(self.best_r2_by_new_filter)
 
 
         vprint('\noptimization finished:')
@@ -1090,7 +1091,7 @@ class Mubind(tnn.Module):
                                   feat_i=None,
                                   n_kernels=4, w=15, max_w=20, num_epochs=100, loss_thr_pct=0.005, **kwargs, ):
         """
-        A variation of the main optimization routine that attempts expanding the kernel of the model at position i, and refines
+        A variation of the main optimization routine that attempts expanding the filter of the model at position i, and refines
         the weights and loss in order to find a better convergence.
         """
 
@@ -1260,7 +1261,7 @@ class Mubind(tnn.Module):
                 self = copy.deepcopy(next_model)
 
                 if next_expand_left == 0 and next_expand_right == 0 and next_position == 0 and opt_option_text == 'SHIFT':
-                    print('This was the last iteration. Done with kernel shift optimization...')
+                    print('This was the last iteration. Done with filter shift optimization...')
                     break
 
         return self
@@ -1833,7 +1834,7 @@ class GraphModule(tnn.Module):
         zero_counts = df.sum(axis=1) == 0
 
         self.conn_sparse = torch.tensor(
-            adata[:, ~zero_counts].uns['neighbors']['connectivities'].A).to_sparse()
+            adata[:, ~zero_counts].obsp['connectivities'].A).to_sparse()
         
         if device != 'cpu':
             self.conn_sparse = self.conn_sparse.cuda()

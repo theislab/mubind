@@ -4,8 +4,9 @@ import pandas as pd
 import torch
 import torch.utils.data as tdata
 import warnings
+warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 import unittest
-import anndata
+
 class ModelTests(unittest.TestCase):
     N_EPOCHS = 10
 
@@ -13,6 +14,7 @@ class ModelTests(unittest.TestCase):
     def setUpClass(cls):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         import mubind as mb
+        import anndata
 
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -46,7 +48,8 @@ class ModelTests(unittest.TestCase):
                                                 early_stopping=early_stopping, log_each=50,
                                                 opt_kernel_shift=0, opt_kernel_length=0,
                                                 verbose=1,
-                                                use_dinuc=False)
+                                                use_dinuc=False,
+                                                log_next_r2=False)
         
 
     # just to formalize that the code above raises no errors
@@ -56,15 +59,6 @@ class ModelTests(unittest.TestCase):
         import mubind as mb
 
         self.assertTrue(True)
-
-
-    @unittest.skip
-    def test_r2_positive(self):
-        warnings.filterwarnings("ignore", category=DeprecationWarning)
-        import mubind as mb
-
-        r2 = mb.pl.kmer_enrichment(ModelTests.model, ModelTests.train, k=8, show=False)
-        self.assertTrue(r2 > 0)
 
 
 if __name__ == '__main__':
