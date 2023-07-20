@@ -32,7 +32,7 @@ needs_sphinx = "4.0"
 
 html_context = {
     "display_github": True,  # Integrate GitHub
-    "github_user": "ilibarra",  # Username
+    "github_user": "theislab",  # Username
     "github_repo": project,  # Repo name
     "github_version": "main",  # Version
     "conf_py_path": "/docs/",  # Path in the checkout to the docs root

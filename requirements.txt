@@ -13,4 +13,5 @@ pytest
 pytest-cov
 openpyxl
 anndata
+jinja2==3.0.3
 # bindome
