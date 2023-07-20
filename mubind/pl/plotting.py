@@ -54,13 +54,18 @@ def logo_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=Tr
 
     fig, axs = plt.subplots(n_rows, n_cols)
 
+    print('logo mono')
     for i, mi in enumerate(range(n_rows * n_cols) if subset is None else subset):
         ax = axs.flatten()[i]
         ax.set_frame_on(False)
 
         weights = None
+
+        # print('weights')
+        # print(weights)
         if model is not None:
             weights = model.get_kernel_weights(mi)
+            print(weights)
             if weights is None:
                 fig.delaxes(ax)
                 continue
@@ -77,7 +82,7 @@ def logo_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=Tr
         weights = pd.DataFrame(weights)
         weights.index = "A", "C", "G", "T"
 
-        print(i, mi, weights.shape)
+        # print(i, mi, weights.shape)
 
         if flip:
             weights = weights.loc[::-1, ::-1].copy()
@@ -205,8 +210,11 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
         n_rows = rowspan_mono + rowspan_dinuc
 
     order = kwargs.get('order')
+
+    print('order', order)
     for i, m in enumerate(binding_modes.conv_mono) if order is None else enumerate(order):
-        # print(i, m)
+        if kwargs.get('log') is True:
+            print(i, m)
         if isinstance(m, int):
             m = binding_modes.conv_mono[m]
 
@@ -214,11 +222,13 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
         # print(m)
         # weights = model.get_kernel_weights(i)
         if kwargs.get('stop_at') is not None and i >= kwargs.get('stop_at'):
+            print('break')
             break
 
         if i % 10 == 0:
             print('%i out of %i...' % (i, len(binding_modes.conv_mono)))
-        # print('mono', i, m)
+        if kwargs.get('log'):
+            print('mono', i, m)
         if m is None:
             continue
 
@@ -233,6 +243,8 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
         ci = ci % n_cols
 
         weights = m.weight
+        # print(weights.T)
+
         if weights is None:
             continue
         weights = weights.squeeze().cpu().detach().numpy()
@@ -245,11 +257,13 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
 
         # print(weights.shape)
         # print(weights)
-        for c in weights:
-            weights[c] = np.where(weights[c] < 0, 0, weights[c])
-            weights[c] = np.log2(weights[c] / .25)
-            weights[c] = np.where(weights[c] < 0, 0, weights[c])
+        if kwargs.get('zero_norm'):
+            for c in weights:
+                weights[c] = np.where(weights[c] < 0, 0, weights[c])
+                weights[c] = np.log2(weights[c] / .25)
+                weights[c] = np.where(weights[c] < 0, 0, weights[c])
 
+        # print(weights.T)
         crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5, ax=ax)
 
 
@@ -259,6 +273,8 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
         plt.xticks([])
         if kwargs.get('title') is not False:
             plt.title(i)
+
+    print('done with mono')
 
     # dinuc
     ci = 0

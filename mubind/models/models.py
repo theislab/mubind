@@ -419,11 +419,20 @@ class Mubind(tnn.Module):
             return 0
 
         conn = self.graph_module.conn_sparse
+
+        # log_dynamic = self.graph_module.D_tril # log_dynamic      
+        # return 100
+
+        # return torch.abs(torch.sparse.sum(self.graph_module.D_tril))
+
+        # log_dynamic = self.graph_module.D_tril.coalesce().values() # self.graph_module.D_tril # log_dynamic
         log_dynamic = self.graph_module.log_dynamic
+
+
         idx = conn.indices()
         conn_vals = conn.values()
         pos = torch.arange(idx.size(1))
-
+        
         # prepare combinations based on common indexes
         uniq_idx = idx.unique()
         all_combinations = []
@@ -450,7 +459,7 @@ class Mubind(tnn.Module):
         conn_weight = conn_vals[all_pos[:, 0]] * conn_vals[all_pos[:, 1]]
         score = w_err * conn_weight
 
-        w_err = sum(score) / idx.shape[0]
+        w_err = score.sum() / idx.shape[0]
         # return sum(w_err + torch.rand(1, device=self.device))
         return w_err
 
@@ -665,6 +674,8 @@ class Mubind(tnn.Module):
                         loss_sym_weights = self.loss_kernel_symmetrical_weights()
                         loss_log_dynamic = self.loss_log_dynamic()
 
+                        # print(loss_log_dynamic)
+
 
                         # regularization of binding modes
 
@@ -858,7 +869,7 @@ class Mubind(tnn.Module):
             vprint('current kernels')
             # print(self.binding_modes)
 
-            vprint("\nKernel to optimize %i" % i)
+            vprint("\nKernel to optimize %i %s" % (i, '(intercept)' if i == 0 else ''))
             vprint("\nFREEZING KERNELS")
 
             for feat_i in ['mono', 'dinuc']:
@@ -1026,6 +1037,7 @@ class Mubind(tnn.Module):
 
                 vprint("kernels mask", self.get_ignore_kernel())
                 vprint("kernels mask", self.get_ignore_kernel())
+
                 # final refinement of weights
                 self.optimize_simple(
                     train,
@@ -1800,13 +1812,18 @@ class GraphModule(tnn.Module):
         # print(self.log_etas.shape, self.log_dynamic.shape)
         # print(self.log_etas.shape, self.log_dynamic.shape)
         if kwargs.get('prepare_knn'):
-            self.prepare_knn(kwargs.get('adata'))
+            self.prepare_knn(**kwargs)
+            print('setting up log dynamic')
+            # self.log_dynamic = tnn.Parameter(torch.rand(self.conn_sparse.indices().shape[1])).requires_grad_(True) # .cuda()
 
     import torch.nn as tnn
-    def prepare_knn(self, adata):
+    def prepare_knn(self, **kwargs):
         '''
         This routine is in charge of the graph to be used during the assay-assay relatedness step
         '''
+        adata = kwargs.get('adata')
+        device = kwargs.get('device')
+
         # prepare the zero counts
         counts = adata.X.T
         next_data = pd.DataFrame(counts.A if type(counts) != np.ndarray else counts)  # sparse.from_spmatrix(counts.A)
@@ -1816,15 +1833,49 @@ class GraphModule(tnn.Module):
         zero_counts = df.sum(axis=1) == 0
 
         self.conn_sparse = torch.tensor(
-            adata[:, ~zero_counts].uns['neighbors']['connectivities'].A).to_sparse().requires_grad_(True) # .cuda()
+            adata[:, ~zero_counts].uns['neighbors']['connectivities'].A).to_sparse()
+        
+        if device != 'cpu':
+            self.conn_sparse = self.conn_sparse.cuda()
 
         # do not activate the required grad of this function, otherwise, it does not optimize
-        self.log_dynamic = tnn.Parameter(
-            torch.rand(self.conn_sparse.indices().shape[1])) # .requires_grad_(True).cuda()
+        # if device == 'cpu':
+        #     self.log_dynamic = tnn.Parameter(
+        #         torch.rand(self.conn_sparse.indices().shape[1])) # .requires_grad_(True).cuda()
+        
+        # if device != 'cpu':
+        #     self.log_dynamic = self.log_dynamic.cuda() # requires_grad_(True)
+        # 
+        #                
+        # if self.log_dynamic.shape[0] == 0:
+        #     print('Warning: Log dynamic is empty. This indicates an empty kNN representations.'
+        #           'Please verify previous steps...')
+        # else:
+        
+        # initialize log dynamic
+        tspa = torch.sparse_coo_tensor
+        t = torch.transpose
+        C = self.conn_sparse # .cuda()
+        a_ind = C.indices()
 
-        if self.log_dynamic.shape[0] == 0:
-            print('Warning: Log dynamic is empty. This indicates an empty kNN representations.'
-                  'Please verify previous steps...')
+        # self.D = self.log_dynamic.cuda()
+
+        # print(a_ind.device, self.D.device, C.device)
+        # assert False
+
+        # self.log_dynamic = tnn.Parameter(torch.rand(self.conn_sparse.indices().shape[1])).requires_grad_(True).cuda()
+        
+        # do not convert to cuda, otherwise, the optimization of these weights will not happen.
+        self.log_dynamic = tnn.Parameter(torch.rand(self.conn_sparse.indices().shape[1])) # .cuda()
+
+        # the opposite direction will always be rescaled into a negative sign, and this is the factor that controls the magnitude
+        self.knn_free_weights = kwargs.get('knn_free_weights')
+        if self.knn_free_weights:
+            self.log_dynamic_scaling = tnn.Parameter(torch.rand(self.conn_sparse.indices().shape[1])) # .cuda()
+
+        # self.D_tril = tspa(a_ind, torch.rand(self.conn_sparse.indices().shape[1]).cuda(), C.shape).requires_grad_(True).cuda()
+        # self.D_triu = -self.D_tril # opposite sign
+
 
     def forward(self, binding_scores, countsum, **kwargs):
         batch = kwargs.get("batch", None)
@@ -1852,19 +1903,39 @@ class GraphModule(tnn.Module):
                 # connectivities
                 C = self.conn_sparse
                 a_ind = C.indices()
-                conn_spa_T = torch.transpose(C, 0, 1)
+                # conn_spa_T = torch.transpose(C, 0, 1)
 
-                # dynamic
+                # log dynamic weights
                 D = self.log_dynamic
                 D_tril = tspa(a_ind, D, C.shape)  # .requires_grad_(True).cuda()
-                D_triu = tspa(a_ind, -D, C.shape)  # .requires_grad_(True).cuda()
-                D = D_tril + t(D_triu, 0, 1)
+
+                # scaling of weights yes/no
+                if self.knn_free_weights:
+                    D_triu = tspa(a_ind, -D * torch.exp(self.log_dynamic_scaling), C.shape)
+                    # print('here...')
+                else:
+                    D_triu = tspa(a_ind, -D, C.shape)
+                                
+                D_all = D_tril + t(D_triu, 0, 1)
+
+                # D_triu = -self.D_tril # opposite sign
+                # D_all = self.D_tril + t(-self.D_tril, 0, 1) # opposite sign
+
+                # print(self.D_tril)
+
+                # update with pos and negs
+                # D_all = self.D_tril + t(self.D_triu, 0, 1)
+
+                # print(D.shape)
+                # assert False
                 # print('log dynamic1 after exp', torch.sum(D.to_dense()).cpu().detach().sum())
                 # print('sum of dynamic mat1', tsum(D.to_dense()).cpu().detach().sum())
 
                 # print(C.shape, b_T.shape)
                 # assert False
                 # print(conn_spa_T.shape, b.shape)
+                # print(C.device, b_T.device, D_all.device)
+                # assert False
 
                 tmp = tsmm(C, b_T).T
 
@@ -1875,13 +1946,17 @@ class GraphModule(tnn.Module):
                 # print('dynamic1 input', tsum(D.to_dense().cpu().detach().sum()),
                 #       tsum(b.to_dense()).cpu().detach().sum())
 
-                dynamic_out1 = tsmm(texp(t(D, 0, 1).to_dense()), tmp_T).T
+                dynamic_out1 = tsmm(texp(t(D_all, 0, 1).to_dense()), tmp_T).T
                 # print('dynamic out 1 sum', dynamic_out1.cpu().detach().sum())
                 # print(torch.isnan(log_dynamic_spa).any(), torch.isnan(dyn1_T).any(), torch.isnan(dynamic_out).any())
                 # print('static1 input', tsum(D.to_dense()).cpu().detach(), tsum(b.to_dense()).cpu().detach())
-                static_out1 = tsmm(texp(D.to_dense()), b_T).T
+                static_out1 = tsmm(texp(D_all.to_dense()), b_T).T
 
                 out = static_out1 + dynamic_out1
+
+                # print(out)
+                # print(binding_scores)
+                # assert False
             else:
                 # old solution
                 # print(self.log_dynamic.shape)
