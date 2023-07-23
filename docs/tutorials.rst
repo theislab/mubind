@@ -3,7 +3,7 @@
 Tutorials
 =========
 
-This is a compilation of the core tutorials for release 0.1.1
+**Note** Code is pre-release. Code snippets are instructional, and images are not final. Changes will occur in upcoming versions.
 
 Single-cell genomics analysis using :mod:`mubind`
 -------------------------------------------------
@@ -23,4 +23,4 @@ Bulk data analysis using :mod:`mubind`
 Missing tutorials
 -------------------------------------------------
 
-If you know a public dataset where you wish a tutorial, please submit an issue.
+If you wish to suggest a public dataset for a tutorial, please submit an [issue](https://github.com/theislab/mubind/issues).
