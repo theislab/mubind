@@ -19,7 +19,7 @@
 - The whole codebase is written in PyTorch.
 - This package works with single-cell genomics data, scATAC-seq, scChIP-seq, etc. We have also tested it on bulk in vitro samples (HT-SELEX, PBM). Please see the documentation for related examples.
 
-## Worklflow
+## Workflow
 
 <p align="center">
     <img src="https://github.com/theislab/mubind/blob/main/docs/workflow.png"
@@ -44,7 +44,7 @@
     
 ## Resources
 
-Please refer to the [documentation][https://mubind.readthedocs.io/].
+Please refer to the [documentation](https://mubind.readthedocs.io/).
 
 - [Tutorials][link-tutorial]
 
