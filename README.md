@@ -29,7 +29,7 @@ it allows learn binding modes (filters) and sample-sample relationships (graph) 
 
 <p align="center">
     <img src="docs/workflow.png"
-    width="750" alt="mubind logo">
+    width="750" alt="mubind workflow">
     </a>
 </p>
 
@@ -37,7 +37,7 @@ it allows learn binding modes (filters) and sample-sample relationships (graph) 
 
 <p align="center">
     <img src="docs/architecture.png"
-    width="550px" alt="mubind logo">
+    width="550px" alt="mubind architecture">
     </a>
 </p>
 
