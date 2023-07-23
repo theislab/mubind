@@ -19,7 +19,7 @@ maintainers = [
 urls.Documentation = "https://mubind.readthedocs.io/"
 urls.Source = "https://github.com/theislab/mubind"
 urls.Home-page = "https://github.com/theislab/mubind"
-version = "0.0.1"
+version = "0.1.1"
 requires-python = ">=3.8"
 license = {file = "LICENSE"}
 readme = "README.md"
