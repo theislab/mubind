@@ -14,8 +14,9 @@
 
 ## Model highlights
 
-- Mubind is a machine learning method for learning motif associations with single cell genomics data, using graph representations such as k-nearest neighbors graph. The main codebase is based on PyTorch.
-it allows learning binding modes (filters) and sample-sample relationships (graphs) that communicate filter activities across cells.
+- Mubind is a machine learning method for learning motif associations with single cell genomics data, using graph representations such as a k-nearest neighbors graph (kNN).
+- It uses sample-sample operation (graphs) to communicate filter activities (learned motifs) across cells.
+- The whole codebase is written in PyTorch.
 - This package works with single-cell genomics data, scATAC-seq, scChIP-seq, etc. We have also tested it on bulk in vitro samples (HT-SELEX, PBM). Please see the documentation for related examples.
 
 ## Worklflow
@@ -37,21 +38,21 @@ it allows learning binding modes (filters) and sample-sample relationships (grap
 
 ## Scalability
 
-- The scalability of this method has been tested on single-cell datasets between 10,000 and 100,000 cells, with running times below 2 hours.
+- Number of cells: The scalability of this method has been tested on single-cell datasets between 10,000 and 100,000 cells.
+- Number of peaks: We have tested randomly selected features, or EpiScanpy's [variability score](https://episcanpy.readthedocs.io/en/anna/api/episcanpy.pp.select_var_feature.html). Modeling all features requires calibration of batch sizes and total GPU memory.
+- Usual running times (one GPU): We get variable running times based on hyper-parameters, and they range between 10 minutes (prior filters) and 3 hours (de novo).
     
 ## Resources
 
-Please refer to the [documentation][link-docs]. In particular, the
+Please refer to the [documentation][https://mubind.readthedocs.io/].
 
--   [Tutorials][link-tutorial] and
--   [API documentation][link-api].
+- [Tutorials][link-tutorial]
 
 ## Installation
 
-You need to have Python 3.8 or newer installed on your system. If you don't have
-Python installed, we recommend installing `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`\_.
-
 There are several alternative options to install mubind:
+
+### pip
 
 1. Install the latest release of `mubind` from `PyPI <https://pypi.org/project/mubind/>`_:
 
@@ -64,6 +65,10 @@ pip install mubind
 ```bash
 pip install git+https://github.com/theislab/mubind.git@main
 ```
+
+### conda
+
+Available soon.
 
 ## Release notes
 
