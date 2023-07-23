@@ -8,7 +8,7 @@
 [badge-docs]: https://img.shields.io/readthedocs/mubind
 
 <p align="center">
-    <img src="docs/logo.png"
+    <img src="https://github.com/theislab/mubind/blob/main/docs/logo.png"
     width="400px" alt="mubind logo">
     </a>
 </p>
@@ -28,7 +28,7 @@ it allows learn binding modes (filters) and sample-sample relationships (graph) 
 ## Worklflow
 
 <p align="center">
-    <img src="docs/workflow.png"
+    <img src="https://github.com/theislab/mubind/blob/main/docs/workflow.png"
     width="750" alt="mubind workflow">
     </a>
 </p>
@@ -36,7 +36,7 @@ it allows learn binding modes (filters) and sample-sample relationships (graph) 
 ## Model architecture
 
 <p align="center">
-    <img src="docs/architecture.png"
+    <img src="https://github.com/theislab/mubind/blob/main/docs/architecture.png"
     width="550px" alt="mubind architecture">
     </a>
 </p>
