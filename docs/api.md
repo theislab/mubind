@@ -8,8 +8,6 @@
 
 .. autosummary::
     :toctree: generated
-
-    pp.basic_preproc
 ```
 
 ## Datasets
@@ -35,9 +33,6 @@
 
 .. autosummary::
     :toctree: generated
-
-    tl.train_network
-    tl.train_iterative
 ```
 
 ## Plotting
@@ -49,8 +44,8 @@
 .. autosummary::
     :toctree: generated
 
-    pl.conv_mono
-    pl.plot_loss
+    pl.logo
+    pl.loss
     pl.kmer_enrichment
     pl.R2_per_protein
     pl.R2_calculation
@@ -66,6 +61,4 @@
     :toctree: generated
 
     models.Mubind
-    models.BMCollection
-    models.BMPrediction
 ```
