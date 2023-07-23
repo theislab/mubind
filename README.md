@@ -1,12 +1,5 @@
 # mubind
 
-[![Tests][badge-tests]][link-tests]
-[![Documentation][badge-docs]][link-docs]
-
-[badge-tests]: https://img.shields.io/github/workflow/status/ilibarra/mubind/Test/main
-[link-tests]: https://github.com/theislab/mubind/actions/workflows/test.yml
-[badge-docs]: https://img.shields.io/readthedocs/mubind
-
 <p align="center">
     <img src="https://github.com/theislab/mubind/blob/main/docs/logo.png"
     width="400px" alt="mubind logo">
@@ -21,9 +14,9 @@
 
 ## Model highlights
 
-- We introduce a machine learning method for learning motif associations with single cell genomics data, using graph representations such as k-nearest neighors graph. The main codebase is based on PyTorch.
-it allows learn binding modes (filters) and sample-sample relationships (graph) that communicate filters activities across a kNN-graph.
-- The applications for this packages are mainly single-cell genomics i.e.g. scATAC-seq, although we have also tested it on bulk samples (HT-SELEX). Please see documentation for related examples.
+- Mubind is a machine learning method for learning motif associations with single cell genomics data, using graph representations such as k-nearest neighbors graph. The main codebase is based on PyTorch.
+it allows learning binding modes (filters) and sample-sample relationships (graphs) that communicate filter activities across cells.
+- This package works with single-cell genomics data, scATAC-seq, scChIP-seq, etc. We have also tested it on bulk in vitro samples (HT-SELEX, PBM). Please see the documentation for related examples.
 
 ## Worklflow
 
@@ -82,7 +75,7 @@ If you found a bug, please open an [Issue](https://github.com/theislab/mubind/is
 
 ## Citation
 
-If mubind is useful for your research, please consider to cite as:
+If mubind is useful for your research, please consider citing as:
 ```bibtex
 @software{mubind,
 author = {Ibarra, Schneeberger, Erdogan, Martens, Aliee, Klein and Theis FJ},
@@ -94,15 +87,19 @@ year = {2023}
 }
 ```
 
+## Preprint
+
+t.b.c.
+
 [issue-tracker]: https://github.com/theislab/mubind/issues
 [changelog]: https://mubind.readthedocs.io/latest/changelog.html
 [link-docs]: https://mubind.readthedocs.io
 [link-api]: https://mubind.readthedocs.io/latest/api.html
 
-# Installation using conda environment file
+# Acknowledgments.
 
-1. `conda env create -f environment.yml`
-2. `conda activate mubind`
-3. `pip install -e .`
+- [Wellcome Leap | Delta Tissue](https://wellcomeleap.org/delta-tissue/)
+- [Helmholtz Zentrum Muenchen](https://www.helmholtz-munich.de/en/computational-health-center).
+
 
 Project template created using [scverse cookie template](https://github.com/scverse/cookiecutter-scverse)
