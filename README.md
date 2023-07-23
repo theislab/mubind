@@ -19,13 +19,34 @@
     </a>
 </p>
 
-## Main goal
+## Model highlights
 
-- Using single-cell genomics readouts encoded as sequence-sample  representations e.g. scATAC-seq, it allows learn binding modes (filters) and sample-sample relationships (graph) that communicate filters activities across a kNN-graph.
-- It allows bulk and single-cell genomics learning tasks.
-- It scales to millions of cells.
+- We introduce a machine learning method for learning motif associations with single cell genomics data, using graph representations such as k-nearest neighors graph. The main codebase is based on PyTorch.
+it allows learn binding modes (filters) and sample-sample relationships (graph) that communicate filters activities across a kNN-graph.
+- The applications for this packages are mainly single-cell genomics i.e.g. scATAC-seq, although we have also tested it on bulk samples (HT-SELEX). Please see documentation for related examples.
 
-## Getting started
+## Worklflow
+
+<p align="center">
+    <img src="docs/workflow.png"
+    width="750" alt="mubind logo">
+    </a>
+</p>
+
+## Model architecture
+
+<p align="center">
+    <img src="docs/architecture.png"
+    width="550px" alt="mubind logo">
+    </a>
+</p>
+
+
+## Scalability
+
+- The scalability of this method has been tested on single-cell datasets between 10,000 and 100,000 cells, with running times below 2 hours.
+    
+## Resources
 
 Please refer to the [documentation][link-docs]. In particular, the
 
