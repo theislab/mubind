@@ -46,7 +46,7 @@
 
 Please refer to the [documentation](https://mubind.readthedocs.io/).
 
-- [Tutorials][https://mubind.readthedocs.io/en/latest/tutorials.html]
+- [Tutorials](https://mubind.readthedocs.io/en/latest/tutorials.html)
 
 ## Installation
 
