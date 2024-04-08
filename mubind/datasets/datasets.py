@@ -35,6 +35,7 @@ class SelexDataset(tdata.Dataset):
 
         # this statement has to be done before sparsifing the matrix
         # countsum ignoring -1 and nan
+        #         print(self.rounds)
         self.countsum = np.nansum(np.where(self.rounds == -1, 0, self.rounds), axis=1).astype(np.float32)
 
         if "batch" not in df.columns:

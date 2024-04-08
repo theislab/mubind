@@ -31,7 +31,7 @@ def test_dataset_index_int():
     train_data = mb.datasets.SelexDataset(data, single_encoding_step=False, n_rounds=n_rounds, index_type=int) 
     train_loader = tdata.DataLoader(dataset=train_data, batch_size=256, shuffle=True)
 
-    return train_loader
+    return None
 
 
 def test_seq_conversion():
@@ -103,4 +103,4 @@ def test_dataset_memory_increase():
                 # print(index_type, use_sparse, n_trials, size_seq, size_rounds)
                 ## let o be the object whose size you want to measure
                 train_loader = tdata.DataLoader(dataset=train_data, batch_size=256, shuffle=True)
-    return True
+    return None

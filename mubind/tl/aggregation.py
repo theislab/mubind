@@ -132,7 +132,7 @@ def binding_modes(output_dir, extension='.pkl', device=None, pos_weight_thr=None
     extension (str): of model files (.h5 or .pkl)
     """
     models = _get_models(output_dir, extension=extension, device=device, **kwargs)
-    combined_model = mb.models.Multibind(n_rounds=1, datatype='selex').to(device)
+    combined_model = mb.models.Mubind(n_rounds=1, datatype='selex').to(device)
     del combined_model.binding_modes.conv_mono[0:]
     del combined_model.binding_modes.conv_di[0:] # to remove Nones from module lists
     for i, model in enumerate(models):
@@ -151,7 +151,7 @@ def binding_modes(output_dir, extension='.pkl', device=None, pos_weight_thr=None
     return combined_model.binding_modes
 
 
-@jit
+@jit(nopython=True)
 def submatrix(m, start, length, flip, filter_neg_weights=True):
     sub_m = m[:, start: start + length]
     if flip:

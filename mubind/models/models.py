@@ -9,7 +9,7 @@ from torch.autograd import Variable
 import torch.optim as topti
 import pandas as pd
 import copy
-
+from tqdm import tqdm
 import mubind as mb
 
 
@@ -249,9 +249,10 @@ class Mubind(tnn.Module):
         # print(binding_per_mode)
         # print('scores')
         # print(binding_scores)
-        if self.datatype == "pbm":
+        return_binding_scores = kwargs.get('return_binding_scores', False)
+        if self.datatype == "pbm" or return_binding_scores:
             return binding_scores
-        elif self.datatype == "selex":
+        elif self.datatype == "selex" and not return_binding_scores:
             return self.graph_module(binding_scores, **kwargs)
         else:
             return None  # this line should never be called
@@ -431,13 +432,18 @@ class Mubind(tnn.Module):
 
         idx = conn.indices()
         conn_vals = conn.values()
-        pos = torch.arange(idx.size(1))
+        pos = torch.arange(idx.size(1), device=self.device)
+
+
         
         # prepare combinations based on common indexes
         uniq_idx = idx.unique()
         all_combinations = []
         for u_idx in uniq_idx:
             # at least one common index has to be present in the position retrieved
+
+            # print(pos.device, idx.device)
+
             sub_pos = pos[(idx[0] == u_idx) | (idx[1] == u_idx)]
             c = torch.combinations(sub_pos, r=2)
             all_combinations.append(c)
@@ -509,13 +515,12 @@ class Mubind(tnn.Module):
         verbose=0,
         r2_per_epoch=False,
         **kwargs,
-    ):
+    ):  
         # global loss_history
         r2_history = []
         loss_history = []
         loss_history_sym_weights = []
         loss_history_log_dynamic = []
-
         best_loss = None
         best_epoch = -1
         if verbose != 0:
@@ -557,7 +562,11 @@ class Mubind(tnn.Module):
                 [d.dataset.rounds.shape[0] if hasattr(d.dataset, 'rounds') else d.dataset.signal.shape[0] for d in
                  [dataloader]])
 
-        for epoch in range(num_epochs):
+        use_tqdm = kwargs.get('use_tqdm', True)
+        print('use_tqdm', use_tqdm)
+
+        for epoch in tqdm(range(num_epochs)) if use_tqdm else range(num_epochs):
+            # for epoch in range(num_epochs):
             running_loss = 0
             running_loss_sym_weights = 0
             running_loss_log_dynamic = 0
@@ -566,8 +575,6 @@ class Mubind(tnn.Module):
 
             # if dataloader is a list of dataloaders, we have to iterate through those
             dataloader_queries = dataloader if isinstance(dataloader, list) else [dataloader]
-
-
 
             # print(len(dataloader_queries))
             for data_i, next_dataloader in enumerate(dataloader_queries):
@@ -612,6 +619,7 @@ class Mubind(tnn.Module):
                                 dir_weight = 0
                             else:
                                 dir_weight = dirichlet_regularization * self.dirichlet_regularization()
+
 
                             # loss = criterion(outputs, rounds) + weight_dist + dir_weight
                             loss = self.criterion(outputs, rounds) + dir_weight
@@ -705,9 +713,18 @@ class Mubind(tnn.Module):
                         # print('sum activities', sum(p.sum() for p in self.activities.log_activities))
                         # print('# LOSS', loss)
 
-                        loss.backward()  # Calculate gradients.
-                        optimiser.step()
+                        # if kwargs.get('i', -1) == 1:
+                        #     print('before backward 1')
+                        #     assert False
 
+                        loss.backward()  # Calculate gradients.
+
+                        # if kwargs.get('i', -1) == 1:
+                        #     print('after backward 1')
+                        #     assert False
+
+                        optimiser.step()
+                    
                     running_loss += loss.item()
                     running_loss_sym_weights += loss_sym_weights
                     running_loss_log_dynamic += loss_log_dynamic
@@ -933,7 +950,7 @@ class Mubind(tnn.Module):
 
                 # mask kernels to avoid using weights from further steps into early ones.
                 if ignore_kernel:
-                    self.set_ignore_kernel(np.array([0 for i in range(i + 1)] + [1 for i in range(i + 1, n_kernels)]))
+                    self.set_ignore_kernel(np.array([0 for i in range(i + 1)] + [1 for kernel_i in range(i + 1, n_kernels)]))
 
                 if verbose != 0:
                     print("filters mask", self.get_ignore_kernel())
@@ -948,6 +965,7 @@ class Mubind(tnn.Module):
                     exp_max=exp_max,
                     verbose=verbose,
                     r2_per_epoch=r2_per_epoch,
+                    i=i,
                     **kwargs,
                 )
 
@@ -1012,7 +1030,7 @@ class Mubind(tnn.Module):
                     mb.pl.conv_di(self, mode='triangle')
                     mb.pl.plot_loss(self)
                     print("")
-
+                
                 # the first kernel does not require an additional fit.
                 if i == 0:
                     continue
@@ -1022,8 +1040,12 @@ class Mubind(tnn.Module):
 
                 for ki in range(self.n_kernels):
                     # vprint("kernel grad (%i) = %i \n" % (ki, True), sep=", ", end="")
+                    # print('skip...')
+                    # continue
                     self.update_grad(ki, ki == i)
-                vprint("")
+
+                # vprint("")
+
 
                 # define the optimizer for final refinement of the model
                 next_optimiser = (
@@ -1073,6 +1095,10 @@ class Mubind(tnn.Module):
                     self.best_r2_by_new_filter.append(next_r2)
                     print('current r2 values by newly added filter')
                     print(self.best_r2_by_new_filter)
+
+                # print('simple epoch done...')
+                # assert False
+
 
 
         vprint('\noptimization finished:')
@@ -1514,6 +1540,7 @@ class BindingModesSimple(tnn.Module):
         if self.conv_mono[index] is not None:
             self.conv_mono[index].weight.requires_grad = value
             if not value:
+                # print('setting grad to None')
                 self.conv_mono[index].weight.grad = None
 
     def update_grad_di(self, index, value):
@@ -1522,10 +1549,12 @@ class BindingModesSimple(tnn.Module):
                 for conv_di in self.conv_di[index]:
                     conv_di.weight.requires_grad = value
                     if not value:
+                        # print('setting grad to None')
                         conv_di.weight.grad = None
             else:
                 self.conv_di[index].weight.requires_grad = value
                 if not value:
+                    # print('setting grad to None')
                     self.conv_di[index].weight.grad = None
 
     def update_grad(self, index, value):

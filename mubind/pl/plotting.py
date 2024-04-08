@@ -191,7 +191,12 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
         print(model.get_log_etas())
 
     is_multibind = not isinstance(model, list) # mb.models.Multibind)
-    binding_modes = model.binding_modes if is_multibind else model # model can be a list of binding modes
+
+    binding_modes = None
+    if isinstance(model, mb.models.BindingModesSimple):
+        binding_modes = model
+    else: 
+        binding_modes = model.binding_modes if is_multibind else model # model can be a list of binding modes
 
     print(is_multibind)
 
@@ -210,9 +215,11 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
         n_rows = rowspan_mono + rowspan_dinuc
 
     order = kwargs.get('order')
-
+    
     print('order', order)
+    n_skip = 0
     for i, m in enumerate(binding_modes.conv_mono) if order is None else enumerate(order):
+        # print(i)
         if kwargs.get('log') is True:
             print(i, m)
         if isinstance(m, int):
@@ -230,11 +237,15 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
         if kwargs.get('log'):
             print('mono', i, m)
         if m is None:
+            n_skip += 1
             continue
 
         shape = (n_rows, (n_cols))
-        size = (int((i) / n_cols), ci)
-        # print(n_rows, n_cols, ci, shape, size, rowspan_mono)
+
+        ri = int((i - n_skip) / n_cols)
+        size = (ri, ci if ci != n_cols else 0)
+        # print(i, n_rows, n_cols, ci, shape, size, rowspan_mono)
+
         ax = plt.subplot2grid(shape,
                               size,
                               rowspan=rowspan_mono,
@@ -274,8 +285,7 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
         if kwargs.get('title') is not False:
             plt.title(i)
 
-    print('done with mono')
-
+    # print('done with mono')
     # dinuc
     ci = 0
     for i, m in enumerate(binding_modes.conv_di):
@@ -526,7 +536,15 @@ def _heatmap_triangle_horizontal(C, axes):
     return caxes
 
 
-def activities(model, n_rows=None, n_cols=None, batch_i=0, batch_names=None, figsize=None):
+def activities(model,
+               n_rows=None,
+               n_cols=None,
+               batch_i=0,
+               batch_names=None,
+               title="binding actitivites per sample [exp^log_{a}]",
+               log=False,
+               figsize=None,
+               cmap='Reds'):
     # shape of activities: [n_libraries, len(kernels), n_rounds+1]
     activities = np.exp(model.get_log_activities().cpu().detach().numpy())
     if n_cols is None:
@@ -537,8 +555,8 @@ def activities(model, n_rows=None, n_cols=None, batch_i=0, batch_names=None, fig
         print(i)
         ax = plt.subplot(n_cols, n_cols, i + 1)
         rel_activity = activities[i, :, :] / np.sum(activities[i, :, :])
-        sns.heatmap(rel_activity.T, cmap="Reds", ax=ax)
-        plt.title("rel contrib. to batch " + str(batch_names[i] if batch_names is not None else i))
+        sns.heatmap(rel_activity.T, cmap=cmap, ax=ax)
+        plt.title(title)
         plt.ylabel("selection round")
         plt.xlabel("binding mode rel activity")
     plt.show()
