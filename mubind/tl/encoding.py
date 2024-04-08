@@ -76,8 +76,8 @@ def bin2string(n, mode="dna"):
 
 
 # models N as (0.25, 0.25, 0.25, 0.25)
-@jit
-def onehot_mononuc(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
+@jit(nopython=True)
+def onehot_mononuc(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder()): # OneHotEncoder()): # OneHotEncoder(sparse=False)):
     seq_arr = np.array(list(seq + "ACGNT"))
     seq_int = label_encoder.fit_transform(seq_arr)
     pre_onehot = onehot_encoder.fit_transform(seq_int.reshape(-1, 1))
@@ -89,8 +89,8 @@ def get_protein_aa_index():
     keys_aa = dict_prot + '-'
     return keys_aa
 
-@jit
-def onehot_protein(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
+@jit(nopython=True)
+def onehot_protein(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder()): # OneHotEncoder(sparse=False)):
     keys_aa = get_protein_aa_index()
     # print(seq + keys_aa)
     seq_arr = np.array(list(seq + keys_aa))
@@ -120,14 +120,14 @@ def revert_onehot_mononuc(mononuc):
     return np.flip(mononuc, (1, 2)).copy()
 
 
-def onehot_covar(covar, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
+def onehot_covar(covar, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder()): # OneHotEncoder(sparse=False)):
     covar_arr = np.array(list(covar))
     covar_int = label_encoder.fit_transform(covar_arr)
     pre_onehot = onehot_encoder.fit_transform(covar_int.reshape(-1, 1))
     return pre_onehot.astype(np.int)
 
 
-def onehot_dinuc(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
+def onehot_dinuc(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder()): # OneHotEncoder(sparse=False)):
     # The added string contains each possible dinucleotide feature once
     extended_seq = seq + "AACAGATCCGCTGGTTA"
     dinuc_arr = np.array([extended_seq[i : i + 2] for i in range(len(extended_seq) - 1)])
@@ -137,7 +137,7 @@ def onehot_dinuc(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder
 
 
 # models _ as (0, 0, 0, 0)
-def onehot_mononuc_with_gaps(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder(sparse=False)):
+def onehot_mononuc_with_gaps(seq, label_encoder=LabelEncoder(), onehot_encoder=OneHotEncoder()): # OneHotEncoder(sparse=False)):
     seq_arr = np.array(list(seq + "ACGT_"))
     seq_int = label_encoder.fit_transform(seq_arr)
     pre_onehot = onehot_encoder.fit_transform(seq_int.reshape(-1, 1)).T

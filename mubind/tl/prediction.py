@@ -1135,10 +1135,10 @@ def dynamic_score(model):
     tspa = torch.sparse_coo_tensor
     t = torch.transpose
     # connectivities
-    C = model.selex_module.conn_sparse
+    C = model.graph_module.conn_sparse
     a_ind = C.indices()
-    log_dynamic = model.selex_module.log_dynamic
-    D = model.selex_module.log_dynamic
+    log_dynamic = model.graph_module.log_dynamic
+    D = model.graph_module.log_dynamic
     D_tril = tspa(a_ind, D, C.shape)  # .requires_grad_(True).cuda()
     D_triu = tspa(a_ind, -D, C.shape)  # .requires_grad_(True).cuda()
     D = D_tril + t(D_triu, 0, 1)

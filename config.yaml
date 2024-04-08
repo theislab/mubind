@@ -1,6 +1,6 @@
 ROOT: 'output/snakemake'
 ANNOTATIONS: 'annotations'
-py_env : multibind
+py_env : mubind
 timing: false
 
 HYPERPARAM:
