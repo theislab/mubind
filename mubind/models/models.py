@@ -2294,6 +2294,7 @@ class BMCollection(tnn.Module):
 
     def __len__(self):
         return len(self.kernels)
+    
 
 
 # This class could be used as a bm_generator

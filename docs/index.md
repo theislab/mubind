@@ -1,6 +1,6 @@
-**Mubind - Multibind**
+**Mubind**
 
-`mubind` implements a model for learning of sequence associations with genomics data, while using graph representations. This model is applicable to both single-cell and bulk data.
+`mubind` (short for *multibind*) is a modeling architecture to learn sequence associations with genomics data reaoduts, while using graph representations. The model architecture is flexible and  applicable to both single-cell and bulk data.
 
 ```{toctree}
 :hidden: true

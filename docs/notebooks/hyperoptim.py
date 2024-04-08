@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 import bindome as bd
 bd.constants.ANNOTATIONS_DIRECTORY = 'annotations'
-# mb.models.MultiBind
+# mb.models.Mubind
 import torch.optim as topti
 import torch.utils.data as tdata
 import matplotlib.pyplot as plt
