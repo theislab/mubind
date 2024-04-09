@@ -12,6 +12,7 @@ from . import get
 
 try:
     import bindome
+    import mubind
     mubind.bindome = bindome
 
 except ImportError:

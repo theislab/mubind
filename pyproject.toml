@@ -23,8 +23,8 @@ version = "0.1.1"
 requires-python = ">=3.8"
 license = {file = "LICENSE"}
 readme = "README.md"
-dependencies = ["seaborn", "scikit-learn", "pandas", "unidecode", "matplotlib", "scipy", "numpy==1.21", "torch",
-                "logomaker", "biopython", "numba", "pytest", "pytest-cov", "openpyxl", "anndata"]
+dependencies = ["seaborn", "scikit-learn", "pandas", "unidecode", "matplotlib", "scipy", "numpy>=1.22", "torch",
+                "logomaker", "biopython", "numba", "pytest", "pytest-cov", "openpyxl", "tqdm", "anndata"]
 
 [project.optional-dependencies]
 dev = [
