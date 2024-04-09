@@ -1,4 +1,4 @@
-from mubind.set.set import (
+from .set import (
     conv_mono,
 )
 

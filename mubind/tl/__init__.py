@@ -1,4 +1,4 @@
-from mubind.tl.encoding import (
+from .encoding import (
     bin2string,
     mono2dinuc,
     mono2revmono,
@@ -14,9 +14,9 @@ from mubind.tl.encoding import (
     get_protein_aa_index,
     string2bin,
 )
-from mubind.tl.kmers import fastq2kmers, get_seed, log2fc_vs_zero, seqs2kmers
-from mubind.tl.loss import MSELoss, MultiDatasetLoss, PoissonLoss, ProboundLoss
-from mubind.tl.prediction import (  # SelexDataset,; ChipSeqDataset,; create_datasets,
+from .kmers import fastq2kmers, get_seed, log2fc_vs_zero, seqs2kmers
+from .loss import MSELoss, MultiDatasetLoss, PoissonLoss, ProboundLoss
+from .prediction import (  # SelexDataset,; ChipSeqDataset,; create_datasets,
     create_multi_data,
     create_simulated_data,
     test_network,
@@ -25,7 +25,7 @@ from mubind.tl.prediction import (  # SelexDataset,; ChipSeqDataset,; create_dat
     predict,
     dynamic_score
 )
-from mubind.tl.aggregation import (
+from .aggregation import (
     calculate_distances,
     combine_models,
     binding_modes,
@@ -36,4 +36,4 @@ from mubind.tl.aggregation import (
     reduce_filters,
     binding_modes_to_multibind,
 )
-from mubind.tl.probound import load_probound
+from .probound import load_probound

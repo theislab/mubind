@@ -1,4 +1,4 @@
-from mubind.pl.plotting import (
+from .plotting import (
     logo,
     logo_mono,
     logo_di,
