@@ -146,7 +146,7 @@ linkcheck_ignore = []
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
-html_logo = "_static/img/squidpy_horizontal.png"
+html_logo = "https://raw.githubusercontent.com/theislab/mubind/development/docs/_static/logo.png"
 html_theme_options = {"navigation_depth": 4, "logo_only": True}
 html_show_sphinx = False
 
