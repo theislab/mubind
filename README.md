@@ -1,13 +1,13 @@
 # mubind
 
 <p align="center">
-    <img src="https://github.com/theislab/mubind/blob/main/docs/_static/logo.png"
+    <img src="https://raw.githubusercontent.com/theislab/mubind/development/docs/_static/logo.png"
     width="400px" alt="mubind logo">
     </a>
 </p>
 
 <p align="center">
-    <img src="docs/cartoon.png"
+    <img src="https://github.com/theislab/mubind/blob/development/docs/_static/cartoon.png?raw=true"
     width="400px" alt="mubind logo">
     </a>
 </p>
@@ -22,7 +22,7 @@
 ## Workflow
 
 <p align="center">
-    <img src="https://github.com/theislab/mubind/blob/main/docs/_static/workflow.png"
+    <img src="https://github.com/theislab/mubind/blob/development/docs/_static/workflow.png?raw=true"
     width="750" alt="mubind workflow">
     </a>
 </p>
@@ -30,7 +30,7 @@
 ## Model architecture
 
 <p align="center">
-    <img src="https://github.com/theislab/mubind/blob/main/docs/_static/architecture.png"
+    <img src="https://github.com/theislab/mubind/blob/development/docs/_static/architecture.png?raw=true"
     width="550px" alt="mubind architecture">
     </a>
 </p>
