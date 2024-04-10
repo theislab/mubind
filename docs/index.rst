@@ -1,7 +1,7 @@
 Mubind - Learning sequence associations with single-cell transitions
 ================================================
 
-`mubind` (short for ***multibind***) is a neural network architecture learn sequence associations with genomics data reaoduts, while using full graph representations as sparse graphs. The model architecture is scalable, and designed to analysis of both single-cell as well as bulk genomics data.
+`mubind` (short for ***multibind***) is a neural network architecture designed to learn sequence associations with genomics data through the leveraging of sample-sample relationships as sparse graphs. The model architecture is suitable for the analysis of both single-cell as well as bulk genomics data.
 
 .. image:: https://raw.githubusercontent.com/theislab/mubind/main/docs/cartoon.png
     :alt: Mubind figure title
