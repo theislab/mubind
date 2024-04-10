@@ -1,8 +1,6 @@
 from importlib.metadata import version
 
-from . import pl, pp, tl, get, set
-
-__all__ = ["pl", "pp", "tl", "get", "set", "datasets"]
+__all__ = ["pl", "pp", "tl", "get", "set", "datasets", 'models']
 
 __version__ = version("mubind")
 
@@ -14,6 +12,7 @@ from . import get
 
 try:
     import bindome
+    import mubind
     mubind.bindome = bindome
 
 except ImportError:
