@@ -3,7 +3,16 @@
 Tutorials
 =========
 
-**Note** Code is pre-release. Code snippets are instructional, and images are not final. Changes will occur in upcoming versions.
+**Note** Code is pre-release and outputs are provisory. Changes will occur in upcoming versions.
+
+The first half of tutorials ire focused on single-cell genomics. For general applications in genomics data (HT-SELEX, ChIP-seq, etc.), please refer to the second list of tutorials.
+
+To test library installation and dependencies, please check general pytests. In case of bugs, please submit a GitHub issue.
+https://github.com/theislab/mubind/issues
+
+Testing
+----
+    pytest tests
 
 Single-cell genomics analysis using :mod:`mubind`
 -------------------------------------------------

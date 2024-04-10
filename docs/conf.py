@@ -4,115 +4,152 @@
 # list see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+from __future__ import annotations
+
 # -- Path setup --------------------------------------------------------------
+import os
 import sys
 from datetime import datetime
-from importlib.metadata import metadata
+
+# from importlib.metadata import metadata
 from pathlib import Path
 
-HERE = Path(__file__).parent
-sys.path.insert(0, str(HERE / "extensions"))
+from sphinx.application import Sphinx
 
+HERE = Path(__file__).parent
+# sys.path.insert(0, str(HERE.parent.parent))  # this way, we don't have to install squidpy
+# sys.path.insert(0, os.path.abspath("_ext"))
+
+sys.path.insert(0, str(HERE / "_ext"))
 
 # -- Project information -----------------------------------------------------
 
-info = metadata("mubind")
-project = info["Name"]
-author = info["Author"]
-copyright = f"{datetime.now():%Y}, {author}"
-version = info["Version"]
+import mubind
+sys.path.insert(0, str(Path(__file__).parent / "_ext"))
 
-# The full version, including alpha/beta/rc tags
-release = info["Version"]
+# -- Project information -----------------------------------------------------
 
-bibtex_bibfiles = ["references.bib"]
-templates_path = ["_templates"]
-nitpicky = True  # Warn about broken links
-needs_sphinx = "4.0"
-
-html_context = {
-    "display_github": True,  # Integrate GitHub
-    "github_user": "theislab",  # Username
-    "github_repo": project,  # Repo name
-    "github_version": "main",  # Version
-    "conf_py_path": "/docs/",  # Path in the checkout to the docs root
-}
+project = mubind.__name__
+author = mubind.__author__
+version = mubind.__version__
+copyright = f"{datetime.now():%Y}"
 
 # -- General configuration ---------------------------------------------------
 
-# Add any Sphinx extension module names here, as strings.
-# They can be extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
+# Add any Sphinx extension module names here, as strings. They can be
+# extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
+# ones.
 extensions = [
-    "myst_parser",
     "sphinx.ext.autodoc",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.viewcode",
+    "sphinx_autodoc_typehints",
     "sphinx.ext.intersphinx",
     "sphinx.ext.autosummary",
-    "sphinx.ext.napoleon",
-    "sphinxcontrib.bibtex",
-    "sphinx_autodoc_typehints",
-    'scanpydoc.theme',
-    "scanpydoc.definition_list_typed_field",
-    "nbsphinx",
     "sphinx.ext.mathjax",
-    "sphinx_rtd_theme",
-    "sphinx_gallery.load_style",
-    *[p.stem for p in (HERE / "extensions").glob("*.py")],
+    "sphinxcontrib.bibtex",
+    "sphinx_copybutton",
+    "myst_nb",
+    "nbsphinx",
+    # "typed_returns",
+    "IPython.sphinxext.ipython_console_highlighting",
 ]
+intersphinx_mapping = dict(  # noqa: C408
+    python=("https://docs.python.org/3", None),
+    numpy=("https://numpy.org/doc/stable/", None),
+    statsmodels=("https://www.statsmodels.org/stable/", None),
+    scipy=("https://docs.scipy.org/doc/scipy/", None),
+    pandas=("https://pandas.pydata.org/pandas-docs/stable/", None),
+    anndata=("https://anndata.readthedocs.io/en/stable/", None),
+    scanpy=("https://scanpy.readthedocs.io/en/stable/", None),
+    matplotlib=("https://matplotlib.org/stable/", None),
+    seaborn=("https://seaborn.pydata.org/", None),
+    joblib=("https://joblib.readthedocs.io/en/latest/", None),
+    networkx=("https://networkx.org/documentation/stable/", None),
+    dask=("https://docs.dask.org/en/latest/", None),
+    skimage=("https://scikit-image.org/docs/stable/", None),
+    sklearn=("https://scikit-learn.org/stable/", None),
+    numba=("https://numba.readthedocs.io/en/stable/", None),
+    xarray=("https://xarray.pydata.org/en/stable/", None),
+    omnipath=("https://omnipath.readthedocs.io/en/latest", None),
+    napari=("https://napari.org/", None),
+    spatialdata=("https://spatialdata.scverse.org/en/latest", None),
+)
 
-autosummary_generate = True
-autodoc_member_order = "groupwise"
-default_role = "literal"
-napoleon_google_docstring = False
-napoleon_numpy_docstring = True
-napoleon_include_init_with_doc = False
-napoleon_use_rtype = True  # having a separate entry generally helps readability
-napoleon_use_param = True
+# Add any paths that contain templates here, relative to this directory.
+templates_path = ["_templates"]
+source_suffix = {".rst": "restructuredtext", ".ipynb": "myst-nb"}
+master_doc = "index"
+pygments_style = "sphinx"
 
-intersphinx_mapping = {
-    "anndata": ("https://anndata.readthedocs.io/en/stable/", None),
-    "numpy": ("https://numpy.org/doc/stable/", None),
-}
-
-nbsphinx_execute = "never"
+# myst
+nb_execution_mode = "off"
+myst_enable_extensions = [
+    "colon_fence",
+    "dollarmath",
+    "amsmath",
+]
+myst_heading_anchors = 2
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
-
-# See https://nbsphinx.readthedocs.io/en/latest/subdir/gallery.html for
-# other options of how to select thumbnails.
-nbsphinx_thumbnails = {
-    'notebooks/modeling': '_static/example.png',
-}
+exclude_patterns = [
+    "notebooks/README.rst",
+    "notebooks/CONTRIBUTING.rst",
+    "release/changelog/*",
+    "**.ipynb_checkpoints",
+    "build",
+]
+suppress_warnings = ["download.not_readable", "git.too_shallow"]
 
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-# html_theme = "furo"
+autosummary_generate = True
+autodoc_member_order = "groupwise"
+autodoc_typehints = "signature"
+autodoc_docstring_signature = True
+napoleon_google_docstring = False
+napoleon_numpy_docstring = True
+napoleon_include_init_with_doc = False
+napoleon_use_rtype = True
+napoleon_use_param = True
+todo_include_todos = False
+
+# bibliography
+bibtex_bibfiles = ["references.bib"]
+bibtex_reference_style = "author_year"
+bibtex_default_style = "alpha"
+
+# spelling
+spelling_lang = "en_US"
+spelling_warning = True
+spelling_word_list_filename = "spelling_wordlist.txt"
+spelling_add_pypi_package_names = True
+spelling_show_suggestions = True
+spelling_exclude_patterns = ["references.rst"]
+# see: https://pyenchant.github.io/pyenchant/api/enchant.tokenize.html
+spelling_filters = [
+    "enchant.tokenize.URLFilter",
+    "enchant.tokenize.EmailFilter",
+    "docs.source.utils.ModnameFilter",
+    "docs.source.utils.SignatureFilter",
+    "enchant.tokenize.MentionFilter",
+]
+# see the solution from: https://github.com/sphinx-doc/sphinx/issues/7369
+linkcheck_ignore = []
+
+# Add any paths that contain custom static files (such as style sheets) here,
+# relative to this directory. They are copied after the builtin static files,
+# so a file named "default.css" will overwrite the builtin "default.css".
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
-
-pygments_style = "sphinx"
-
-nitpick_ignore = [
-    # If building the documentation fails because of a missing link that is outside your control,
-    # you can add an exception to this list.
-    #     ("py:class", "igraph.Graph"),
-]
+html_logo = "_static/img/squidpy_horizontal.png"
+html_theme_options = {"navigation_depth": 4, "logo_only": True}
+html_show_sphinx = False
 
 
-def setup(app):
-    """App setup hook."""
-    app.add_config_value(
-        "recommonmark_config",
-        {
-            "auto_toc_tree_section": "Contents",
-            "enable_auto_toc_tree": True,
-            "enable_math": True,
-            "enable_inline_math": False,
-            "enable_eval_rst": True,
-        },
-        True,
-    )
+def setup(app: Sphinx) -> None:
+    app.add_css_file("css/custom.css")
