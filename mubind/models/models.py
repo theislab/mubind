@@ -243,8 +243,8 @@ class Mubind(tnn.Module):
         mono = torch.unsqueeze(mono, 1)
 
         # binding_per_mode: matrix of size [batchsize, number of binding modes]
-        binding_per_mode = self.binding_modes(mono=mono, mono_rev=mono_rev, **kwargs)
-        binding_scores = self.activities(binding_per_mode, **kwargs)
+        binding_per_mode = self.binding_modes(mono=mono, mono_rev=mono_rev, **kwargs) # sequences x filters (Se, F)
+        binding_scores = self.activities(binding_per_mode, **kwargs) # sequences x samples (Se, F) * (F, Sa) = (Se, Sa)
         # print('mode')
         # print(binding_per_mode)
         # print('scores')
@@ -1366,8 +1366,7 @@ class BindingModesSimple(tnn.Module):
         self.conv_mono = tnn.ModuleList()
         self.conv_di = tnn.ModuleList()
         self.ones = None  # aux ones tensor, for intercept init.
-
-
+        
         for k in self.kernels:
             if k == 0:
                 self.conv_mono.append(None)
@@ -1421,8 +1420,10 @@ class BindingModesSimple(tnn.Module):
                 bm_pred.append(temp)
             else:
                 # check devices match
-                if self.conv_mono[i].weight.device != mono.device:
-                    self.conv_mono[i].weight.to(mono.device)
+                # if self.conv_mono[i].weight.device != mono.device:
+                #     self.conv_mono[i].weight.to(mono.device)
+                # else:
+                #     print('devices match...')
 
                 # print('here...')
                 # print(self.conv_di[i])
