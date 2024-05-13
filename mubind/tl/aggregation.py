@@ -151,7 +151,7 @@ def binding_modes(output_dir, extension='.pkl', device=None, pos_weight_thr=None
     return combined_model.binding_modes
 
 
-@jit(nopython=True)
+# @jit(nopython=True)
 def submatrix(m, start, length, flip, filter_neg_weights=True):
     sub_m = m[:, start: start + length]
     if flip:

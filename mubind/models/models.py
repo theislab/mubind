@@ -527,7 +527,7 @@ class Mubind(tnn.Module):
             print(
                 "optimizer: ",
                 str(type(optimiser)).split('.')[-1].split('\'>')[0],
-                "\ncriterion:",
+                ", criterion:",
                 str(type(self.criterion)).split('.')[-1].split('\'>')[0],
                 "\n# epochs:",
                 num_epochs,
@@ -563,7 +563,7 @@ class Mubind(tnn.Module):
                  [dataloader]])
 
         use_tqdm = kwargs.get('use_tqdm', True)
-        print('use_tqdm', use_tqdm)
+        # print('use_tqdm', use_tqdm)
 
         for epoch in tqdm(range(num_epochs)) if use_tqdm else range(num_epochs):
             # for epoch in range(num_epochs):
@@ -805,12 +805,12 @@ class Mubind(tnn.Module):
                 self.r2_final = r2_epoch
                 # r2_history.append(mb.pl.kmer_enrichment(self, dataloader, k=8, show=False))
 
-            print('Final loss: %.10f %s' % (loss_final, ', R2: %.2f' % r2_epoch if r2_epoch is not None else ''))
-            print(f'Total time (model/function): (%.3fs / %.3fs)' % (self.total_time, total_time))
-            print("Time per epoch (model/function): (%.3fs/ %.3fs)" %
-                  ((self.total_time / max(epoch, 1)), (total_time / max(epoch, 1))))
-            print('Time per epoch per 1k trials: %.3fs' % (total_time / max(epoch, 1) / n_trials * 1e3))
             print('Current time:', datetime.datetime.now())
+            print('\tLoss: %.10f %s' % (loss_final, ', R2: %.2f' % r2_epoch if r2_epoch is not None else ''))
+            print(f'\tTraining time (model/function): (%.3fs / %.3fs)' % (self.total_time, total_time))
+            print("\t\tper epoch (model/function): (%.3fs/ %.3fs)" %
+                  ((self.total_time / max(epoch, 1)), (total_time / max(epoch, 1))))
+            print('\t\tper 1k samples: %.3fs' % (total_time / max(epoch, 1) / n_trials * 1e3))
 
         self.loss_history += loss_history
         self.loss_history_sym_weights += loss_history_sym_weights
@@ -1058,8 +1058,7 @@ class Mubind(tnn.Module):
                     self.set_ignore_kernel(np.array([0 for i in range(i + 1)] +
                                                     [1 for i in range(i + 1, self.n_kernels)]))
 
-                vprint("filters mask", self.get_ignore_kernel())
-                vprint("filters mask", self.get_ignore_kernel())
+                #  vprint("filters mask", self.get_ignore_kernel())
 
                 # final refinement of weights
                 self.optimize_simple(
@@ -1848,9 +1847,10 @@ class GraphModule(tnn.Module):
             # self.log_dynamic = tnn.Parameter(torch.rand(self.conn_sparse.indices().shape[1])).requires_grad_(True) # .cuda()
 
     import torch.nn as tnn
-    def prepare_knn(self, **kwargs):
+    def prepare_knn(self,
+                    **kwargs):
         '''
-        This routine is in charge of the graph to be used during the assay-assay relatedness step
+        This routine is in charge of the graph to be used during the assay-assay relatedness step. A custom RNA-based graph can be provided.
         '''
         adata = kwargs.get('adata')
         device = kwargs.get('device')
@@ -1863,8 +1863,14 @@ class GraphModule(tnn.Module):
         df = next_data.copy()  # sample
         zero_counts = df.sum(axis=1) == 0
 
-        self.conn_sparse = torch.tensor(
-            adata[:, ~zero_counts].obsp['connectivities'].A).to_sparse()
+        vel_graph = kwargs.get('velocity_graph')
+        if vel_graph is not None:
+            print(vel_graph.shape)
+
+        # print(adata[:, ~zero_counts].obsp['connectivities'].A.shape, type(adata[:, ~zero_counts].obsp['connectivities'].A))
+        # print(vel_graph.shape, type(vel_graph))
+        conn = adata[:, ~zero_counts].obsp['connectivities'].A if vel_graph is None else vel_graph.A
+        self.conn_sparse = torch.tensor(conn).to_sparse() 
         
         if device != 'cpu':
             self.conn_sparse = self.conn_sparse.cuda()
@@ -1919,101 +1925,43 @@ class GraphModule(tnn.Module):
         if self.enr_series:
             out = torch.cumprod(binding_scores, dim=1)  # cum product between rounds 0 and N
         elif hasattr(self, 'conn_sparse') and kwargs.get('use_conn', True): # in this particular step, we multiply by the dynamic or static scores.
-            if True: # new solution:
-                # operations
-                tsum = torch.sum
-                texp = torch.exp
-                tspa = torch.sparse_coo_tensor
-                tsmm = torch.sparse.mm
-                t = torch.transpose
+            
+            # general math operations
+            tsum = torch.sum
+            texp = torch.exp
+            tspa = torch.sparse_coo_tensor
+            tsmm = torch.sparse.mm
+            t = torch.transpose
 
-                # binding scores
-                b = binding_scores
-                b_T = torch.transpose(b, 0, 1)
+            # binding scores and transposed
+            b = binding_scores
+            b_T = torch.transpose(b, 0, 1)
 
-                # connectivities
-                C = self.conn_sparse
-                a_ind = C.indices()
-                # conn_spa_T = torch.transpose(C, 0, 1)
+            # connectivities (kNN or velocity-inferred graph)
+            C = self.conn_sparse
+            a_ind = C.indices()
+            # conn_spa_T = torch.transpose(C, 0, 1)
 
-                # log dynamic weights
-                D = self.log_dynamic
-                D_tril = tspa(a_ind, D, C.shape)  # .requires_grad_(True).cuda()
+            # log dynamic weights
+            D = self.log_dynamic
+            D_tril = tspa(a_ind, D, C.shape)  # .requires_grad_(True).cuda()
 
-                # scaling of weights yes/no
-                if self.knn_free_weights:
-                    D_triu = tspa(a_ind, -D * torch.exp(self.log_dynamic_scaling), C.shape)
-                    # print('here...')
-                else:
-                    D_triu = tspa(a_ind, -D, C.shape)
-                                
-                D_all = D_tril + t(D_triu, 0, 1)
-
-                # D_triu = -self.D_tril # opposite sign
-                # D_all = self.D_tril + t(-self.D_tril, 0, 1) # opposite sign
-
-                # print(self.D_tril)
-
-                # update with pos and negs
-                # D_all = self.D_tril + t(self.D_triu, 0, 1)
-
-                # print(D.shape)
-                # assert False
-                # print('log dynamic1 after exp', torch.sum(D.to_dense()).cpu().detach().sum())
-                # print('sum of dynamic mat1', tsum(D.to_dense()).cpu().detach().sum())
-
-                # print(C.shape, b_T.shape)
-                # assert False
-                # print(conn_spa_T.shape, b.shape)
-                # print(C.device, b_T.device, D_all.device)
-                # assert False
-
-                tmp = tsmm(C, b_T).T
-
-                # print('')
-                # print('sum of tmp 1', tmp.cpu().detach().sum())
-                # print('shape tmp1', tmp.shape)
-                tmp_T = t(tmp, 0, 1)
-                # print('dynamic1 input', tsum(D.to_dense().cpu().detach().sum()),
-                #       tsum(b.to_dense()).cpu().detach().sum())
-
-                dynamic_out1 = tsmm(texp(t(D_all, 0, 1).to_dense()), tmp_T).T
-                # print('dynamic out 1 sum', dynamic_out1.cpu().detach().sum())
-                # print(torch.isnan(log_dynamic_spa).any(), torch.isnan(dyn1_T).any(), torch.isnan(dynamic_out).any())
-                # print('static1 input', tsum(D.to_dense()).cpu().detach(), tsum(b.to_dense()).cpu().detach())
-                static_out1 = tsmm(texp(D_all.to_dense()), b_T).T
-
-                out = static_out1 + dynamic_out1
-
-                # print(out)
-                # print(binding_scores)
-                # assert False
+            # scaling of weights yes/no
+            if self.knn_free_weights:
+                D_triu = tspa(a_ind, -D * torch.exp(self.log_dynamic_scaling), C.shape)
+                # print('here...')
             else:
-                # old solution
-                # print(self.log_dynamic.shape)
-                D = self.log_dynamic
-                C_dense = C.to_dense()
-                a_ind = C.indices()
-                D = self.log_dynamic
-                D_spa = tspa(a_ind, D, C.shape)  # .requires_grad_(True).cuda()
-                D_mat = D_spa.to_dense()
+                D_triu = tspa(a_ind, -D, C.shape)
+                            
+            D_all = D_tril + t(D_triu, 0, 1)
+            tmp = tsmm(C, b_T).T
+            tmp_T = t(tmp, 0, 1)
 
-                # print(log_dynamic_mat)
-                D_mat = D_mat + torch.transpose(-D_mat, 0, 1)
-                D2 = D_mat
-                print('')
-                print('sum of mat2', tsum(D_mat.to_dense()).cpu().detach().sum())
-                print('static2 input', b.sum().cpu().detach().sum(), texp(-D_mat).cpu().detach().sum())
-
-                tmp = (b @ C_dense)
-                print('')
-                print('sum of tmp 2', tmp.cpu().detach().sum())
-                print('shape tmp1', tmp.shape)
-
-                dynamic_out2 = tmp @ texp(D_mat)  # texp(D_mat)
-                print('out 2 sum', dynamic_out2.cpu().detach().sum())
-                static_out2 = b @ texp(-D_mat)  # texp(-D_mat)
-                out2 = static_out2 + dynamic_out2
+            # scores explained by neighboring-based weights
+            dynamic_out1 = tsmm(texp(t(D_all, 0, 1).to_dense()), tmp_T).T
+            static_out1 = tsmm(texp(D_all.to_dense()), b_T).T
+            
+            out = static_out1 + dynamic_out1
         else:
             out = binding_scores
 
