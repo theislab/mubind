@@ -193,7 +193,7 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
     is_multibind = not isinstance(model, list) # mb.models.Multibind)
 
     binding_modes = None
-    if isinstance(model, mb.models.BindingModesSimple):
+    if isinstance(model, mb.models.BindingLayer):
         binding_modes = model
     else: 
         binding_modes = model.binding_modes if is_multibind else model # model can be a list of binding modes

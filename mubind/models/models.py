@@ -90,10 +90,10 @@ class Mubind(tnn.Module):
         if "bm_generator" in kwargs and kwargs["bm_generator"] is not None:
             self.binding_modes = BindingModesPerProtein(**kwargs)
         else:
-            self.binding_modes = BindingModesSimple(**kwargs)
+            self.binding_modes = BindingLayer(**kwargs)
         self.activities = ActivitiesLayer(**kwargs)
         if self.datatype == "selex":
-            self.graph_module = GraphModule(**kwargs)
+            self.graph_module = GraphLayer(**kwargs)
 
         self.kernel_rel = None
         if kwargs.get('kernel_sim') is not None:
@@ -258,7 +258,7 @@ class Mubind(tnn.Module):
             return None  # this line should never be called
 
     def set_seed(self, seed, index, max_value=0, min_value=-1):
-        if isinstance(self.binding_modes, BindingModesSimple):
+        if isinstance(self.binding_modes, BindingLayer):
             self.binding_modes.set_seed(seed, index, max_value, min_value)
         else:
             print("Setting a seed is not possible for that kind of model.")
@@ -1346,7 +1346,7 @@ class Mubind(tnn.Module):
         return self
 
 
-class BindingModesSimple(tnn.Module):
+class BindingLayer(tnn.Module):
     """
     Implements binding modes (also non-specific binding) for one protein.
 
@@ -1819,7 +1819,7 @@ class ActivitiesLayer(tnn.Module):
         return torch.stack(list(self.log_activities), dim=1)
 
 
-class GraphModule(tnn.Module):
+class GraphLayer(tnn.Module):
     """
     Implements the layer that calculates associations between samples and readouts
 
