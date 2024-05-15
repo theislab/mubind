@@ -634,6 +634,8 @@ def optimize_width_and_length(train, model, device, expand_length_max, expand_le
     for opt_option_text, opt_option_next in zip(
         ["WIDTH", "SHIFT"], [[opt_expand_left, opt_expand_right, [0]], [[0], [0], opt_shift]]
     ):
+        
+        best_loss = model.best_loss
         next_loss = None
         loss_diff_pct = 0
         while next_loss is None or (next_loss < best_loss and loss_diff_pct > loss_thr_pct):

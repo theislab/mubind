@@ -178,7 +178,7 @@ class Mubind(tnn.Module):
                 n_proteins = kwargs.get('n_proteins', train.dataset.n_cells)
             vprint("# proteins", n_proteins)
             if kwargs.get('joint_learning', False) or n_proteins == 1:
-                kwargs['kernels'] = kwargs.get('kernels', [0] + [w] * (n_kernels - 1))
+                kwargs['kernels'] = kwargs.get('kernels', [0] + [kwargs.get('w', 20)] * (n_kernels - 1))
                 model = mb.models.Mubind(
                     datatype="pbm",
                     init_random=init_random,
@@ -950,7 +950,7 @@ class Mubind(tnn.Module):
 
                 # mask kernels to avoid using weights from further steps into early ones.
                 if ignore_kernel:
-                    self.set_ignore_kernel(np.array([0 for i in range(i + 1)] + [1 for kernel_i in range(i + 1, n_kernels)]))
+                    self.set_ignore_kernel(np.array([0 for i in range(i + 1)] + [1 for kernel_i in range(i + 1, self.n_kernels)]))
 
                 if verbose != 0:
                     print("filters mask", self.get_ignore_kernel())
@@ -1136,6 +1136,8 @@ class Mubind(tnn.Module):
         ):
             next_loss = None
             loss_diff_pct = 0
+            best_loss = self.best_loss
+
             while next_loss is None or (next_loss < best_loss and loss_diff_pct > loss_thr_pct):
                 n_attempts += 1
 

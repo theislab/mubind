@@ -36,7 +36,7 @@ def set_rcParams(parms):
         matplotlib.rcParams[k] = parms[k]
 
 def logo_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=True, yticks=True,
-              figsize=None, flip=False, log=False, show=True, title=True):
+              figsize=None, flip=False, log=False, show=True, title=True, subset=None):
     if log:
         activities = np.exp(model.get_log_activities().cpu().detach().numpy())
         print("\n#activities")

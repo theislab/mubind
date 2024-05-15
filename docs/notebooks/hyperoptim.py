@@ -55,9 +55,9 @@ def create_model(x_train):
     print('create model...')
     model_by_k, res_next = mb.tl.train_iterative(x_train, device, min_w=14, show_logo=True, optimize_motif_shift=True,
                                                  # criterion=mb.tl.ProboundLoss(),
-                                                 dirichlet_regularization=dirichlet_regularization, # 10 ** dirichlet_regularization_log,
+                                                 dirichlet_regularization=False, # 10 ** dirichlet_regularization_log,
                                                  lr=[0.01, 0.01, 0.01],
-                                                 weight_decay=[0.01, 0.001, 0.001], ignore_kernel=ignore_kernel,
+                                                 weight_decay=[0.01, 0.001, 0.001], ignore_kernel=False,
                                                  num_epochs=1000, early_stopping=50, use_dinuc=False, # optimiser=torch.optim.LBFGS,
                                                  max_w=15, n_kernels=3, log_each=50, stop_at_kernel=None) #  seed=seed) # seeds.index[0]) #
 
