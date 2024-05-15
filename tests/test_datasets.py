@@ -3,13 +3,12 @@ import pandas as pd
 import torch
 import torch.optim as topti
 import torch.utils.data as tdata
-
+import mubind as mb
 
 def test_dataset_index_int():
     import warnings
 
     warnings.filterwarnings("ignore", category=DeprecationWarning)
-    import mubind as mb
 
     # Use a GPU if available, as it should be faster.
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -38,8 +37,6 @@ def test_seq_conversion():
     import warnings
 
     warnings.filterwarnings("ignore", category=DeprecationWarning)
-    import mubind as mb
-
     # Use a GPU if available, as it should be faster.
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print("Using device: " + str(device))
@@ -54,10 +51,8 @@ def test_seq_conversion():
 
 
 def test_dataset_memory_increase():
-
     import warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning)
-    import mubind as mb
     from sys import getsizeof
     import scipy
     # TODO

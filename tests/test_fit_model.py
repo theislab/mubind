@@ -4,7 +4,7 @@ import pandas as pd
 import torch
 import torch.utils.data as tdata
 import warnings
-
+import mubind as mb
 import unittest
 
 class ModelTests(unittest.TestCase):
@@ -13,7 +13,6 @@ class ModelTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
-        import mubind as mb
 
         # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 

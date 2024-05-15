@@ -6,6 +6,7 @@ import torch.utils.data as tdata
 import warnings
 warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 import unittest
+import mubind as mb
 
 class ModelTests(unittest.TestCase):
     N_EPOCHS = 10
@@ -13,7 +14,6 @@ class ModelTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
-        import mubind as mb
         import anndata
 
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')

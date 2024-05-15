@@ -3,13 +3,12 @@ import pandas as pd
 import torch
 import torch.optim as topti
 import torch.utils.data as tdata
-
+import mubind as mb
 
 def test_simdata_train():
     import warnings
 
     warnings.filterwarnings("ignore", category=DeprecationWarning)
-    import mubind as mb
 
     # Use a GPU if available, as it should be faster.
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
