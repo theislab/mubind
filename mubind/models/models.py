@@ -1417,7 +1417,12 @@ class BindingLayer(tnn.Module):
                     0]:  # aux ones tensor, to avoid memory init delay
                     self.ones = torch.ones(mono.shape[0], device=mono.device)  # torch.ones is much faster
 
-                temp = self.ones[:mono.shape[0]]  # subsetting of ones to fit batch
+                # print(mono.device)
+                # print(self.ones)
+                temp = self.ones[:mono.shape[0]].to(mono.device)  # subsetting of ones to fit batch
+                # print(temp)
+                # print(temp.device)
+                # assert False
                 bm_pred.append(temp)
             else:
                 # check devices match
@@ -1499,6 +1504,9 @@ class BindingLayer(tnn.Module):
                 temp = torch.sum(temp, dim=1)
                 bm_pred.append(temp)
 
+        # print(bm_pred)
+        # for t in bm_pred[:3]:
+        #     print(t.shape, t.device)
         out = torch.stack(bm_pred).T
 
         # regularization step, using activation probability
