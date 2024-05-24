@@ -15,7 +15,6 @@ class ModelTests(unittest.TestCase):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
         # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-
         # device = 'cpu'
 
         early_stopping = 10 

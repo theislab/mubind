@@ -211,7 +211,8 @@ class Mubind(tnn.Module):
         # set criterion
         model.criterion = criterion
 
-        if str(kwargs.get('device')) != 'cpu':
+        device = str(kwargs.get('device'))
+        if 'cuda' in device:
             return model.cuda()
         return model
 
