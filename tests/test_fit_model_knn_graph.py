@@ -42,7 +42,7 @@ class ModelTests(unittest.TestCase):
                                            prepare_knn=optimize_log_dynamic,
                                            knn_free_weights=False,
                                            adata=None if not optimize_log_dynamic else ad,
-                                           dinuc_mode=None).cuda()
+                                           dinuc_mode=None) # .cuda()
         
         cls.model, _ = model.optimize_iterative(cls.train, n_epochs=cls.N_EPOCHS, show_logo=False,
                                                 early_stopping=early_stopping, log_each=50,

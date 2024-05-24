@@ -1937,7 +1937,7 @@ class GraphLayer(tnn.Module):
         conn = adata[:, ~zero_counts].obsp['connectivities'].A if vel_graph is None else vel_graph.A
         self.conn_sparse = torch.tensor(conn).to_sparse() 
         
-        if device != 'cpu':
+        if str(device) != 'cpu':
             self.conn_sparse = self.conn_sparse.cuda()
 
         # do not activate the required grad of this function, otherwise, it does not optimize
