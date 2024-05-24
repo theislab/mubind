@@ -10,6 +10,7 @@ import torch.optim as topti
 import pandas as pd
 import copy
 from tqdm import tqdm
+from scipy.stats import spearmanr
 import mubind as mb
 
 
@@ -529,7 +530,7 @@ class Mubind(tnn.Module):
                 str(type(optimiser)).split('.')[-1].split('\'>')[0],
                 ", criterion:",
                 str(type(self.criterion)).split('.')[-1].split('\'>')[0],
-                "\n# epochs:",
+                "\nepochs:",
                 num_epochs,
                 "\nearly_stopping:",
                 early_stopping,
@@ -746,8 +747,8 @@ class Mubind(tnn.Module):
                     total_time = time.time() - t0
                     time_epoch_1k = (total_time / max(epoch, 1) / n_trials * 1e3)
                     print(
-                        "Epoch: %2d, Loss: %.6f, %s" % (epoch + 1, loss_final,
-                                                        'R2: %.2f, ' % r2_epoch if r2_epoch is not None else ''),
+                        "Epoch: %2d, Loss: %.3f, %s" % (epoch + 1, loss_final,
+                                                        'R2: %.3f, ' % r2_epoch if r2_epoch is not None else ''),
                         "best epoch: %i, " % best_epoch,
                         "secs per epoch: %.3f s, " % ((time.time() - t0) / max(epoch, 1)),
                         "secs epoch*1k trials: %.3fs" % time_epoch_1k,
@@ -781,8 +782,8 @@ class Mubind(tnn.Module):
                     total_time = time.time() - t0
                     time_epoch_1k = (total_time / max(epoch, 1) / n_trials * 1e3)
                     print(
-                        "Epoch: %2d, Loss: %.6f, %s" % (epoch + 1, loss_final,
-                                                        'R2: %.2f, ' % r2_epoch if r2_epoch is not None else ''),
+                        "Epoch: %2d, Loss: %.3f, %s" % (epoch + 1, loss_final,
+                                                        'R2: %.3f, ' % r2_epoch if r2_epoch is not None else ''),
                         "best epoch: %i, " % best_epoch,
                         "secs per epoch: %.3fs, " % ((time.time() - t0) / max(epoch, 1)),
                         "secs epoch*1k trials: %.3fs," % time_epoch_1k,
@@ -806,7 +807,7 @@ class Mubind(tnn.Module):
                 # r2_history.append(mb.pl.kmer_enrichment(self, dataloader, k=8, show=False))
 
             print('Current time:', datetime.datetime.now())
-            print('\tLoss: %.10f %s' % (loss_final, ', R2: %.2f' % r2_epoch if r2_epoch is not None else ''))
+            print('\tLoss: %.3f %s' % (loss_final, ', R2: %.3f' % r2_epoch if r2_epoch is not None else ''))
             print(f'\tTraining time (model/function): (%.3fs / %.3fs)' % (self.total_time, total_time))
             print("\t\tper epoch (model/function): (%.3fs/ %.3fs)" %
                   ((self.total_time / max(epoch, 1)), (total_time / max(epoch, 1))))
@@ -817,6 +818,11 @@ class Mubind(tnn.Module):
         self.loss_history_log_dynamic += loss_history_log_dynamic
 
         self.r2_history += r2_history
+
+    def corr_etas_libsizes(self, train):
+        etas = self.get_log_etas().detach().cpu().flatten() if self.device != 'cpu' else self.get_log_etas().flatten()
+        lib_sizes = train.dataset.rounds.sum(axis=0).flatten()
+        return 'etas corr with lib_sizes (before refinement)', spearmanr(etas, lib_sizes)
 
     def optimize_iterative(self,
                            train,
@@ -836,6 +842,7 @@ class Mubind(tnn.Module):
                            init_random=False,
                            joint_learning=False,
                            ignore_kernel=False,
+                           n_unfreeze_kernels=1, # amount of kernels to freeze, unfreeze at the time
                            lr=0.01,
                            weight_decay=0.001,
                            stop_at_kernel=None,
@@ -862,6 +869,8 @@ class Mubind(tnn.Module):
         else:
             vprint = lambda *a, **k: None  # do-nothing function
 
+        print('verbose=%i' % verbose)
+
         if not isinstance(opt_kernel_shift, list):
             opt_kernel_shift = [0] + [opt_kernel_shift] * (self.n_kernels - 1)
         if not isinstance(opt_kernel_length, list):
@@ -879,20 +888,19 @@ class Mubind(tnn.Module):
             self = self.to(self.device)
 
         # step 1) freeze everything before the current binding mode
-        for i in range(0, self.n_kernels):
-
+        for i in range(0, self.n_kernels, n_unfreeze_kernels):
             if skip_kernels is not None and i in skip_kernels:
                 continue
 
-            vprint('current kernels')
+            vprint('current kernel', i)
             # print(self.binding_modes)
 
-            vprint("\Filter to optimize %i %s" % (i, '(intercept)' if i == 0 else ''))
+            vprint("\n### next filter to optimize %i %s" % (i, '(intercept)' if i == 0 else ''))
             vprint("\nFREEZING KERNELS")
 
             for feat_i in ['mono', 'dinuc']:
                 if i == 0 and feat_i == 'dinuc':
-                    vprint('optimization of dinuc is not necessary for the intercepts (filter=0). Skip...')
+                    vprint('optimization of dinuc is not valid for the intercept (filter=0). Skip...')
                     continue
 
                 vprint('optimizing feature type', feat_i)
@@ -905,9 +913,11 @@ class Mubind(tnn.Module):
                         continue
 
                 # block kernels that we do not require to optimize
+                unfreeze_kernel_ids = set(range(i, i + n_unfreeze_kernels))
+                print('next kernels', unfreeze_kernel_ids)
                 for ki in range(self.n_kernels):
-                    mask_mono = (ki == i) and (feat_i == 'mono')
-                    mask_dinuc = (ki == i) and (feat_i == 'dinuc')
+                    mask_mono = (ki in unfreeze_kernel_ids) and (feat_i == 'mono')
+                    mask_dinuc = (ki == unfreeze_kernel_ids) and (feat_i == 'dinuc')
 
                     if opt_one_step: # skip freezing
                         if skip_kernels is None or (i in skip_kernels):
@@ -933,10 +943,19 @@ class Mubind(tnn.Module):
 
                 if show_logo:
                     vprint("before filter optimization.")
-                    mb.pl.plot_activities(self, train)
-                    mb.pl.conv_mono(self)
+                    mb.pl.activities(self, train)
+
+                    mb.pl.logo(self,
+                            title=False,
+                            xticks=False,
+                            rowspan_dinuc=0,
+                            rowspan_mono=1,
+                            n_rows=5,
+                            n_cols=12,
+                            stop_at=10) # n_cols=len(reduced_groups))
+                    # mb.pl.logo_mono(self)
                     # mb.pl.conv_mono(model, flip=False, log=False)
-                    mb.pl.conv_di(self, mode='triangle')
+                    # mb.pl.logo_di(self, mode='triangle')
 
                 next_lr = lr if not isinstance(lr, list) else lr[i]
                 next_weight_decay = weight_decay if not isinstance(weight_decay, list) else weight_decay[i]
@@ -988,11 +1007,19 @@ class Mubind(tnn.Module):
 
                 if show_logo:
                     print("\n##After filter opt / before shift optim.")
-                    mb.pl.plot_activities(self, train)
-                    mb.pl.conv_mono(self)
-                    # mb.pl.conv_mono(model, flip=True, log=False)
-                    mb.pl.conv_di(self, mode='triangle')
-                    mb.pl.plot_loss(self)
+                    mb.pl.activities(self, train)
+                    mb.pl.logo(self,
+                            title=False,
+                            xticks=False,
+                            rowspan_dinuc=0,
+                            rowspan_mono=1,
+                            n_rows=5,
+                            n_cols=12,
+                            stop_at=10) # n_cols=len(reduced_groups))
+                    # mb.pl.conv_mono(self)
+                    # # mb.pl.conv_mono(model, flip=True, log=False)
+                    # mb.pl.conv_di(self, mode='triangle')
+                    mb.pl.loss(self)
 
                 # print(model_by_k[k_parms].loss_color)
                 #######
@@ -1024,19 +1051,29 @@ class Mubind(tnn.Module):
 
                 if show_logo:
                     vprint("after shift optimz model")
-                    mb.pl.plot_activities(self, train)
-                    mb.pl.conv_mono(self)
-                    # mb.pl.conv_mono(model, log=False)
-                    mb.pl.conv_di(self, mode='triangle')
-                    mb.pl.plot_loss(self)
+                    mb.pl.activities(self, train)
+                    mb.pl.logo(self,
+                            title=False,
+                            xticks=False,
+                            rowspan_dinuc=0,
+                            rowspan_mono=1,
+                            n_rows=5,
+                            n_cols=12,
+                            stop_at=10) # n_cols=len(reduced_groups))
+                    # mb.pl.conv_mono(self)
+                    # # mb.pl.conv_mono(model, log=False)
+                    # mb.pl.conv_di(self, mode='triangle')
+                    mb.pl.loss(self)
                     print("")
                 
+                vprint(self.corr_etas_libsizes(train))
                 # the first kernel does not require an additional fit.
                 if i == 0:
+                    # option: the log etas are highly correlated after the intercept fit, and thus can be frozen with intercept during training
+                    self.update_grad_etas(False)
                     continue
 
-                vprint("\n\nfinal refinement step (after shift)...")
-                vprint("\nunfreezing all layers for final refinement")
+                vprint("\n\nfinal refinement step (after shift)...unfreezing all layers")
 
                 for ki in range(self.n_kernels):
                     # vprint("kernel grad (%i) = %i \n" % (ki, True), sep=", ", end="")
@@ -1081,20 +1118,29 @@ class Mubind(tnn.Module):
 
                 if show_logo:
                     vprint("\n##final motif signal (after final refinement)")
-                    mb.pl.plot_activities(self, train)
-                    mb.pl.conv_mono(self)
-                    mb.pl.conv_di(self, mode='triangle')
+                    mb.pl.activities(self, train)
+                    mb.pl.logo(self,
+                            title=False,
+                            xticks=False,
+                            rowspan_dinuc=0,
+                            rowspan_mono=1,
+                            n_rows=5,
+                            n_cols=12,
+                            stop_at=10) # n_cols=len(reduced_groups))
+                    # mb.pl.conv_mono(self)
+                    # mb.pl.conv_di(self, mode='triangle')
                     # mb.pl.conv_mono(model, flip=True, log=False)
 
-                vprint('best loss', self.best_loss)
+                vprint('best loss', '%.3f' % self.best_loss)
 
                 # calculate the current r2 and keep a log of it
                 if log_next_r2:
                     next_r2 = mb.tl.scores(self, train)['r2_counts']
                     self.best_r2_by_new_filter.append(next_r2)
-                    print('current r2 values by newly added filter')
-                    print(self.best_r2_by_new_filter)
-
+                    print('last five r2 values, by sequential filter optimization:',
+                          ['%.3f' % v for v in self.best_r2_by_new_filter[-5:]])
+                
+                vprint(self.corr_etas_libsizes(train))
                 # print('simple epoch done...')
                 # assert False
 
@@ -1246,8 +1292,16 @@ class Mubind(tnn.Module):
                     # vprint("after opt.")
 
                     if show_logo:
-                        mb.pl.conv_mono(model_shift)
-                        mb.pl.conv_di(model_shift, mode='triangle')
+                        mb.pl.logo(self,
+                                title=False,
+                                xticks=False,
+                                rowspan_dinuc=0,
+                                rowspan_mono=1,
+                                n_rows=5,
+                                n_cols=12,
+                                stop_at=10) # n_cols=len(reduced_groups))
+                        # mb.pl.conv_mono(model_shift)
+                        # mb.pl.conv_di(model_shift, mode='triangle')
 
                 # for shift, model_shift, loss in all_shifts:
                 #     print('shift=%i' % shift, 'loss=%.4f' % loss)

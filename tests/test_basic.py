@@ -5,6 +5,12 @@ import torch.optim as topti
 import torch.utils.data as tdata
 import mubind as mb
 
+# check installed packages
+import pkg_resources
+installed_packages = pkg_resources.working_set
+for package in installed_packages:
+    print(f"{package.key}=={package.version}")
+
 def test_simdata_train():
     import warnings
 

@@ -12,7 +12,6 @@ from scipy import sparse
 import pandas as pd
 import os
 import pickle
-import scanpy as sc
 
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
@@ -524,14 +523,12 @@ def archetypes(**kwargs):
 
 from pathlib import Path
 from typing import Optional, Union
-from scanpy import read
-
 def pancreas_rna(
     file_path: Optional[
         Union[str, Path]
     ] = "data/scatac/pancreas_multiome/pancreas_multiome_2022_processed_rna_velocities_2024.h5ad"
 ):
-
+    from scanpy import read
     # rna
     url = 'https://www.dropbox.com/scl/fi/ryb3q25n0kc2vw297f2xd/pancreas_multiome_2022_processed_rna_velocities_2024.h5ad?rlkey=in0qlpv038cn6wxrops1wsxgm&dl=0'
     print(os.path.exists(file_path), file_path)
@@ -544,7 +541,7 @@ def pancreas_atac(
         Union[str, Path]
     ] = "data/scatac/pancreas_multiome/pancreas_multiome_2022_processed_atac.h5ad"
 ):
-
+    from scanpy import read
     # atac
     url = 'https://www.dropbox.com/scl/fi/scs2qchvzuzvwndxphpgn/pancreas_multiome_2022_processed_atac.h5ad?rlkey=sd7fdtj898as0a46tsoyr476i&dl=0'
     print(os.path.exists(file_path), file_path)
@@ -559,22 +556,7 @@ def pancreas_multiome(data_directory='./data'):
     atac_path = os.path.join(data_directory, 'pancreas_multiome_2022_processed_atac.h5ad')
     #   rna_path = '../../../annotations/scatac/pancreas_multiome_2022_processed_rna.h5ad'
     rna_path = os.path.join(data_directory, 'pancreas_multiome_2022_processed_rna_velocities_2024.h5ad')
-
-    # if not os.path.exists(atac_path):
-    #     print('preparing atac...')
-    #     adata = sc.read_h5ad(all_path)
-    #     print(adata.shape)
-    #     atac = adata[:,adata.var.modality == 'ATAC'].copy()
-    #     print(atac.shape)
-    #     atac.write(atac_path, compression='lzf')
-    # if not os.path.exists(rna_path) and not '_rna_velocities_2024' in rna_path:
-    #     print('preparing rna...')
-    #     adata = sc.read_h5ad(all_path)
-    #     print(adata.shape)
-    #     rna = adata[:,adata.var.modality == 'GEX'].copy()
-    #     print(rna.shape)
-    #     rna.write(rna_path, compression='lzf')
-
+    
     rna = pancreas_rna()
     atac = pancreas_atac()
 

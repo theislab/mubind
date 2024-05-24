@@ -14,7 +14,7 @@ setup(
     # author=__author__,
     # author_email=__email__,
     license="GNU",
-    packages=find_packages(),
+    packages=['mubind',], # find_packages(),
     zip_safe=False,
     install_requires=[l.strip() for l in Path("requirements.txt").read_text("utf-8").splitlines()],
     extras_require=dict(
