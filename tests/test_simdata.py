@@ -38,7 +38,7 @@ def test_simdata_train():
     optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.01)
 
     criterion = mb.tl.PoissonLoss()
-    model = mb.models.Mubind.make_model(train_loader, 4, criterion).cuda()
+    model = mb.models.Mubind.make_model(train_loader, 4, criterion) # .cuda()
 
     optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.01)
     l2 = model.optimize_simple(train_loader, optimiser, num_epochs=10, log_each=1)

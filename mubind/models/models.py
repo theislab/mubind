@@ -914,7 +914,7 @@ class Mubind(tnn.Module):
 
                 # block kernels that we do not require to optimize
                 unfreeze_kernel_ids = set(range(i, i + n_unfreeze_kernels))
-                print('next kernels', unfreeze_kernel_ids)
+                vprint('next kernels', unfreeze_kernel_ids)
                 for ki in range(self.n_kernels):
                     mask_mono = (ki in unfreeze_kernel_ids) and (feat_i == 'mono')
                     mask_dinuc = (ki == unfreeze_kernel_ids) and (feat_i == 'dinuc')
@@ -1137,7 +1137,7 @@ class Mubind(tnn.Module):
                 if log_next_r2:
                     next_r2 = mb.tl.scores(self, train)['r2_counts']
                     self.best_r2_by_new_filter.append(next_r2)
-                    print('last five r2 values, by sequential filter optimization:',
+                    vprint('last five r2 values, by sequential filter optimization:',
                           ['%.3f' % v for v in self.best_r2_by_new_filter[-5:]])
                 
                 vprint(self.corr_etas_libsizes(train))
@@ -1231,7 +1231,7 @@ class Mubind(tnn.Module):
                     options = [[0, 0, -shift_center], [0, 0, shift_center]] + options
                     # assert False
 
-                print('options to try', options)
+                vprint('options to try', options)
 
                 for expand_left, expand_right, shift in options:
 
