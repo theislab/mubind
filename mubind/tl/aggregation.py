@@ -239,7 +239,7 @@ def reduce_filters(binding_modes, plot=False, thr_group=0.01, max_w=25):
     best = None
     iteration_i = 0
 
-    if isinstance(binding_modes, mb.models.BindingModesSimple):
+    if isinstance(binding_modes, mb.models.BindingLayer):
         monos = [b.weight for b in binding_modes.conv_mono]
         monos = [m.cpu().detach().numpy().squeeze() for m in monos]
     else:
