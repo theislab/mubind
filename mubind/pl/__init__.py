@@ -13,3 +13,5 @@ from .plotting import (
     R2_calculation,
     set_rcParams,
 )
+
+from .graph import filter_contrib_heatmap, filter_contrib_simple, contrib_heatmaps
