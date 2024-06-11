@@ -38,13 +38,14 @@ def filter_contrib_simple(filter_contrib_normed, A):
 
 # all filters that have scores within 75% of the maximum score are visualized as gray, when using vmin and center
 # Plot the first heatmap on the first axis
-def contrib_heatmaps(contributions_normalized, sum_A_norm, contrib_times_activities, vmins=None, centers=None):
+def contrib_heatmaps(contributions_normalized, sum_A_norm, contrib_times_activities, vmins=None, centers=None,
+                     cmap='RdBu_r'):
     filter_contrib_normed = contributions_normalized
     contrib_arr = filter_contrib_normed.unsqueeze(dim=0).detach().numpy()
     fig, axs = plt.subplots(3, 1, figsize=(15, 4.5))  # Create a figure with 3 subplots vertically
     # Plot the first heatmap on the first axis
     sns.heatmap(contrib_arr,
-                cmap='RdBu_r',
+                cmap=cmap,
                 vmin=vmins[0] if vmins else None,
                 center=centers[0] if centers else None,
                 cbar_kws={"label": "contribution score"},
@@ -55,7 +56,7 @@ def contrib_heatmaps(contributions_normalized, sum_A_norm, contrib_times_activit
 
     # Plot the second heatmap on the second axis
     sns.heatmap(sum_A_norm,
-                cmap='RdBu_r',
+                cmap=cmap,
                 vmin=vmins[1] if vmins else None,
                 center=centers[1] if centers else None,
                 cbar_kws={"label": "sum of activities"},
@@ -66,7 +67,7 @@ def contrib_heatmaps(contributions_normalized, sum_A_norm, contrib_times_activit
 
     # Plot the third heatmap on the third axis
     sns.heatmap(contrib_times_activities,
-                cmap='RdBu_r',
+                cmap=cmap,
                 vmin=vmins[2] if vmins else None,
                 center=centers[2] if centers else None,
                 cbar_kws={"label": "contribution score * sum of activities"},
