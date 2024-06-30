@@ -137,8 +137,13 @@ def optimize_simple(
 
     # the total number of trials
     n_trials = sum([d.dataset.rounds.shape[0] for d in (dataloader if isinstance(dataloader, list) else [dataloader])])
-
+    
     for epoch in range(num_epochs):
+
+        # declare train statement
+        # model.train()
+        # assert False
+
         running_loss = 0
         running_crit = 0
         running_rec = 0

@@ -568,6 +568,8 @@ class Mubind(tnn.Module):
         # print('use_tqdm', use_tqdm)
 
         for epoch in tqdm(range(num_epochs)) if use_tqdm else range(num_epochs):
+            # print('train')
+            self.train()
             # for epoch in range(num_epochs):
             running_loss = 0
             running_loss_sym_weights = 0
@@ -1316,7 +1318,7 @@ class Mubind(tnn.Module):
                     key=lambda x: x[-1],
                 )
                 if verbose != 0:
-                    print("sorted")
+                    print("filter rearrangments (sorted by observed r2)")
                 best_df = pd.DataFrame(best, columns=["expand.left", "expand.right", "shift", "model",
                                                       'pos_w_sum', 'width', "loss_diff_pct", "loss", 'r2'],
                                        )
