@@ -248,13 +248,17 @@ class Mubind(tnn.Module):
         binding_per_mode = self.binding_modes(mono=mono, mono_rev=mono_rev, **kwargs) # sequences x filters (Se, F)
         binding_scores = self.activities(binding_per_mode, **kwargs) # sequences x samples (Se, F) * (F, Sa) = (Se, Sa)
         # print('mode')
-        # print(binding_per_mode)
+        # print(binding_per_mode.shape)
         # print('scores')
         # print(binding_scores)
         return_binding_scores = kwargs.get('return_binding_scores', False)
+        return_binding_per_mode = kwargs.get('return_binding_per_mode', False)
+        # print('here...', return_binding_scores) #kwargs.get('return_binding_modes', False))
         if self.datatype == "pbm" or return_binding_scores:
             return binding_scores
-        elif self.datatype == "selex" and not return_binding_scores:
+        elif return_binding_per_mode:
+            return binding_per_mode
+        elif self.datatype == "selex":
             return self.graph_module(binding_scores, **kwargs)
         else:
             return None  # this line should never be called
@@ -917,7 +921,7 @@ class Mubind(tnn.Module):
 
                 # block kernels that we do not require to optimize
                 unfreeze_kernel_ids = set(range(i, i + n_unfreeze_kernels))
-                vprint('next kernels', unfreeze_kernel_ids)
+                vprint('next kernels %i-%i, n=%i' % (min(unfreeze_kernel_ids), max(unfreeze_kernel_ids), len(unfreeze_kernel_ids)))
                 for ki in range(self.n_kernels):
                     mask_mono = (ki in unfreeze_kernel_ids) and (feat_i == 'mono')
                     mask_dinuc = (ki == unfreeze_kernel_ids) and (feat_i == 'dinuc')
@@ -1913,7 +1917,8 @@ class GraphLayer(tnn.Module):
             print('setting up log dynamic')
             # self.log_dynamic = tnn.Parameter(torch.rand(self.conn_sparse.indices().shape[1])).requires_grad_(True) # .cuda()
 
-    import torch.nn as tnn
+        self.use_hadamard = False
+
     def prepare_knn(self,
                     **kwargs):
         '''
@@ -2005,30 +2010,33 @@ class GraphLayer(tnn.Module):
             b_T = torch.transpose(b, 0, 1)
 
             # connectivities (kNN or velocity-inferred graph)
-            C = self.conn_sparse
-            a_ind = C.indices()
+            G = self.conn_sparse
+            a_ind = G.indices()
             # conn_spa_T = torch.transpose(C, 0, 1)
 
             # log dynamic weights
             D = self.log_dynamic
-            D_tril = tspa(a_ind, D, C.shape)  # .requires_grad_(True).cuda()
+            D_tril = tspa(a_ind, D, G.shape)  # .requires_grad_(True).cuda()
 
             # scaling of weights yes/no
             if self.knn_free_weights:
-                D_triu = tspa(a_ind, -D * torch.exp(self.log_dynamic_scaling), C.shape)
+                D_triu = tspa(a_ind, -D * torch.exp(self.log_dynamic_scaling), G.shape)
                 # print('here...')
             else:
-                D_triu = tspa(a_ind, -D, C.shape)
+                D_triu = tspa(a_ind, -D, G.shape)
                             
             D_all = D_tril + t(D_triu, 0, 1)
-            tmp = tsmm(C, b_T).T
+            tmp = tsmm(G, b_T).T
             tmp_T = t(tmp, 0, 1)
 
-            # scores explained by neighboring-based weights
-            dynamic_out1 = tsmm(texp(t(D_all, 0, 1).to_dense()), tmp_T).T
-            static_out1 = tsmm(texp(D_all.to_dense()), b_T).T
-            
-            out = static_out1 + dynamic_out1
+            if self.use_hadamard:
+                # scores explained by neighboring-based weights
+                # b -> (p, c), G -> (c, c), D_all -> (c, c)
+                out = (b @ (texp(D_all.to_dense())))
+            else:
+                dynamic_out1 = tsmm(texp(t(D_all, 0, 1).to_dense()), tmp_T).T
+                static_out1 = tsmm(texp(D_all.to_dense()), b_T).T                
+                out = static_out1 + dynamic_out1
         else:
             out = binding_scores
 
