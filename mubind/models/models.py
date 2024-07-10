@@ -235,14 +235,21 @@ class Mubind(tnn.Module):
                 di = mb.tl.mono2dinuc(mono)
             if di_rev is None:
                 di_rev = mb.tl.mono2dinuc(mono_rev)
-            di = torch.unsqueeze(di, 1)
-            di_rev = torch.unsqueeze(di_rev, 1)
+
+            if self.binding_modes.use_conv1d:
+                di = torch.unsqueeze(di, 1)
+                di_rev = torch.unsqueeze(di_rev, 1)
             kwargs["di"] = di
             kwargs["di_rev"] = di_rev
 
         # unsqueeze mono after preparing di and unsqueezing mono
-        mono_rev = torch.unsqueeze(mono_rev, 1)
-        mono = torch.unsqueeze(mono, 1)
+        # print(mono.shape)
+        if not self.binding_modes.use_conv1d:
+            mono = torch.unsqueeze(mono, 1)
+            mono_rev = torch.unsqueeze(mono_rev, 1)
+
+        # print(mono.shape)
+        # assert False
 
         # binding_per_mode: matrix of size [batchsize, number of binding modes]
         binding_per_mode = self.binding_modes(mono=mono, mono_rev=mono_rev, **kwargs) # sequences x filters (Se, F)
@@ -616,6 +623,8 @@ class Mubind(tnn.Module):
                     inputs['scale_countsum'] = self.datatype == 'selex'
                     
                     loss = None
+                    loss_sym_weights = None
+                    loss_log_dynamic = None
                     if is_lbfgs:
                         def closure():
                             optimiser.zero_grad()
@@ -635,9 +644,29 @@ class Mubind(tnn.Module):
                             # if exp_max >= 0:
                             #     loss += self.exp_barrier(exp_max)
                             loss.backward()  # retain_graph=True)
+
+                            loss_kernel_rel = self.loss_kernel_rel()
+                            loss_neg_weights = self.loss_exp_barrier(exp_max=exp_max)
+                            loss_sym_weights = self.loss_kernel_symmetrical_weights()
+                            loss_log_dynamic = self.loss_log_dynamic()
+
+                            if self.optimize_kernel_rel:
+                                loss += loss_kernel_rel
+
+                            if self.optimize_exp_barrier:
+                                loss += loss_neg_weights
+                            if self.optimize_sym_weight:
+                                loss += loss_sym_weights
+                            if self.optimize_log_dynamic:
+                                loss += loss_log_dynamic
+                            if self.optimize_prob_act:
+                                loss_prob_act = self.loss_prob_act()
+                                loss += loss_prob_act
+                            
                             return loss
 
                         loss = optimiser.step(closure)  # Step to minimise the loss according to the gradient.
+
                     else:
                         # PyTorch calculates gradients by accumulating contributions to them (useful for
                         # RNNs).  Hence we must manully set them to zero before calculating them.
@@ -668,35 +697,13 @@ class Mubind(tnn.Module):
                                 loss = self.criterion(outputs[mask], rounds[mask])
                             else:
                                 loss = self.criterion(outputs, rounds)
-
-                        # print('pred/obs')
-                        # print(outputs, outputs.shape)
-                        # print(rounds, rounds.shape)
-                        # print((rounds.sum(axis=1) == 0).any())
-                        # assert False
-                        # restart loss
-                        # loss = 0.0
-
                         # skip loss
                         loss += dir_weight
-
-
-                        # loss = criterion(outputs, rounds) + .01*reconstruct_crit(reconstruction, residues) + dir_w
-                        # if exp_max >= 0:
-                        #     loss += self.exp_barrier(exp_max)
 
                         loss_kernel_rel = self.loss_kernel_rel()
                         loss_neg_weights = self.loss_exp_barrier(exp_max=exp_max)
                         loss_sym_weights = self.loss_kernel_symmetrical_weights()
                         loss_log_dynamic = self.loss_log_dynamic()
-
-                        # print(loss_log_dynamic)
-
-
-                        # regularization of binding modes
-
-                        # print(loss, loss_kernel_rel, loss_neg_weights, loss_sym_weights)
-                        # assert False
 
                         if self.optimize_kernel_rel:
                             loss += loss_kernel_rel
@@ -714,28 +721,12 @@ class Mubind(tnn.Module):
                             loss_prob_act = self.loss_prob_act()
                             loss += loss_prob_act
 
-                        # print(loss_kernel_rel)
-                        # print(loss_neg_weights)
-                        # print(loss_sym_weights)
-                        # print('dynamic loss', loss_log_dynamic)
-                        # print('sum activities', sum(p.sum() for p in self.activities.log_activities))
-                        # print('# LOSS', loss)
-
-                        # if kwargs.get('i', -1) == 1:
-                        #     print('before backward 1')
-                        #     assert False
-
                         loss.backward()  # Calculate gradients.
-
-                        # if kwargs.get('i', -1) == 1:
-                        #     print('after backward 1')
-                        #     assert False
-
                         optimiser.step()
                     
                     running_loss += loss.item()
-                    running_loss_sym_weights += loss_sym_weights
-                    running_loss_log_dynamic += loss_log_dynamic
+                    running_loss_sym_weights += loss_sym_weights if loss_sym_weights is not None else 0
+                    running_loss_log_dynamic += loss_log_dynamic if loss_log_dynamic is not None else 0
 
                     # running_rec += reconstruction_crit(reconstruction, residues).item()
 
@@ -776,10 +767,19 @@ class Mubind(tnn.Module):
             loss_history_sym_weights.append(float(loss_final_sym_weights))
             loss_history_log_dynamic.append(float(loss_final_log_dynamic))
 
+            # change versus last loss
+            rel_chg_early_stop= kwargs.get('rel_chg_early_stop', 1e-5)
+            early_stop_rel_chg = False
+            if len(loss_history) >= 2 and loss_history[-1] < loss_history[-2]:
+                rel_chg = (loss_history[-2] - loss_history[-1]) / loss_history[-1] * 100
+                # print(rel_chg, rel_chg_early_stop)
+                if rel_chg < rel_chg_early_stop:
+                    early_stop_rel_chg = True
+
             # model.crit_history.append(crit_final)
             # model.rec_history.append(rec_final)
 
-            if early_stopping > 0 and epoch >= best_epoch + early_stopping:
+            if early_stopping > 0 and (epoch >= best_epoch + early_stopping or early_stop_rel_chg):
                 if verbose != 0:
                     r2_epoch = None
                     if r2_per_epoch:
@@ -1164,7 +1164,7 @@ class Mubind(tnn.Module):
     def optimize_width_and_length(self, train, expand_length_max, expand_length_step, shift_max, shift_step, i,
                                   colors=None, verbose=False, lr=0.01, weight_decay=0.001, optimiser=None, log_each=10,
                                   exp_max=40,
-                                  num_epochs_shift_factor=3,
+                                  num_epochs_shift_factor=1,
                                   dirichlet_regularization=0, early_stopping=15, criterion=None, show_logo=False,
                                   feat_i=None,
                                   n_kernels=4, w=15, max_w=20, num_epochs=100, loss_thr_pct=0.005, **kwargs, ):
@@ -1421,6 +1421,7 @@ class BindingLayer(tnn.Module):
 
     def __init__(self, **kwargs):
         super().__init__()
+        self.use_conv1d = kwargs.get("use_conv1d", True)
         self.kernels = kwargs.get("kernels", [0, 15])
         self.init_random = kwargs.get("init_random", True)
         self.use_dinuc = kwargs.get("use_dinuc", True)
@@ -1434,7 +1435,11 @@ class BindingLayer(tnn.Module):
                 self.conv_mono.append(None)
                 self.conv_di.append(None)
             else:
-                next_mono = tnn.Conv2d(1, 1, kernel_size=(4, k), padding=(0, 0), bias=False)
+                if self.use_conv1d:
+                    next_mono = tnn.Conv1d(in_channels=4, out_channels=1, kernel_size=k, bias=False)
+                else: # conv2d
+                    next_mono = tnn.Conv2d(1, 1, kernel_size=(4, k), padding=(0, 0), bias=False)
+
                 if not self.init_random:
                     next_mono.weight.data.uniform_(0, 0)
                 else:
@@ -1445,7 +1450,10 @@ class BindingLayer(tnn.Module):
                 # create the conv_di layers. These are skipped during forward unless use_dinuc is True
                 if self.dinuc_mode == 'local':
                     # the number of contiguous dinucleotides for k positions is k - 1
-                    next_di = tnn.Conv2d(1, 1, kernel_size=(16, k - 1), padding=(0, 0), bias=False)
+                    if self.use_conv1d:
+                        next_di = tnn.Conv1d(in_channels=16, out_channels=1, kernel_size=k, bias=False)
+                    else:
+                        next_di = tnn.Conv2d(1, 1, kernel_size=(16, k - 1), padding=(0, 0), bias=False)
                     if not self.init_random:
                         next_di.weight.data.uniform_(-.01, .01)  # problem with fitting  dinucleotides if (0, 0)
                     self.conv_di.append(next_di)
@@ -1468,6 +1476,16 @@ class BindingLayer(tnn.Module):
     def forward(self, mono, mono_rev, di=None, di_rev=None, **kwargs):
         bm_pred = []
 
+        # if self.use_conv1d:
+        #     # print(mono.shape, mono_rev.shape, di.shape, di_rev.shape)
+        #     mono = mono.squeeze(1)
+        #     mono_rev = mono_rev.squeeze(1)
+        #     di = di.squeeze(1) if di is not None else None
+        #     di_rev = di_rev.squeeze(1) if di_rev is not None else None
+            # print(mono.shape, mono_rev.shape, di.shape, di_rev.shape)
+
+            # print(mono.shape)
+            # assert False
         for i in range(len(self.kernels)):
             # print(i)
             if self.kernels[i] == 0:
@@ -1480,7 +1498,7 @@ class BindingLayer(tnn.Module):
 
                 # print(mono.device)
                 # print(self.ones)
-                temp = self.ones[:mono.shape[0]].to(mono.device)  # subsetting of ones to fit batch
+                temp = self.ones[:mono.shape[0]].to(mono.device) if self.ones.shape[0] != mono.shape[0] else self.ones  # subsetting of ones to fit batch
                 # print(temp)
                 # print(temp.device)
                 # assert False
@@ -1494,7 +1512,8 @@ class BindingLayer(tnn.Module):
 
                 # print('here...')
                 # print(self.conv_di[i])
-
+                # print(type(self.use_dinuc), self.use_dinuc, self.dinuc_mode)
+                # assert False
                 if self.use_dinuc and self.dinuc_mode == 'local':
                     temp = torch.cat(
                         (
@@ -1503,7 +1522,7 @@ class BindingLayer(tnn.Module):
                             self.conv_di[i](di),
                             self.conv_di[i](di_rev),
                         ),
-                        dim=3,
+                        dim=2 if self.use_conv1d else 3,
                     )
                 elif self.use_dinuc and self.dinuc_mode == 'full':
                     next_conv_di = self.conv_di[i]
@@ -1517,8 +1536,14 @@ class BindingLayer(tnn.Module):
                     #     print(pi)
                     for ki in range(0, k):  # ki indicates the delta between positions i.e. the diagonal index
                         # print('\nI = %i' % ki)
-                        p = mono[:, :, :, :mono.shape[-1] - ki]
-                        q = mono[:, :, :, ki:]
+
+                        if not self.use_conv1d:
+                            p = mono[:, :, :, :mono.shape[-1] - ki]
+                            q = mono[:, :, :, ki:]
+                        else:
+                            p = mono[:, :, :mono.shape[-1] - ki]
+                            q = mono[:, :, ki:]
+
                         assert p.shape[-1] == q.shape[-1]
                         p_max = torch.argmax(p, axis=2)
                         p_max = torch.mul(p_max, 4)
@@ -1542,7 +1567,7 @@ class BindingLayer(tnn.Module):
                             self.conv_mono[i](mono),
                             self.conv_mono[i](mono_rev),
                         ),
-                        dim=3,
+                        dim=2 if self.use_conv1d else 3,
                     )
                     temp_di = torch.cat(out_di, dim=3)
 
@@ -1553,15 +1578,15 @@ class BindingLayer(tnn.Module):
                 else:
                     out_mono = self.conv_mono[i](mono)
                     out_mono_rev = self.conv_mono[i](mono_rev)
-                    temp = torch.cat((out_mono, out_mono_rev), dim=3)
+                    temp = torch.cat((out_mono, out_mono_rev), dim=2 if self.use_conv1d else 3)
 
                 # this particular step can generate out of bounds due to the exponential cost
                 # print(temp_mono.type())
                 # print(temp.shape, temp.type())
                 # assert False
 
+                temp = temp.view(temp.shape[0], -1) # view before exp
                 temp = torch.exp(temp)
-                temp = temp.view(temp.shape[0], -1)
                 temp = torch.sum(temp, dim=1)
                 bm_pred.append(temp)
 
@@ -1650,29 +1675,55 @@ class BindingLayer(tnn.Module):
 
             # update the weight
             if shift >= 1:
-                self.conv_mono[i].weight = torch.nn.Parameter(
-                    torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 4, shift, device=device)], dim=3)
-                )
-            elif shift <= -1:
-                self.conv_mono[i].weight = torch.nn.Parameter(
-                    torch.cat(
-                        [
-                            torch.zeros(1, 1, 4, -shift, device=device),
-                            m.weight[:, :, :, :shift],
-                        ],
-                        dim=3,
+                if not self.use_conv1d:
+                    self.conv_mono[i].weight = torch.nn.Parameter(
+                        torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 4, shift, device=device)], dim=3)
                     )
-                )
+                else:
+                    self.conv_mono[i].weight = torch.nn.Parameter(
+                        torch.cat([m.weight[:, :, shift:], torch.zeros(1, 4, shift, device=device)], dim=2)
+                    )
+            elif shift <= -1:
+                if not self.use_conv1d:
+                    self.conv_mono[i].weight = torch.nn.Parameter(
+                        torch.cat(
+                            [
+                                torch.zeros(1, 1, 4, -shift, device=device),
+                                m.weight[:, :, :, :shift],
+                            ],
+                            dim=3,
+                        )
+                    )
+                else:
+                    self.conv_mono[i].weight = torch.nn.Parameter(
+                        torch.cat(
+                            [
+                                torch.zeros(1, 4, -shift, device=device),
+                                m.weight[:, :, :shift],
+                            ],
+                            dim=2,
+                        )
+                    )
 
             # adding more positions left and right
             if expand_left > 0:
-                self.conv_mono[i].weight = torch.nn.Parameter(
-                    torch.cat([torch.zeros(1, 1, 4, expand_left, device=device), m.weight[:, :, :, :]], dim=3)
-                )
+                if not self.use_conv1d:
+                    self.conv_mono[i].weight = torch.nn.Parameter(
+                        torch.cat([torch.zeros(1, 1, 4, expand_left, device=device), m.weight[:, :, :, :]], dim=3)
+                    )
+                else:
+                    self.conv_mono[i].weight = torch.nn.Parameter(
+                        torch.cat([torch.zeros(1, 4, expand_left, device=device), m.weight[:, :, :]], dim=2)
+                    )
             if expand_right > 0:
-                self.conv_mono[i].weight = torch.nn.Parameter(
-                    torch.cat([m.weight[:, :, :, :], torch.zeros(1, 1, 4, expand_right, device=device)], dim=3)
-                )
+                if not self.use_conv1d:
+                    self.conv_mono[i].weight = torch.nn.Parameter(
+                        torch.cat([m.weight[:, :, :, :], torch.zeros(1, 1, 4, expand_right, device=device)], dim=3)
+                    )
+                else:
+                    self.conv_mono[i].weight = torch.nn.Parameter(
+                        torch.cat([m.weight[:, :, :], torch.zeros(1, 4, expand_right, device=device)], dim=2)
+                    )
             after_w = m.weight.shape[-1]
             if after_w != (before_w + expand_left + expand_right):
                 assert after_w != (before_w + expand_left + expand_right)
@@ -1687,13 +1738,23 @@ class BindingLayer(tnn.Module):
             if self.dinuc_mode == 'local':
                 shape_di_before = m.weight.shape
                 if shift >= 1:
-                    m.weight = torch.nn.Parameter(
-                        torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 16, shift, device=device)], dim=3)
-                    )
+                    if not self.use_conv1d:
+                        m.weight = torch.nn.Parameter(
+                            torch.cat([m.weight[:, :, :, shift:], torch.zeros(1, 1, 16, shift, device=device)], dim=3)
+                        )
+                    else:
+                        m.weight = torch.nn.Parameter(
+                            torch.cat([m.weight[:, :, shift:], torch.zeros(1, 16, shift, device=device)], dim=2)
+                        )
                 elif shift <= -1:
-                    m.weight = torch.nn.Parameter(
-                        torch.cat([torch.zeros(1, 1, 16, -shift, device=device), m.weight[:, :, :, :shift]], dim=3)
-                    )
+                    if not self.use_conv1d:
+                        m.weight = torch.nn.Parameter(
+                            torch.cat([torch.zeros(1, 1, 16, -shift, device=device), m.weight[:, :, :, :shift]], dim=3)
+                        )
+                    else:
+                        m.weight = torch.nn.Parameter(
+                            torch.cat([torch.zeros(1, 16, -shift, device=device), m.weight[:, :, :shift]], dim=2)
+                        )
 
                 # adding more positions left and right
                 if expand_left > 0:
@@ -1829,11 +1890,15 @@ class ActivitiesLayer(tnn.Module):
         self.target_dim = max(target_dim) if not isinstance(target_dim, int) else target_dim
         self.n_batches = kwargs.get("n_batches", 1) if "n_batches" in kwargs else kwargs.get("n_proteins", 1)
         self.ignore_kernel = kwargs.get("ignore_kernel", None)
-        self.log_activities = tnn.ParameterList()
-        for i in range(n_kernels):
-            self.log_activities.append(
-                tnn.Parameter(torch.zeros([self.n_batches, self.target_dim], dtype=torch.float32))
-            )
+
+        if self.n_batches != 1:
+            self.log_activities = tnn.ParameterList()
+            for i in range(n_kernels):
+                self.log_activities.append(
+                    tnn.Parameter(torch.zeros([self.n_batches, self.target_dim], dtype=torch.float32))
+                )
+        else: # one batch - simple case and faster
+            self.log_activities = tnn.Parameter(torch.zeros([n_kernels, self.target_dim], dtype=torch.float32))
 
     def forward(self, binding_per_mode, **kwargs):
         batch = kwargs.get("batch", None)
@@ -1849,17 +1914,26 @@ class ActivitiesLayer(tnn.Module):
         scores = None
         option = 1
         if option == 1:
-            b = binding_per_mode.unsqueeze(1)
-            a = torch.exp(torch.stack(list(self.log_activities), dim=1))
-            # print(b.shape, a.shape, batch.shape)
-            # print(b.type(), a.type(), batch.type())
-            result = torch.matmul(b, a[batch, :, :])
+
+            if self.n_batches != 1:
+                a = torch.exp(torch.stack(list(self.log_activities), dim=1))
+                # print(b.shape, a.shape, batch.shape)
+                # print(b.type(), a.type(), batch.type())
+                result = torch.matmul(b, a[batch, :, :])
+                scores = result.squeeze(1)
+            else:
+                b = binding_per_mode
+                a = torch.exp(self.log_activities)
+                # print(b.shape, a.shape, batch.shape)
+                # print(b.type(), a.type(), batch.type())
+                result = torch.matmul(b, a)
+                return result
+
 
             # print(a)
             # print('b')
             # print(b)
 
-            scores = result.squeeze(1)
         else:
             scores = torch.zeros([binding_per_mode.shape[0], self.target_dim], device=binding_per_mode.device)
             for i in range(self.n_batches):
@@ -1876,9 +1950,15 @@ class ActivitiesLayer(tnn.Module):
         return scores
 
     def update_grad(self, index, value):
-        self.log_activities[index].requires_grad = value
-        if not value:
-            self.log_activities[index].grad = None
+        if self.n_batches != 1:
+            self.log_activities[index].requires_grad = value
+            if not value:
+                self.log_activities[index].grad = None
+        else:
+            self.log_activities.requires_grad = value
+            if not value:
+                self.log_activities.grad = None
+
 
     def set_ignore_kernel(self, ignore_kernel):
         self.ignore_kernel = ignore_kernel
@@ -1887,7 +1967,7 @@ class ActivitiesLayer(tnn.Module):
         return self.ignore_kernel
 
     def get_log_activities(self):
-        return torch.stack(list(self.log_activities), dim=1)
+        return torch.stack(list(self.log_activities), dim=1) if self.n_batches != 1 else self.log_activities
 
 
 class GraphLayer(tnn.Module):
@@ -1988,9 +2068,10 @@ class GraphLayer(tnn.Module):
 
     def forward(self, binding_scores, countsum, **kwargs):
         batch = kwargs.get("batch", None)
-        if batch is None:
+        one_batch = self.n_batches == 1
+        if batch is None and self.n_batches != 1:
             batch = torch.zeros([binding_scores.shape[0]], device=binding_scores.device)
-
+        
         # assert hasattr(self, 'conn_sparse')
 
         out = None
@@ -2055,9 +2136,12 @@ class GraphLayer(tnn.Module):
         #
         # print('etas exp')
         # print(etas)
-
-        out = out * etas[batch, :]
-
+        if not one_batch: # several batches
+            etas = etas[batch, :]
+            out = out * etas
+        else: # only one batch
+            # etas = etas[batch, :]
+            out = torch.mul(out, etas)
         # print('out after eta scaling')
         # print(out[:5])
 
@@ -2065,7 +2149,8 @@ class GraphLayer(tnn.Module):
         if not kwargs.get('scale_countsum', True):
             return out
 
-        results = out.T / torch.sum(out, dim=1)
+        # results = out.T / torch.sum(out, dim=1)
+        results = out / out.sum(dim=-1).unsqueeze(-1)
 
         # print('sums', torch.sum(out, dim=1))
         # print('results')
@@ -2076,7 +2161,7 @@ class GraphLayer(tnn.Module):
         # print('mat sum')
         # print(countsum.sum())
 
-        return (results * countsum).T
+        return (results * countsum.unsqueeze(1))
 
     def get_log_etas(self):
         return self.log_etas

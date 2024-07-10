@@ -65,7 +65,7 @@ def logo_mono(model=None, weights_list=None, n_cols=None, n_rows=None, xticks=Tr
         # print(weights)
         if model is not None:
             weights = model.get_kernel_weights(mi)
-            print(weights)
+            # print(weights)
             if weights is None:
                 fig.delaxes(ax)
                 continue
@@ -198,7 +198,7 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
     else: 
         binding_modes = model.binding_modes if is_multibind else model # model can be a list of binding modes
 
-    print(is_multibind)
+    # print(is_multibind)
 
     n_cols = kwargs.get('n_cols', None)
     if n_cols is None:
@@ -206,7 +206,7 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
     if figsize is not None:
         plt.figure(figsize=figsize)
 
-    print(n_cols)
+    # print(n_cols)
     # mono
     ci = 0
 
@@ -254,6 +254,7 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
         ci = ci % n_cols
 
         weights = m.weight
+        # print(weights.shape)
         # print(weights.T)
 
         if weights is None:
@@ -266,15 +267,20 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
             weights.columns = range(weights.shape[1])
             weights.index = "A", "C", "G", "T"
 
-        # print(weights.shape)
         # print(weights)
-        if kwargs.get('zero_norm'):
-            for c in weights:
-                weights[c] = np.where(weights[c] < 0, 0, weights[c])
-                weights[c] = np.log2(weights[c] / .25)
-                weights[c] = np.where(weights[c] < 0, 0, weights[c])
+        if kwargs.get('log_odds'):
+            for wi in weights:
+                weights[wi] = np.where(weights[wi] < 0, 0, weights[wi])
+                weights[wi] = np.log2((weights[wi] / .25) + 1e-8)
 
-        # print(weights.T)
+                # print(weights)
+                if max(weights[wi]) < 0:
+                    weights[wi] += abs(weights[wi].min())
+                if min(weights[wi]) < 0:
+                    weights[wi] = np.where(weights[wi] < 0, 0, weights[wi])
+                    # weights[wi] += abs(weights[wi].min()) #  np.where(weights[c] < 0, 0, weights[c])
+
+        # print(weights)
         crp_logo = logomaker.Logo(weights.T, shade_below=0.5, fade_below=0.5, ax=ax)
 
 
@@ -335,6 +341,7 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
 
             m = pd.concat(df, axis=1)
 
+
             sns.heatmap(m, xticklabels=True, cmap="coolwarm", center=0)
             plt.yticks(rotation=0, fontsize=5);
             plt.xticks(rotation=45, ha='center', fontsize=5);
@@ -343,7 +350,7 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
             df_final = []
             next = binding_modes.conv_di[i]
             rescale_y = False
-            if isinstance(next, torch.nn.modules.conv.Conv2d):
+            if isinstance(next, torch.nn.modules.conv.Conv2d) or isinstance(next, torch.nn.modules.conv.Conv1d):
                 next = [next]
                 rescale_y = True
                 # print('this is a single array')
