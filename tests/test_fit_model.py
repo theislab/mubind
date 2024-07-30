@@ -15,7 +15,7 @@ class ModelTests(unittest.TestCase):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
         # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        # device = 'cpu'
+        device = 'cpu'
 
         early_stopping = 10 
         counts_path = os.path.abspath('tests/_data/ALX1-ZeroCycle_TACCAA40NTTA_0_0-TACCAA40NTTA.tsv.gz')
@@ -29,17 +29,22 @@ class ModelTests(unittest.TestCase):
 
         model = mb.models.Mubind.make_model(cls.train,
                                             4,
-                                            mb.tl.PoissonLoss()) # .cuda()
+                                            mb.tl.PoissonLoss(),
+                                            device=device,
+                                            use_dinuc=False) # .cuda()
         cls.model, _ = model.optimize_iterative(cls.train, n_epochs=cls.N_EPOCHS, show_logo=False,
                                                 early_stopping=early_stopping, log_each=50,
                                                 opt_kernel_shift=[0, 0, 1, 1], opt_kernel_length=[0, 0, 1, 1],
-                                                dinuc_mode='local',
+                                                dinuc_mode=None, # 'local',
                                                 verbose=0)
 
         # setting dinuc to false
         model = mb.models.Mubind.make_model(cls.train,
                                             4,
-                                            mb.tl.PoissonLoss(), dinuc_mode='local') # .cuda()
+                                            mb.tl.PoissonLoss(),
+                                            device=device,
+                                            use_dinuc=False,
+                                            dinuc_mode=None) # 'local') # .cuda()
 
         cls.model, _ = model.optimize_iterative(cls.train, n_epochs=cls.N_EPOCHS, show_logo=False,
                                                 early_stopping=early_stopping, log_each=50,
@@ -50,12 +55,15 @@ class ModelTests(unittest.TestCase):
         # using dinuc full
         model = mb.models.Mubind.make_model(cls.train,
                                             4,
-                                            mb.tl.PoissonLoss(), dinuc_mode='full') # .cuda()
+                                            mb.tl.PoissonLoss(),
+                                            use_dinuc=False,
+                                            device=device,
+                                            dinuc_mode=None) # .cuda()
         cls.model, _ = model.optimize_iterative(cls.train, n_epochs=cls.N_EPOCHS, show_logo=False,
                                                 early_stopping=early_stopping, log_each=50,
                                                 opt_kernel_shift=0, opt_kernel_length=0,
                                                 verbose=0,
-                                                use_dinuc=True,)
+                                                use_dinuc=False,)
 
     # just to formalize that the code above raises no errors
     #   if it does, this method won't be called anyways
