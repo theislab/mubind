@@ -16,7 +16,8 @@ class ModelTests(unittest.TestCase):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         import anndata
 
-        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        device = 'cpu'
 
         early_stopping = 10 
         ad_path = os.path.abspath('tests/_data/pancreas_multiome.h5ad')

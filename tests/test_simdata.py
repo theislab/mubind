@@ -12,7 +12,8 @@ def test_simdata_train():
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     # Use a GPU if available, as it should be faster.
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = 'cpu'
     print("Using device: " + str(device))
 
     motif = "AGGAACCTA"
@@ -38,7 +39,7 @@ def test_simdata_train():
     optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.01)
 
     criterion = mb.tl.PoissonLoss()
-    model = mb.models.Mubind.make_model(train_loader, 4, criterion) # .cuda()
+    model = mb.models.Mubind.make_model(train_loader, 4, criterion, device=device, use_dinuc=False) # .cuda()
 
     optimiser = topti.Adam(model.parameters(), lr=0.01, weight_decay=0.01)
     l2 = model.optimize_simple(train_loader, optimiser, num_epochs=10, log_each=1)

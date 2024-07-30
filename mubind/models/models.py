@@ -611,6 +611,7 @@ class Mubind(tnn.Module):
                     residues = batch["residues"].to(self.device) if "residues" in batch else None
                     protein_id = batch["protein_id"].to(self.device) if "protein_id" in batch else None
                     inputs = {"mono": mononuc, "batch": b, "countsum": countsum}
+
                     if store_rev:
                         mononuc_rev = batch["mononuc_rev"].to(self.device)
                         inputs["mono_rev"] = mononuc_rev
@@ -828,7 +829,10 @@ class Mubind(tnn.Module):
 
     def corr_etas_libsizes(self, train):
         etas = self.get_log_etas().detach().cpu().flatten() if self.device != 'cpu' else self.get_log_etas().flatten()
-        lib_sizes = train.dataset.rounds.sum(axis=0).flatten()
+        lib_sizes = train.dataset.rounds.sum(axis=0).detach().cpu().flatten() if self.device != 'cpu' else train.dataset.rounds.sum(axis=0).flatten()
+        # print('etas', etas, etas.shape, etas.device)
+        # print('libsizes', lib_sizes, lib_sizes.shape)
+        etas = etas.detach().numpy()
         return 'etas corr with lib_sizes (before refinement)', spearmanr(etas, lib_sizes)
 
     def optimize_iterative(self,
@@ -1576,6 +1580,7 @@ class BindingLayer(tnn.Module):
                     # print('here....')
                     # assert False
                 else:
+                    # print(i, self.conv_mono[i], mono.shape, mono_rev.shape
                     out_mono = self.conv_mono[i](mono)
                     out_mono_rev = self.conv_mono[i](mono_rev)
                     temp = torch.cat((out_mono, out_mono_rev), dim=2 if self.use_conv1d else 3)
