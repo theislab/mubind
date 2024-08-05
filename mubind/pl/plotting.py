@@ -216,7 +216,7 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
 
     order = kwargs.get('order')
     
-    print('order', order)
+    # print('order', order)
     n_skip = 0
     for i, m in enumerate(binding_modes.conv_mono) if order is None else enumerate(order):
         # print(i)
@@ -232,8 +232,8 @@ def logo(model, figsize=None, flip=False, log=False, mode='triangle',
             print('break')
             break
 
-        if i % 10 == 0:
-            print('%i out of %i...' % (i, len(binding_modes.conv_mono)))
+        # if i % 10 == 0:
+        #     print('%i out of %i...' % (i, len(binding_modes.conv_mono)))
         if kwargs.get('log'):
             print('mono', i, m)
         if m is None:
