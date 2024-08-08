@@ -58,13 +58,32 @@ def compute_contributions(A, G, D, use_hadamard=True):
     return indices, contributions, max_singular_value
 
 
-# comparing the metric scores of the original matrix with metric scores of scrambled matrices
 def metric_scramble_comparison(C,
                                D,
                                metric,
                                scramble_type,
                                n_scrambles=1000,
                                verbose=True):
+    """Comparing metric scores of the original matrix with metric scores of scrambled matrices
+
+    Arguments:
+    ---------
+    C: : `torch.Tensor`
+        Graph matrix.
+    D: `torch.Tensor`
+        Graph scaling matrix.
+    scramble_type: `str`
+        Type of scrambling: 'flat', 'row', or 'column'
+    n_scrambles: `int` (default: `1000`)
+        Number of scrambled matrices to compare
+    verbose: `bool` (default: `True`)
+        Print summary statistics of the scores of scrambled matrices and the score of the original matrix
+
+    Returns:
+    -------
+    scores_scrambled_df: `pandas.DataFrame`
+        Results of the metric scores of the scrambled matrices
+    """
     if C.is_sparse:
         C = C.to_dense()
     if D.is_sparse:
