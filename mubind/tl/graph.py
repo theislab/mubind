@@ -2,14 +2,30 @@ import torch
 import pandas as pd
 import numpy as np
 
-'''
-We want to understand, how each filter contributes to the overall result together with C @ D := H.
-
-Since the i-th row of (A @ H), now denoted as (A @ H)_{i,:}, is nothing but (H.T @ A.T_{:,i}).T, (X_{:,i} is the i-th column of X) we want to compute the matrix vector product between H.T and the i-th column of A.T and find out how much it scales.
-We'll later normalize this with the maximum singular value of H.
-'''
-
 def compute_contributions(A, G, D, use_hadamard=True):
+    """Computes contribution scores for activities linked to a filter.
+
+    Arguments:
+    ---------
+    A: : `torch.Tensor`
+        Activities matrix.
+    G: `torch.Tensor`
+        Graph matrix.
+    D: `torch.Tensor`
+        Graph scaling matrix.
+    use_hadamard: `bool` (default: `True`)
+        Use hadamard product instead of matrix multiplication.
+
+    Returns:
+    -------
+    indices: `torch.Tensor`
+        Indices of the contributions sorted by their absolute values descendingly
+    contributions: `torch.Tensor`
+        Contribution scores for each column of matrix A
+    max_singular_value: `float`
+        Maximum singular value of the matrix H.T with H = G * D or H = G @ D
+    """
+
     # check if input matrices are torch tensors
     if not isinstance(A, torch.Tensor) or not isinstance(G, torch.Tensor) or not isinstance(D, torch.Tensor):
         raise TypeError("A, G, and D must be torch tensors")
