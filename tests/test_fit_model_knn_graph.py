@@ -24,7 +24,7 @@ class ModelTests(unittest.TestCase):
         dataloader_path = os.path.abspath('tests/_data/pancreas_multiome.pth')
 
         ad = anndata.read_h5ad(ad_path)
-        cls.train = torch.load(dataloader_path)
+        cls.train = torch.load(dataloader_path, weights_only=False)
 
         print(ad)
         print(cls.train)
