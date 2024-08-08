@@ -580,11 +580,13 @@ def loss(model):
 
 # enr_round=-1 means that the last round is used
 def kmer_enrichment(model, train, k=None, base_round=0, enr_round=-1, show=True, hue='batch',
-                    log_scale=True, style='distplot', xlab='enr_pred', ylab='enr_obs', by=None):
+                    log_scale=True, style='distplot', xlab='enr_pred', ylab='enr_obs', by=None,
+                    return_plot=False):
     # getting the targets and predictions from the model
     counts = mb.tl.kmer_enrichment(model, train, k, base_round, enr_round)
     scores = mb.tl.scores(model, train, by=by)
 
+    print('plotting...')
     if by != 'batch':
         r2_counts = scores['r2_counts']
         r2_fc = scores['r2_fc']
@@ -606,6 +608,9 @@ def kmer_enrichment(model, train, k=None, base_round=0, enr_round=-1, show=True,
         # plt.plot([0.1, 10], [0.1, 10], linewidth=2)
         if show:
             plt.show()
+
+        if return_plot:
+            return p
         return scores
     else:
         scores_by_batch = mb.tl.scores(model, train, by='batch')
@@ -631,6 +636,9 @@ def kmer_enrichment(model, train, k=None, base_round=0, enr_round=-1, show=True,
             # plt.plot([0.1, 10], [0.1, 10], linewidth=2)
             if show:
                 plt.show()
+        if return_plot:
+            return p
+
         return scores_by_batch
 
 
