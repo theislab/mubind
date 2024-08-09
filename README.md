@@ -7,17 +7,17 @@
 </p>
 
 <p align="center">
-    <img src="https://github.com/theislab/mubind/blob/development/docs/_static/cartoon.png?raw=true"
+    <img src="https://github.com/theislab/mubind/blob/development/docs/_static/concept_figure_repo.png?raw=true"
     width="400px" alt="mubind logo">
     </a>
 </p>
 
 ## Model highlights
 
-- Mubind is a machine learning method for learning motif associations with single cell genomics data, using graph representations such as a k-nearest neighbors graph (kNN).
-- It uses sample-sample operation (graphs) to communicate filter activities (learned motifs) across cells.
-- The whole codebase is written in PyTorch.
-- This package works with single-cell genomics data, scATAC-seq, scChIP-seq, etc. We have also tested it on bulk in vitro samples (HT-SELEX, PBM). Please see the documentation for related examples.
+- MuBind is a deep learning model that can learn DNA-sequence features predictive of cell transitions in single-cell genomics data, using graph representations and sequence-activity across cells. The codebase is written in PyTorch.
+- This package works with single-cell genomics data, scATAC-seq, etc. We have also tested it on bulk in vitro samples (HT-SELEX). See documentation for examples.
+- Complemented with velocity-driven graph representations we learn sequence-to-activity transcriptional regulators linked with developmental processes. These predictions are biologically confirmed in several systems, and reinforced through chromatin accessibility and orthogonal gene expression data across pseudotemporal order. Refer to [bioRxiv](https://www.biorxiv.org/content/10.1101/2024.08.07.605876v1) for more details.
+
 
 ## Workflow
 
