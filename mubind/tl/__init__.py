@@ -38,4 +38,4 @@ from .aggregation import (
 )
 from .probound import load_probound
 
-from .graph import compute_contributions, metric_scramble_comparison, normalized_alignment_score
+from .graph import compute_contributions, metric_scramble_comparison
