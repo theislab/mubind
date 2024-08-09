@@ -829,8 +829,12 @@ class Mubind(tnn.Module):
 
     def corr_etas_libsizes(self, train):
         etas = self.get_log_etas().detach().cpu().flatten() if self.device != 'cpu' else self.get_log_etas().flatten()
+<<<<<<< HEAD
         # lib_sizes = train.dataset.rounds.sum(axis=0).detach().cpu().flatten() if self.device != 'cpu' else train.dataset.rounds.sum(axis=0).flatten()
         lib_sizes = train.dataset.rounds.sum(axis=0).flatten() if self.device != 'cpu' else train.dataset.rounds.sum(axis=0).flatten()
+=======
+        lib_sizes = train.dataset.rounds.sum(axis=0).detach().cpu().flatten() if self.device != 'cpu' else train.dataset.rounds.sum(axis=0).flatten()
+>>>>>>> a232a9ff3ea6072be9d095872c9d0cca88ccd1f3
         # print('etas', etas, etas.shape, etas.device)
         # print('libsizes', lib_sizes, lib_sizes.shape)
         etas = etas.detach().numpy()
