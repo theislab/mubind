@@ -19,8 +19,8 @@ Single-cell genomics analysis using :mod:`mubind`
 .. toctree::
     :maxdepth: 1
 
-    notebooks/scatac/01_2_scatac_pbmc_10x_priors
-    notebooks/scatac/02_2_scatac_multiome_pancreas_priors
+    notebooks/single_cell/02_2_1_scrna_dentategyrus_train
+    notebooks/single_cell/02_2_1_scatac_multiome_pancreas_priors_train
     
 Bulk data analysis using :mod:`mubind`
 -------------------------------------------------
