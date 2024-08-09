@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-    <img src="https://github.com/theislab/mubind/blob/development/docs/_static/concept_figure_repo.png?raw=true"
+    <img src="https://github.com/theislab/mubind/blob/development/docs/_static/cartoon.png?raw=true"
     width="400px" alt="mubind logo">
     </a>
 </p>
@@ -19,29 +19,27 @@
 - Complemented with velocity-driven graph representations we learn sequence-to-activity transcriptional regulators linked with developmental processes. These predictions are biologically confirmed in several systems, and reinforced through chromatin accessibility and orthogonal gene expression data across pseudotemporal order. Refer to [bioRxiv](https://www.biorxiv.org/content/10.1101/2024.08.07.605876v1) for more details.
 
 
-## Workflow
+## Workflow and model architecture
 
 <p align="center">
-    <img src="https://github.com/theislab/mubind/blob/development/docs/_static/workflow.png?raw=true"
-    width="750" alt="mubind workflow">
+    <img src="https://github.com/theislab/mubind/blob/development/docs/_static/concept_figure_repo.png?raw=true"
+    width="1000" alt="mubind workflow">
     </a>
 </p>
 
-## Model architecture
+## Other specifications
+
+- Number of cells: The scalability of this method has been tested on single-cell datasets between 1,000 and 100,000 cells.
+- Number of peaks: We have tested three-times the number of features (peaks, promoters) selected randomly and with EpiScanpy's [variability score](https://episcanpy.readthedocs.io/en/anna/api/episcanpy.pp.select_var_feature.html). In our experience, highest testing performances are obtained when using random features.  all features requires calibration of batch sizes and total GPU memory.
+- Running time: Using prior PWMs and a Graph Layer, the running time with one GPU 50 min running time when activating the Graph Layer (5,000 cells, 15,000 features). For additional memory and scaling, please refer to the documentation.
 
 <p align="center">
-    <img src="https://github.com/theislab/mubind/blob/development/docs/_static/architecture.png?raw=true"
-    width="550px" alt="mubind architecture">
+    <img src="https://github.com/theislab/mubind/blob/development/docs/_static/running_time_repo.png?raw=true"
+    width="650" alt="mubind workflow">
     </a>
 </p>
 
 
-## Scalability
-
-- Number of cells: The scalability of this method has been tested on single-cell datasets between 10,000 and 100,000 cells.
-- Number of peaks: We have tested randomly selected features, or EpiScanpy's [variability score](https://episcanpy.readthedocs.io/en/anna/api/episcanpy.pp.select_var_feature.html). Modeling all features requires calibration of batch sizes and total GPU memory.
-- Usual running times (one GPU): We get variable running times based on hyper-parameters, and they range between 10 minutes (prior filters) and 3 hours (de novo).
-    
 ## Resources
 
 Please refer to the [documentation](https://mubind.readthedocs.io/).
