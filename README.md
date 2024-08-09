@@ -31,11 +31,11 @@
 
 - Number of cells: The scalability of this method has been tested on single-cell datasets between 1,000 and 100,000 cells.
 - Number of peaks: We have tested three-times the number of features (peaks, promoters) selected randomly and with EpiScanpy's [variability score](https://episcanpy.readthedocs.io/en/anna/api/episcanpy.pp.select_var_feature.html). In our experience, highest testing performances are obtained when using random features.  all features requires calibration of batch sizes and total GPU memory.
-- Running time: Using prior PWMs and a Graph Layer, the running time with one GPU 50 min running time when activating the Graph Layer (5,000 cells, 15,000 features). For additional memory and scaling, please refer to the documentation.
+- Running time: Using a Graph Layer and PWMs in the Binding Layer, the running time with one GPU is about 50 min (5,000 cells, 15,000 features). For additional memory and scaling tips, please refer to the documentation.
 
 <p align="center">
     <img src="https://github.com/theislab/mubind/blob/development/docs/_static/running_time_repo.png?raw=true"
-    width="650" alt="mubind workflow">
+    width="450" alt="mubind workflow">
     </a>
 </p>
 
