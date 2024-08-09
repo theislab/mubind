@@ -63,46 +63,28 @@ pip install mubind
 ```bash
 pip install git+https://github.com/theislab/mubind.git@main
 ```
-
-### conda
-
-Available soon.
-
 ## Release notes
 
 See the [changelog][changelog].
 
-## Contact
-
-If you found a bug, please open an [Issue](https://github.com/theislab/mubind/issues).
-
-## Citation
-
-If mubind is useful for your research, please consider citing as:
-```bibtex
-@software{mubind,
-author = {Ibarra, Schneeberger, Erdogan, Martens, Aliee, Klein and Theis FJ},
-doi = {},
-month = {},
-title = {{mubind}},
-url = {https://github.com/theislab/mubind},
-year = {2023}
-}
-```
-
 ## Preprint
 
-t.b.c.
+If mubind is useful for your research, please consider citing as:
+
+Ibarra I.L., Schneeberger J., Erdogan E., Redl L., Martens L., Klein D., Aliee H., and Theis F.J. [***Learning sequence-based regulatory dynamics in single-cell genomics*** bioRxiv 2024.08.07.605876 (2024) doi:10.1101/2024.08.07.605876](https://www.biorxiv.org/content/10.1101/2024.08.07.605876v1).
 
 [issue-tracker]: https://github.com/theislab/mubind/issues
 [changelog]: https://mubind.readthedocs.io/latest/changelog.html
 [link-docs]: https://mubind.readthedocs.io
 [link-api]: https://mubind.readthedocs.io/latest/api.html
 
-# Acknowledgments.
+# Funding acknowledgments.
 
 - [Wellcome Leap | Delta Tissue](https://wellcomeleap.org/delta-tissue/)
 - [Helmholtz Zentrum Muenchen](https://www.helmholtz-munich.de/en/computational-health-center).
 
+## Issues
+
+If you found a bug, please open an [Issue](https://github.com/theislab/mubind/issues).
 
 Project template created using [scverse cookie template](https://github.com/scverse/cookiecutter-scverse)
