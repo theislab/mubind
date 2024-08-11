@@ -10,5 +10,7 @@ from .datasets import (
     simulate_xy,
     cisbp_hs, genre,
     archetypes, archetypes_anno, archetypes_clu, # pwm datasets
-    pancreas_multiome
+    pancreas_multiome,
+    pancreas_rna,
+    pancreas_atac,
 )

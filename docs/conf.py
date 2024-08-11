@@ -100,6 +100,18 @@ exclude_patterns = [
     "release/changelog/*",
     "**.ipynb_checkpoints",
     "build",
+    "notebooks/alphafold",
+    "notebooks/concatenation",
+    "notebooks/dinucleotide",
+    "notebooks/embedding",
+    "notebooks/equations",
+    "notebooks/evoformer",
+    "notebooks/generator",
+    "notebooks/kmc_tmp",
+    "notebooks/models",
+    "notebooks/optimize",
+    "notebooks/pbm", 
+    "notebooks/*.ipynb",
 ]
 suppress_warnings = ["download.not_readable", "git.too_shallow"]
 
@@ -153,3 +165,7 @@ html_show_sphinx = False
 
 def setup(app: Sphinx) -> None:
     app.add_css_file("css/custom.css")
+
+
+# in case of compiling errors
+nbsphinx_allow_errors = True
