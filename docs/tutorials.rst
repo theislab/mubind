@@ -1,28 +1,17 @@
-# Tutorials
-
 Tutorials
 =========
 
-**Note** Code is pre-release and outputs are provisory. Changes will occur in upcoming versions.
-
-The first half of tutorials ire focused on single-cell genomics. For general applications in genomics data (HT-SELEX, ChIP-seq, etc.), please refer to the second list of tutorials.
-
-To test library installation and dependencies, please check general pytests. In case of bugs, please submit a GitHub issue.
-https://github.com/theislab/mubind/issues
-
-Testing
-----
-    pytest tests
+The first section is focused on single-cell genomics. For general applications in genomics data (HT-SELEX, ChIP-seq, etc.), please refer to the second section (bulk).
 
 Single-cell genomics analysis using :mod:`mubind`
 -------------------------------------------------
 .. toctree::
     :maxdepth: 1
 
-    notebooks/single_cell/02_2_1_scrna_dentategyrus_priors_train
+    notebooks/single_cell/02_2_1_scrna_dentategyrus_train
     notebooks/single_cell/02_2_1_scrna_dentategyrus_priors_evaluate
     notebooks/single_cell/02_2_1_scatac_multiome_pancreas_priors_train
-    notebooks/single_cell/02_2_1_scatac_multiome_pancreas_priors_evaluate
+    notebooks/single_cell/02_2_2_scatac_multiome_pancreas_priors_evaluate
     notebooks/single_cell/02_2_1_scrna_noack_priors_train
     notebooks/single_cell/02_2_1_scrna_noack_priors_evaluate
 
@@ -33,7 +22,9 @@ Bulk data analysis using :mod:`mubind`
 
     notebooks/batch/01_CTCF_two_batches
 
-Missing tutorials
+Troubleshooting
 -------------------------------------------------
 
-If you wish to suggest a public dataset for a tutorial, please submit an [issue](https://github.com/theislab/mubind/issues).
+**Note** Notebooks outputs are provisory while release documentation is updated. 
+
+If you find issues while executing the tutorials, or wish to suggest a dataset for a tutorial, please reach out and/or submit an issue at https://github.com/theislab/mubind/issues

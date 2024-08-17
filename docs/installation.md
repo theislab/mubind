@@ -1,6 +1,8 @@
 Installation
 ============
-`mubind` has been tested with Python version greater than 3.8.
+`mubind` main tests have been tested with Python versions greater than >=3.9, and is available via PyPI
+https://pypi.org/project/mubind/
+
 
 PyPI
 ----
@@ -11,3 +13,8 @@ Development version
 -------------------
 
     pip install git+https://github.com/theislab/mubind.git@main
+
+Pytest
+----
+
+    python -m pytest tests
