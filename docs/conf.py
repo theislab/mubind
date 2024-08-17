@@ -100,6 +100,7 @@ exclude_patterns = [
     "release/changelog/*",
     "**.ipynb_checkpoints",
     "build",
+    "_build",
     "notebooks/alphafold",
     "notebooks/concatenation",
     "notebooks/dinucleotide",

@@ -12,6 +12,15 @@
     </a>
 </p>
 
+
+## Documentation and tutorials
+
+Please refer to the main documentation and tutorials at
+
+**https://mubind.readthedocs.io**
+
+**https://mubind.readthedocs.io/en/latest/tutorials.html**
+
 ## Model highlights
 
 - MuBind is a deep learning model that can learn DNA-sequence features predictive of cell transitions in single-cell genomics data, using graph representations and sequence-activity across cells. The codebase is written in PyTorch.
@@ -38,13 +47,6 @@
     width="450" alt="mubind workflow">
     </a>
 </p>
-
-
-## Resources
-
-Please refer to the [documentation](https://mubind.readthedocs.io/).
-
-- [Tutorials](https://mubind.readthedocs.io/en/latest/tutorials.html)
 
 ## Installation
 
