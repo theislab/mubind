@@ -12,5 +12,6 @@ from .datasets import (
     archetypes, archetypes_anno, archetypes_clu, # pwm datasets
     pancreas_multiome,
     pancreas_rna,
+    pancreas_rna_pytest,
     pancreas_atac,
 )

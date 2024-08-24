@@ -828,10 +828,10 @@ class Mubind(tnn.Module):
         self.r2_history += r2_history
 
     def corr_etas_libsizes(self, train):
-        etas = self.get_log_etas().detach().numpy().cpu().flatten() if self.device != 'cpu' else self.get_log_etas().detach().flatten()
-        lib_sizes = train.dataset.rounds.sum(axis=0).detach().numpy().cpu().flatten() if self.device != 'cpu' else train.dataset.rounds.sum(axis=0).flatten()
-        print('etas', etas, etas.shape, etas.device)
-        print('libsizes', lib_sizes, lib_sizes.shape)
+        etas = self.get_log_etas().detach().cpu().numpy().flatten() if self.device != 'cpu' else self.get_log_etas().detach().flatten()
+        lib_sizes = train.dataset.rounds.sum(axis=0) if self.device != 'cpu' else train.dataset.rounds.sum(axis=0).flatten()
+        # print('etas', etas, etas.shape, etas.device)
+        # print('libsizes', lib_sizes, lib_sizes.shape)
         return 'etas corr with lib_sizes (before refinement)', spearmanr(etas, lib_sizes)
 
     def optimize_iterative(self,

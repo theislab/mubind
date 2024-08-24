@@ -49,7 +49,12 @@ def test_seq_conversion():
 
     assert (x2 == strs).all()
 
+def test_download_and_load_dataset():
+    import warnings
+    ad = mb.datasets.pancreas_rna_pytest()
+    return None
 
+    
 def test_dataset_memory_increase():
     import warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning)

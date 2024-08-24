@@ -530,10 +530,27 @@ def pancreas_rna(
 ):
     from scanpy import read
     # rna
-    url = 'https://www.dropbox.com/scl/fi/ryb3q25n0kc2vw297f2xd/pancreas_multiome_2022_processed_rna_velocities_2024.h5ad?rlkey=in0qlpv038cn6wxrops1wsxgm&dl=0'
+    url = 'https://www.dropbox.com/scl/fi/ryb3q25n0kc2vw297f2xd/pancreas_multiome_2022_processed_rna_velocities_2024.h5ad?rlkey=in0qlpv038cn6wxrops1wsxgm&dl=1'
     print(os.path.exists(file_path), file_path)
+    print('reading RNA')
     adata = read(file_path, backup_url=url, sparse=True, cache=True)
     adata.var_names_make_unique()
+    print('opening RNA successful')
+    return adata
+
+def pancreas_rna_pytest(
+    file_path: Optional[
+        Union[str, Path]
+    ] = "data/scatac/pancreas_multiome/pancreas_multiome_2022_processed_rna_velocities_2024_pytest.h5ad"
+):
+    from scanpy import read
+    # rna
+    url = 'https://www.dropbox.com/scl/fi/93hw0wru56ljryo6m17d9/pancreas_multiome_2022_processed_rna_velocities_2024_pytest.h5ad?rlkey=x8r14un3gu8ahyipcylwxytns&dl=1'
+    print(os.path.exists(file_path), file_path)
+    print('reading RNA')
+    adata = read(file_path, backup_url=url, sparse=True, cache=True)
+    adata.var_names_make_unique()
+    print('opening RNA successful')
     return adata
 
 def pancreas_atac(
@@ -543,9 +560,11 @@ def pancreas_atac(
 ):
     from scanpy import read
     # atac
-    url = 'https://www.dropbox.com/scl/fi/53wv4v7tbnsmr12fbmea7/pancreas_multiome_2022_processed_atac.h5ad?rlkey=1kf352wya0pzffkn990wkbwmd&e=1&st=m6gv9hp5&dl=0'
+    url = 'https://www.dropbox.com/scl/fi/53wv4v7tbnsmr12fbmea7/pancreas_multiome_2022_processed_atac.h5ad?rlkey=1kf352wya0pzffkn990wkbwmd&e=1&st=m6gv9hp5&dl=1'
     print(os.path.exists(file_path), file_path)
+    print('reading ATAC')
     adata = read(file_path, backup_url=url, sparse=True, cache=True)
+    print('opening ATAC successful')
     adata.var_names_make_unique()
     return adata
 
