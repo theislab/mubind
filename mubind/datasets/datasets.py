@@ -12,7 +12,8 @@ from scipy import sparse
 import pandas as pd
 import os
 import pickle
-
+import urllib.request
+ 
 # Class for reading training/testing SELEX dataset files.
 class SelexDataset(tdata.Dataset):
     def __init__(self, df, n_rounds=None, enr_series=True, single_encoding_step=False, store_rev=False,
@@ -476,23 +477,46 @@ def genre(**kwargs):
     return pwms
 
 def archetypes_anno(**kwargs):
-    # read reference clusters
-    archetypes_dir = os.path.join(mb.bindome.constants.ANNOTATIONS_DIRECTORY, 'archetypes')
-    anno = pd.read_excel(os.path.join(archetypes_dir, 'motif_annotations.xlsx'), sheet_name='Archetype clusters')
+    url = kwargs['url']
+    # read reference clusters    
+    archetypes_dir = 'data/archetypes'
+    archetypes_path = os.path.join(archetypes_dir, 'motif_annotations.xlsx')
+
+    # save to avoid future redownloads
+    if not os.path.exists(archetypes_path):
+       if not os.path.exists(archetypes_dir):
+            os.makedirs(archetypes_dir)
+       urllib.request.urlretrieve(kwargs['url'], archetypes_path)
+
+    anno = pd.read_excel(archetypes_path, sheet_name='Archetype clusters')
     return anno
 
 def archetypes_clu(**kwargs):
-    archetypes_dir = os.path.join(mb.bindome.constants.ANNOTATIONS_DIRECTORY, 'archetypes')
-    clu = pd.read_excel(os.path.join(archetypes_dir, 'motif_annotations.xlsx'), sheet_name='Motifs')
+    url = kwargs['url']
+    archetypes_dir = 'data/archetypes'
+    archetypes_path = os.path.join(archetypes_dir, 'motif_annotations.xlsx')
+    clu = pd.read_excel(archetypes_path, sheet_name='Motifs')
     return clu
 
-def archetypes(**kwargs):
+def archetypes_pickle(**kwargs):
+    # read reference clusters    
+    archetypes_dir = 'data/archetypes'
+    archetypes_path = os.path.join(archetypes_dir, 'archetypes_data.pkl')
+
+    # save to avoid future redownloads
+    if not os.path.exists(archetypes_path):
+       if not os.path.exists(archetypes_dir):
+            os.makedirs(archetypes_dir)
+       # print('downloading...')
+       urllib.request.urlretrieve(kwargs['url'], archetypes_path)
+
+    ppm_by_name = pickle.load(open(archetypes_path, 'rb'))
+    return ppm_by_name
+
+
+def archetypes_meme(**kwargs):
     ppm_by_name = {}
-    archetypes_dir = os.path.join(mb.bindome.constants.ANNOTATIONS_DIRECTORY, 'archetypes')
-
-    anno = archetypes_anno(**kwargs)
-    clu = archetypes_anno(**kwargs)
-
+    archetypes_dir = 'data/archetypes'
     # read PFM across meme files
     for f in os.listdir(archetypes_dir):
         if f.endswith('.meme'):
@@ -513,7 +537,22 @@ def archetypes(**kwargs):
                     ppm.index = 'A', 'C', 'G', 'T'
                     ppm_by_name[name] = ppm
     print('# motifs loaded %i' % (len(ppm_by_name)))
+    return ppm_by_name
 
+def archetypes(**kwargs):
+    # annotation table
+    url = 'https://www.dropbox.com/scl/fi/odxcg72nj3djbfz6r9nq8/motif_annotations.xlsx?rlkey=qlbyx9m7dj6qqui9ct80q9ejc&dl=1'
+    kwargs['url'] = url
+    archetypes_dir = 'data/archetypes'
+    anno = archetypes_anno(**kwargs)
+    clu = archetypes_anno(**kwargs)
+
+    # PWM weights
+    url = 'https://www.dropbox.com/scl/fi/gytniua2uay1p6st0svh9/archetypes_data.pkl?rlkey=qe7mzhwaiqfpkjbdj31ijx193&dl=1'
+    kwargs['url'] = url
+    ppm_by_name = archetypes_pickle(**kwargs)
+
+    # print(clu)
     # return non-redundant groups
     reduced_groups = []
     for k in anno['Seed_motif']:
@@ -530,10 +569,27 @@ def pancreas_rna(
 ):
     from scanpy import read
     # rna
-    url = 'https://www.dropbox.com/scl/fi/ryb3q25n0kc2vw297f2xd/pancreas_multiome_2022_processed_rna_velocities_2024.h5ad?rlkey=in0qlpv038cn6wxrops1wsxgm&dl=0'
+    url = 'https://www.dropbox.com/scl/fi/ryb3q25n0kc2vw297f2xd/pancreas_multiome_2022_processed_rna_velocities_2024.h5ad?rlkey=in0qlpv038cn6wxrops1wsxgm&dl=1'
     print(os.path.exists(file_path), file_path)
+    # print('reading RNA')
     adata = read(file_path, backup_url=url, sparse=True, cache=True)
     adata.var_names_make_unique()
+    # print('opening RNA successful')
+    return adata
+
+def pancreas_rna_pytest(
+    file_path: Optional[
+        Union[str, Path]
+    ] = "data/scatac/pancreas_multiome/pancreas_multiome_2022_processed_rna_velocities_2024_pytest.h5ad"
+):
+    from scanpy import read
+    # rna
+    url = 'https://www.dropbox.com/scl/fi/93hw0wru56ljryo6m17d9/pancreas_multiome_2022_processed_rna_velocities_2024_pytest.h5ad?rlkey=x8r14un3gu8ahyipcylwxytns&dl=1'
+    print(os.path.exists(file_path), file_path)
+    # print('reading RNA')
+    adata = read(file_path, backup_url=url, sparse=True, cache=True)
+    adata.var_names_make_unique()
+    # print('opening RNA successful')
     return adata
 
 def pancreas_atac(
@@ -543,9 +599,11 @@ def pancreas_atac(
 ):
     from scanpy import read
     # atac
-    url = 'https://www.dropbox.com/scl/fi/53wv4v7tbnsmr12fbmea7/pancreas_multiome_2022_processed_atac.h5ad?rlkey=1kf352wya0pzffkn990wkbwmd&e=1&st=m6gv9hp5&dl=0'
+    url = 'https://www.dropbox.com/scl/fi/53wv4v7tbnsmr12fbmea7/pancreas_multiome_2022_processed_atac.h5ad?rlkey=1kf352wya0pzffkn990wkbwmd&e=1&st=m6gv9hp5&dl=1'
     print(os.path.exists(file_path), file_path)
+    print('reading ATAC')
     adata = read(file_path, backup_url=url, sparse=True, cache=True)
+    print('opening ATAC successful')
     adata.var_names_make_unique()
     return adata
 
