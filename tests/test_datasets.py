@@ -52,6 +52,7 @@ def test_seq_conversion():
 
 def test_download_and_load_dataset():
     import warnings
+    import scanpy as sc
     ad = mb.datasets.pancreas_rna_pytest()
     return None
 
