@@ -4,6 +4,7 @@ import torch
 import torch.optim as topti
 import torch.utils.data as tdata
 import mubind as mb
+import pytest
 
 def test_dataset_index_int():
     import warnings
@@ -54,6 +55,11 @@ def test_download_and_load_dataset():
     ad = mb.datasets.pancreas_rna_pytest()
     return None
 
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning")
+def test_archetypes():
+    import warnings
+    data = mb.datasets.archetypes()
+    return None
     
 def test_dataset_memory_increase():
     import warnings
