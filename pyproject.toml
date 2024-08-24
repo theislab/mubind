@@ -25,7 +25,7 @@ requires-python = ">=3.9" # for GPU-rapids
 license = {file = "LICENSE"}
 readme = "README.md"
 dependencies = ["seaborn", "scikit-learn", "pandas", "unidecode", "matplotlib", "scipy", "numpy>=1.22", "torch",
-                "logomaker", "biopython", "numba", "pytest", "pytest-cov", "openpyxl", "tqdm", "anndata"]
+                "logomaker", "biopython", "numba", "pytest", "pytest-cov", "openpyxl", "tqdm", "scanpy"]
 
 [project.optional-dependencies]
 dev = [
