@@ -18,16 +18,19 @@
    [BMC Bioinformatics](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-021-04201-9)
 
 * **[Klein2023]**
+
    Klein *et al.* (2023)
    *Klein, D. et al. Mapping cells through time and space with moscot.*
    [bioRxiv](https://www.biorxiv.org/content/10.1101/2023.05.11.540374v2)
 
 * **[Hochgerner2018]**
+
    Hochgerner *et al.* (2018)
    *Conserved properties of dentate gyrus neurogenesis across postnatal development revealed by single-cell RNA sequencing*
    [Nature Neuroscience](https://www.nature.com/articles/s41593-017-0056-2)
 
 * **[Noack2022]**
+
    Noack *et al.* (2018)
    *Multimodal profiling of the transcriptional regulatory landscape of the developing mouse cortex identifies Neurog2 as a key epigenome remodeler*
    [Nature Neuroscience](https://www.nature.com/articles/s41593-021-01002-4)
