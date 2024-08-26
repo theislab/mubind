@@ -16,3 +16,8 @@
    Bartlett *et al.* (2021)
    *Fusion of single-cell transcriptome and DNA-binding data, for genomic network inference in cortical development*
    [BMC Bioinformatics](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-021-04201-9)
+
+* **[Klein2023]**
+   Klein *et al.* (2023)
+   *Klein, D. et al. Mapping cells through time and space with moscot.*
+   [bioRxiv](https://www.biorxiv.org/content/10.1101/2023.05.11.540374v2)
