@@ -24,7 +24,7 @@ version = "0.2.2"
 requires-python = ">=3.9" # for GPU-rapids
 license = {file = "LICENSE"}
 readme = "README.md"
-dependencies = ["seaborn", "scikit-learn", "pandas", "unidecode", "matplotlib", "scipy", "numpy>=1.22", "torch",
+dependencies = ["seaborn", "scikit-learn", "pandas", "unidecode", "matplotlib", "scipy==1.13.1", "numpy>=1.22", "torch",
                 "logomaker", "biopython", "numba", "pytest", "pytest-cov", "openpyxl", "tqdm", "scanpy"]
 
 [project.optional-dependencies]
