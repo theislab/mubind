@@ -477,6 +477,10 @@ def genre(**kwargs):
     return pwms
 
 def archetypes_anno(**kwargs):
+    if not 'url' in kwargs:
+        url = 'https://www.dropbox.com/scl/fi/odxcg72nj3djbfz6r9nq8/motif_annotations.xlsx?rlkey=qlbyx9m7dj6qqui9ct80q9ejc&dl=1'
+        kwargs['url'] = url
+    
     url = kwargs['url']
     # read reference clusters    
     archetypes_dir = 'data/archetypes'
@@ -492,6 +496,10 @@ def archetypes_anno(**kwargs):
     return anno
 
 def archetypes_clu(**kwargs):
+    if not 'url' in kwargs:
+        url = 'https://www.dropbox.com/scl/fi/odxcg72nj3djbfz6r9nq8/motif_annotations.xlsx?rlkey=qlbyx9m7dj6qqui9ct80q9ejc&dl=1'
+        kwargs['url'] = url
+
     url = kwargs['url']
     archetypes_dir = 'data/archetypes'
     archetypes_path = os.path.join(archetypes_dir, 'motif_annotations.xlsx')
